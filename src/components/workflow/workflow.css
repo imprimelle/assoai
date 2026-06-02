@@ -1,0 +1,43 @@
+
+.react-flow__edge-path {
+  stroke-width: 2;
+  transition: stroke 0.2s, stroke-width 0.2s;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 3;
+}
+
+.react-flow__handle {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.react-flow__handle:hover {
+  opacity: 1;
+}
+
+.react-flow__node.selected .react-flow__handle {
+  opacity: 1;
+}
+
+.react-flow__minimap {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.react-flow__controls {
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: white;
+  border: none;
+  border-bottom: 1px solid #eee;
+}
+
+.react-flow__controls-button:hover {
+  background: #f8f8f8;
+}

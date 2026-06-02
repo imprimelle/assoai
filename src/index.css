@@ -1,0 +1,109 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* 1) Import a nicer font at the top of index.css */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&display=swap');
+
+/* 2) Update your logo styles */
+.logo-text {
+  /* Use Poppins for a friendlier, modern look */
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;           /* Semi-bold for balance */
+  font-size: 1rem;          /* Slightly larger */
+  color: #8E9196;             /* Tailwind gray-500 */
+  letter-spacing: -0.5px;
+}
+
+.logo-highlight {
+  color: #FF8139;             /* Tailwind red-500 */
+}
+
+/* Définition des variables pour les bordures arrondies */
+:root {
+  --radius: 0.75rem;
+  --radius-md: 0.5rem;
+  --radius-sm: 0.25rem;
+}
+
+/* Custom map marker styles */
+.marker-pin {
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 0;
+  position: absolute;
+  transform: rotate(-45deg);
+  left: 50%;
+  top: 50%;
+  margin: -15px 0 0 -15px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.marker-pin::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  margin: 8px 0 0 8px;
+  background: white;
+  position: absolute;
+  border-radius: 50%;
+}
+
+.custom-div-icon {
+  background: none;
+  border: none;
+}
+
+/* Global UI styling for quotes, modals, and notifications */
+.chat-quote,
+.pdf-action-message,
+.quote-message {
+  background-color: white !important;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Style for popups, toasts and other notifications */
+.toast-container,
+.notification-popup,
+[role="tooltip"],
+[data-radix-popper-content-wrapper] {
+  background-color: white !important;
+  border-radius: 0.5rem !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Responsive styles for mobile */
+@media (max-width: 768px) {
+  .chat-panel-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 40;
+    display: none;
+  }
+
+  .chat-panel-overlay.active {
+    display: block;
+  }
+  
+  /* Improve tap targets on mobile */
+  button, 
+  .clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Better text sizing for mobile */
+  .mobile-text-base {
+    font-size: 16px !important;
+  }
+}
+
+/* Apply consistent rounded corners on all buttons */
+@layer components {
+  button {
+    @apply rounded-lg;
+  }
+}
+

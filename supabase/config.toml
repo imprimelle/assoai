@@ -1,0 +1,9 @@
+
+project_id = "szficuyofonohgrwxpco"
+
+[functions.relay-document]
+verify_jwt = false
+
+# Allow get_template_counts function to be called without JWT verification
+[functions.get_template_counts]
+verify_jwt = false
