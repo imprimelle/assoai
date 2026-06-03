@@ -16,6 +16,8 @@ create table if not exists app_users (
   name        text default '',
   session_id  text,
   role        text default 'user',
+  service     text,
+  authorized  boolean default false,
   created_at  timestamptz default now()
 );
 

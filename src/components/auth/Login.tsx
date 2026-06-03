@@ -44,10 +44,6 @@ const Login: React.FC<LoginProps> = ({ onSuccess }) => {
         setError("Utilisateur introuvable.");
         return;
       }
-      if (!data.authorized) {
-        setError("Accès non autorisé.");
-        return;
-      }
 
       // Cast the role from database to our accepted types
       const userRole = data.role as "agent" | "super-agent" | undefined;
@@ -82,7 +78,7 @@ const Login: React.FC<LoginProps> = ({ onSuccess }) => {
       const { error: supaErr } = await supabase
         .from("app_users")
         .insert([
-          { email, name, service, session_id, authorized: true, role }
+          { email, name, session_id, role }
         ]);
 
       if (supaErr) {
