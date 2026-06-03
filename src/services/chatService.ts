@@ -2,6 +2,7 @@
 import type { MessagePayload, ResponsePayload, TemplateType, PromptGuidelines } from "@/types";
 import { determineMessagePayloadType } from "./webhook";
 import { appLogger } from "@/utils/logger";
+import { remoteLog } from "./loggerService";
 
 const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
 const DEEPSEEK_KEY = import.meta.env.VITE_DEEPSEEK_KEY || "";
@@ -44,6 +45,11 @@ export async function sendChatRequest(payload: MessagePayload): Promise<Response
   appLogger.info("🤖 Chat direct — début", {
     sessionId: payload.sessionId,
     messageType: payload.message.type,
+    hasTemplate: !!payload.message.template,
+  });
+  remoteLog.info("chat", "Début requête IA", {
+    msgType: payload.message.type,
+    contentLen: payload.message.content?.length || 0,
     hasTemplate: !!payload.message.template,
   });
 

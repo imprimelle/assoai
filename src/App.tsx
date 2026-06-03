@@ -24,6 +24,8 @@ import Dashboard from "./pages/Dashboard";
 import { ChatProvider } from "./contexts/ChatContext";
 import SlidingChatPanel from "./components/chat/SlidingChatPanel";
 import { NotificationHandler } from "./components/notifications";
+import { ErrorBoundary } from "./components/shared/ErrorBoundary";
+import { initGlobalErrorLogger } from "./services/loggerService";
 
 // Configuration du client React Query
 const queryClient = new QueryClient({
@@ -65,6 +67,9 @@ const AppContent = () => {
       }
     };
     initRealtime();
+
+    // Initialiser le logger global (envoi erreurs vers Supabase)
+    initGlobalErrorLogger();
   }, []);
 
   // Si on a un user mais pas de session en local, on va la piocher en base
@@ -114,6 +119,7 @@ const AppContent = () => {
 
   return (
     <ChatProvider>
+      <ErrorBoundary>
       <div className="flex flex-col h-screen">
         {/* Notification Handler - Always present to handle notifications */}
         {currentUser && <NotificationHandler />}
@@ -210,6 +216,7 @@ const AppContent = () => {
         {/* Panneau de chat coulissant */}
         {renderChatPanel()}
       </div>
+      </ErrorBoundary>
     </ChatProvider>
   );
 };
