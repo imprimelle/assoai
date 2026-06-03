@@ -49,32 +49,46 @@ const ProductSuggestions: React.FC<ProductSuggestionsProps> = ({
   // Process products data to include both products and variants
   useEffect(() => {
     const processProducts = () => {
-      const items: ProductSuggestionItem[] = [];
-      
-      products.forEach(product => {
-        // Add main product
-        items.push({
-          id: product.id,
-          name: product.name,
-          price: product.variants[0]?.price || 0,
-          isVariant: false,
-          imageUrl: product.main_image_url
+      try {
+        const items: ProductSuggestionItem[] = [];
+        
+        if (!Array.isArray(products)) {
+          setSuggestions([]);
+          return;
+        }
+        
+        products.forEach(product => {
+          if (!product) return;
+          // Add main product
+          items.push({
+            id: product.id,
+            name: product.name || "Sans nom",
+            price: (product.variants && Array.isArray(product.variants) && product.variants[0]?.price) || 0,
+            isVariant: false,
+            imageUrl: product.main_image_url
+          });
+          
+          // Add variants if any
+          if (Array.isArray(product.variants)) {
+            product.variants.forEach(variant => {
+              if (!variant) return;
+              items.push({
+                id: variant.id || '',
+                name: variant.name || 'Variante',
+                price: variant.price || 0,
+                isVariant: true,
+                parentProduct: product.name,
+                imageUrl: variant.image_url || product.main_image_url
+              });
+            });
+          }
         });
         
-        // Add variants if any
-        product.variants.forEach(variant => {
-          items.push({
-            id: variant.id,
-            name: variant.name,
-            price: variant.price,
-            isVariant: true,
-            parentProduct: product.name,
-            imageUrl: variant.image_url || product.main_image_url
-          });
-        });
-      });
-      
-      setSuggestions(items);
+        setSuggestions(items);
+      } catch (err) {
+        console.error("ProductSuggestions error:", err);
+        setSuggestions([]);
+      }
     };
     
     processProducts();
