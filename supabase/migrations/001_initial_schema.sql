@@ -38,9 +38,7 @@ create table if not exists messages (
 
 create index idx_messages_session on messages(session_id);
 create index idx_messages_template_type on messages(template_type);
-create index idx_messages_timestamp on messages(timestamp desc);
-
--- 2.3 Projets
+create index idx_messages_timestamp on messages(timestamp desc);\n\n-- 2.3 Produits (catalogue)\ncreate table if not exists products (\n  id                  uuid primary key default uuid_generate_v4(),\n  name                text not null,\n  description         text default '',\n  main_image_url      text,\n  gallery_images      jsonb default '[]'::jsonb,\n  variants            jsonb default '[]'::jsonb,\n  manufacturing_rules jsonb default '[]'::jsonb,\n  created_at          timestamptz default now(),\n  updated_at          timestamptz default now(),\n  created_by          text,\n  session_id          text\n);\n\n-- 2.4 Projets
 create table if not exists projects (
   id          uuid primary key default uuid_generate_v4(),
   name        text not null,
@@ -199,6 +197,15 @@ create policy "Mise à jour projects" on projects
 create policy "Suppression projects" on projects
   for delete using (true);
 
+-- 5.3 projects
+alter table projects enable row level security;
+
+create policy "projects_all" on projects for all using (true) with check (true);
+
+-- products
+alter table products enable row level security;
+create policy "products_all" on products for all using (true) with check (true);
+
 -- 5.4 notifications
 create policy "Lecture publique notifications" on notifications
   for select using (true);
@@ -214,4 +221,5 @@ create policy "Mise à jour notifications" on notifications
 
 alter publication supabase_realtime add table messages;
 alter publication supabase_realtime add table projects;
+alter publication supabase_realtime add table products;
 alter publication supabase_realtime add table notifications;
