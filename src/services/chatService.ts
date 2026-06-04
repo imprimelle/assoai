@@ -47,7 +47,11 @@ export async function sendChatRequest(
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const roundStart = Date.now();
       const body: any = { model: MODEL, messages, temperature: 0.3, max_tokens: 4096 };
-      if (tools.length > 0) body.tools = tools;
+      if (tools.length > 0) {
+        body.tools = tools;
+      }
+      body.response_format = { type: "json_object" };
+      body.stop = ["```", "\n\n\n"];
 
       remoteLog.debug("chat", `Round ${round + 1}/${MAX_TOOL_ROUNDS} → DeepSeek`, {
         model: MODEL,
