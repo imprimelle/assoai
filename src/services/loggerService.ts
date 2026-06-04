@@ -38,6 +38,14 @@ async function flushBuffer() {
   }
 }
 
+export async function flushLogsNow() {
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  return flushBuffer();
+}
+
 function scheduleFlush() {
   if (flushTimer) return;
   flushTimer = setTimeout(() => {
@@ -47,6 +55,10 @@ function scheduleFlush() {
 }
 
 export const remoteLog = {
+  async flush() {
+    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+    if (buffer.length > 0) { await flushBuffer(); }
+  },
   log(level: LogLevel, source: string, message: string, details?: Record<string, any>) {
     // Toujours dans la console
     const fn = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
