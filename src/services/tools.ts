@@ -122,20 +122,23 @@ export async function executeToolCall(toolName: string, args: Record<string, any
 
       case "search_factures": {
         const { query } = args;
+        // PostgREST limite ->->> à 1 niveau → on filtre côté JS
         const { data, error } = await supabase
           .from("messages")
           .select("template_data")
           .eq("template_type", "facture")
-          .or(
-            `template_data->data->>factureNumero.ilike.%${query}%,` +
-            `template_data->data->>client->>nom.ilike.%${query}%`
-          )
-          .filter("template_data->data->>is_latest", "eq", "true")
-          .limit(3);
+          .limit(50);
         if (error) throw error;
+        const q = query.toLowerCase();
+        const filtered = (data || []).filter(m => {
+          const d = ((m.template_data as any)?.data) || {};
+          const num = (d.factureNumero || "").toLowerCase();
+          const client = (d.client?.nom || "").toLowerCase();
+          return num.includes(q) || client.includes(q);
+        }).slice(0, 3);
         result = {
           success: true,
-          data: (data || []).map(m => {
+          data: filtered.map(m => {
             const d = (m.template_data as any)?.data || {};
             return { factureNumero: d.factureNumero, dateEmission: d.dateEmission, client: d.client, total: d.total, statut: d.statut, details: d.details };
           })
@@ -145,22 +148,25 @@ export async function executeToolCall(toolName: string, args: Record<string, any
 
       case "search_commandes": {
         const { query } = args;
+        // PostgREST limite ->->> à 1 niveau → on filtre côté JS
         const { data, error } = await supabase
           .from("messages")
           .select("template_data")
           .eq("template_type", "commande")
-          .or(
-            `template_data->data->>commandeNumero.ilike.%${query}%,` +
-            `template_data->data->>client->>nom.ilike.%${query}%`
-          )
-          .filter("template_data->data->>is_latest", "eq", "true")
-          .limit(3);
+          .limit(50);
         if (error) throw error;
+        const q = query.toLowerCase();
+        const filtered = (data || []).filter(m => {
+          const d = ((m.template_data as any)?.data) || {};
+          const num = (d.commandeNumero || d.numero || "").toLowerCase();
+          const client = (d.client?.nom || "").toLowerCase();
+          return num.includes(q) || client.includes(q);
+        }).slice(0, 3);
         result = {
           success: true,
-          data: (data || []).map(m => {
+          data: filtered.map(m => {
             const d = (m.template_data as any)?.data || {};
-            return { commandeNumero: d.commandeNumero, dateCommande: d.dateCommande, dateLivraison: d.dateLivraison, client: d.client, total: d.total, statut: d.statut, items: d.items };
+            return { commandeNumero: d.commandeNumero || d.numero, dateCommande: d.dateCommande, dateLivraison: d.dateLivraison, client: d.client, total: d.total, statut: d.statut, items: d.items };
           })
         };
         break;
@@ -185,16 +191,20 @@ export async function executeToolCall(toolName: string, args: Record<string, any
           break;
         }
         const p = data[0];
-        const dcLen = (p.manufacturing_rules as any)?.description_complete?.length || 0;
-        const exLen = (p.manufacturing_rules as any)?.exemples?.length || 0;
-        remoteLog.debug("tool", `  get_fabrication_rules → "${p.name}"`, { rules_chars: dcLen, exemple_chars: exLen });
+        const mr = (p.manufacturing_rules as any) || {};
+        const dcLen = mr.description_complete?.length || 0;
+        const exLen = mr.exemples?.length || 0;
+        remoteLog.debug("tool", "  get_fabrication_rules -> " + p.name, { rules_chars: dcLen, exemple_chars: exLen });
         result = {
           success: true,
           data: {
             type: p.name,
-            description: p.description,
-            manufacturing_rules: p.manufacturing_rules || [],
-            exemple_cdc: p.exemple || null
+            description: (p.description || "").substring(0, 500),
+            manufacturing_rules: {
+              description_complete: (mr.description_complete || "").substring(0, 2000) || null,
+              exemples: (mr.exemples || "").substring(0, 1000) || null,
+            },
+            exemple_cdc: (p.exemple || mr.exemples || "").substring(0, 500) || null
           }
         };
         break;
