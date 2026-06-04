@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Image, ListIcon, Mic, Send, Sparkles, SunIcon, Plus, Check, X, FileText, Video, Upload, Loader } from "lucide-react";
+import { Image, ListIcon, Mic, Send, Sparkles, SunIcon, Plus, Check, X, FileText, Video, Upload, Loader, Bot } from "lucide-react";
 import { MessageType, TemplateType, TemplateData, FactureData, DevisData, CahierDesChargesData } from "@/types";
 import { Toggle } from "@/components/ui/toggle";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,6 +8,9 @@ import { TemplatePreview } from "@/components/templates";
 import TemplateQuoteCard from "@/components/ui/TemplateQuoteCard";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
+
+import type { AgentMode } from "@/services/agentPrompts";
+import { AGENTS } from "@/services/agentPrompts";
 
 interface MessageInputProps {
   onSendMessage: (content: string, attachments: File[], template?: { templateType: TemplateType; data: TemplateData }) => void;
@@ -18,6 +21,8 @@ interface MessageInputProps {
   } | null;
   onCancelTemplate: () => void;
   isLoading?: boolean;
+  activeAgent?: AgentMode;
+  onAgentChange?: (agent: AgentMode) => void;
 }
 
 const MessageInput: React.FC<MessageInputProps> = ({ 
@@ -25,7 +30,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
   hasUserSentMessage, 
   activeTemplate,
   onCancelTemplate,
-  isLoading = false
+  isLoading = false,
+  activeAgent = "auto",
+  onAgentChange
 }) => {
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -427,16 +434,39 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 </DropdownMenuContent>
               </DropdownMenu>
             </AnimatePresence>
-            
-            <motion.button
-              key="list-button"
-              className={getActionButtonStyles(false)}
-              whileTap={{ scale: 0.95 }}
-              aria-label="Liste de choix"
-              disabled={isLoading}
-            >
-              <ListIcon className="h-4 w-4" />
-            </motion.button>
+            \n            <AnimatePresence>
+              {/* Menu déroulant pour le choix d'agent */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <motion.button
+                    key="agent-button"
+                    className={getActionButtonStyles(activeAgent !== "auto")}
+                    whileTap={{ scale: 0.95 }}
+                    aria-label="Choisir un agent"
+                    disabled={isLoading}
+                    title={AGENTS[activeAgent]?.description || "Choisir un agent"}
+                  >
+                    <span className="text-sm">{AGENTS[activeAgent]?.icon || "🔄"}</span>
+                  </motion.button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="bg-white border border-gray-200 rounded-lg shadow-md p-2 min-w-[180px]">
+                  {(Object.entries(AGENTS) as [AgentMode, typeof AGENTS[keyof typeof AGENTS]][]).map(([mode, cfg]) => (
+                    <DropdownMenuItem
+                      key={mode}
+                      onClick={() => onAgentChange?.(mode)}
+                      className={`flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-3 py-2 rounded text-sm ${activeAgent === mode ? "bg-orange-50 font-medium" : ""}`}
+                    >
+                      <span className="text-base">{cfg.icon}</span>
+                      <div className="flex flex-col">
+                        <span>{cfg.label}</span>
+                        <span className="text-xs text-gray-400">{cfg.description}</span>
+                      </div>
+                      {activeAgent === mode && <Check className="h-4 w-4 text-brand-orange ml-auto" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </AnimatePresence>
             
             <AnimatePresence>
               <motion.button
