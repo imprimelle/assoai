@@ -18,8 +18,11 @@ import {
   CommandeData,
   CahierDesChargesData
 } from "@/types";
-import { sendMessageToWebhook, determineMessagePayloadType } from "@/services/webhook";
-import { generatePDF } from "@/services/pdfService";
+import { sendChatRequest } from "@/services/chatService";
+import { generatePDFClient } from "@/services/pdfGenerator";
+import { determineMessagePayloadType } from "@/services/webhook";
+import type { AgentMode } from "@/services/agentPrompts";
+import { AGENTS } from "@/services/agentPrompts";
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import ChatMessage from "./ChatMessage";
@@ -58,6 +61,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ user, persistentSessionId
     metadata?: TemplateMetadata;
   } | null>(null);
   const [pdfActions, setPdfActions] = useState<PDFAction[]>([]);
+  const [activeAgent, setActiveAgent] = useState<AgentMode>("auto");
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -311,7 +315,7 @@ const lastVersion = finalTemplate
       
       const payloadType = determineMessagePayloadType(hasText, hasAttachments, hasTemplate);
       
-      // Préparer le payload pour le webhook selon le format unifié
+      // Préparer le payload pour l'IA
       const payload: MessagePayload = {
         userId: user.id,
         sessionId: sessionId.current,
@@ -339,8 +343,8 @@ const lastVersion = finalTemplate
         );
       }
       
-      // Envoyer le message au webhook
-      const response = await sendMessageToWebhook(payload);
+      // Envoyer le message à l'IA avec l'agent sélectionné
+      const response = await sendChatRequest(payload, activeAgent);
       
       // Créer un message de réponse avec un UUID v4 réel
       const responseMessageId = crypto.randomUUID();
@@ -705,6 +709,26 @@ const getDocumentNumber = (templateType: TemplateType, data: TemplateData): stri
             </div>
           </ScrollArea>
           
+          {/* Sélecteur d'agent */}
+          <div className="flex items-center justify-center gap-1 px-4 py-1.5 bg-gray-50 border-t border-gray-100">
+            {(Object.entries(AGENTS) as [AgentMode, typeof AGENTS[keyof typeof AGENTS]][]).map(([mode, cfg]) => (
+              <button
+                key={mode}
+                onClick={() => setActiveAgent(mode)}
+                disabled={isLoading}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all
+                  ${activeAgent === mode
+                    ? "bg-orange-500 text-white shadow-sm"
+                    : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                  } ${isLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                title={cfg.description}
+              >
+                <span className="text-sm">{cfg.icon}</span>
+                <span>{cfg.label}</span>
+              </button>
+            ))}
+          </div>
+
           <MessageInput 
             onSendMessage={handleSendMessage} 
             hasUserSentMessage={hasUserSentAnyMessage()}
