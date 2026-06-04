@@ -7,22 +7,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ImageGallery from './ImageGallery';
 import VariantEditor from './VariantEditor';
 import ManufacturingRules from './ManufacturingRules';
-import { Product, ProductVariant, ManufacturingRule } from '@/types/product';
+import { Product, ProductVariant, FabricationRules } from '@/types/product';
 import { motion } from 'framer-motion';
 import { Info, List, Settings } from 'lucide-react';
+
+const EMPTY_FABRICATION_RULES: FabricationRules = { description_complete: '', exemples: '' };
 
 interface ProductFormProps {
   product: Partial<Product>;
   onChange: (field: string, value: any) => void;
   isEditable?: boolean;
-  variants?: ProductVariant[]; // Added this prop to fix the error
+  variants?: ProductVariant[];
 }
 
 const ProductForm: React.FC<ProductFormProps> = ({
   product,
   onChange,
   isEditable = true,
-  variants, // Accept the prop, though we'll use product.variants
+  variants,
 }) => {
   const [activeTab, setActiveTab] = useState("info");
 
@@ -45,7 +47,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
     onChange('variants', variants);
   };
 
-  const handleRulesChange = (rules: ManufacturingRule[]) => {
+  const handleRulesChange = (rules: FabricationRules) => {
     onChange('manufacturing_rules', rules);
   };
 
@@ -106,6 +108,20 @@ const ProductForm: React.FC<ProductFormProps> = ({
               />
             </div>
 
+            <div>
+              <Label htmlFor="exemple" className="text-base font-medium">Exemple de cahier des charges</Label>
+              <Textarea
+                id="exemple"
+                value={(product as any).exemple || ''}
+                onChange={(e) => onChange('exemple', e.target.value)}
+                placeholder="Collez ici un exemple complet de cahier des charges pour ce type d'enseigne..."
+                rows={6}
+                disabled={!isEditable}
+                className="mt-1 resize-none rounded-lg font-mono text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-1">Utilisé par Brico comme référence. Modifiable librement.</p>
+            </div>
+
             <div className="pt-4">
               <h3 className="text-lg font-medium mb-4">Images du produit</h3>
               <ImageGallery
@@ -143,7 +159,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
             className="bg-white rounded-lg p-4 shadow-sm"
           >
             <ManufacturingRules
-              rules={product.manufacturing_rules || []}
+              rules={product.manufacturing_rules || EMPTY_FABRICATION_RULES}
               onChange={handleRulesChange}
               isEditable={isEditable}
             />

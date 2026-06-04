@@ -38,7 +38,8 @@ create table if not exists messages (
 
 create index idx_messages_session on messages(session_id);
 create index idx_messages_template_type on messages(template_type);
-create index idx_messages_timestamp on messages(timestamp desc);\n\n-- 2.3 Produits (catalogue)\ncreate table if not exists products (\n  id                  uuid primary key default uuid_generate_v4(),\n  name                text not null,\n  description         text default '',\n  main_image_url      text,\n  gallery_images      jsonb default '[]'::jsonb,\n  variants            jsonb default '[]'::jsonb,\n  manufacturing_rules jsonb default '[]'::jsonb,\n  created_at          timestamptz default now(),\n  updated_at          timestamptz default now(),\n  created_by          text,\n  session_id          text\n);\n\n-- 2.4 Projets
+create index idx_messages_timestamp on messages(timestamp desc);\n\n-- 2.3 Produits (catalogue)\ncreate table if not exists products (\n  id                  uuid primary key default uuid_generate_v4(),\n  name                text not null,\n  description         text default '',\n  main_image_url      text,\n  gallery_images      jsonb default '[]'::jsonb,\n  variants            jsonb default '[]'::jsonb,\n  manufacturing_rules jsonb default '[]'::jsonb,
+  exemple         text default '',\n  created_at          timestamptz default now(),\n  updated_at          timestamptz default now(),\n  created_by          text,\n  session_id          text\n);\n\n-- 2.4 Projets
 create table if not exists projects (
   id          uuid primary key default uuid_generate_v4(),
   name        text not null,

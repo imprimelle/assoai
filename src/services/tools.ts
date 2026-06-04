@@ -1,8 +1,7 @@
 // tools.ts — Outils pour les agents (function calling DeepSeek)
-// Chaque outil est une fonction asynchrone appelable par l'IA
+// Tous les outils lisent depuis Supabase — zéro hardcodé
 
 import { supabase } from "@/integrations/supabase/client";
-import { FABRICATION_RULES, getFabricationRule, getAvailableTypes } from "./fabricationRules";
 
 // ============================================================
 // DÉFINITION DES OUTILS (format OpenAI/DeepSeek function calling)
@@ -13,7 +12,7 @@ export const TOOL_DEFINITIONS = {
     type: "function" as const,
     function: {
       name: "search_products",
-      description: "Recherche un produit dans le catalogue Imprimelle par nom ou mot-clé. Retourne le nom, la description, les variantes et leurs prix.",
+      description: "Recherche un produit dans le catalogue Imprimelle par nom ou mot-clé. Retourne le nom, la description (qui contient les règles de fabrication pour ce type d'enseigne), les variantes avec leurs prix, et un exemple de cahier des charges si disponible.",
       parameters: {
         type: "object",
         properties: {
@@ -55,11 +54,11 @@ export const TOOL_DEFINITIONS = {
     type: "function" as const,
     function: {
       name: "get_fabrication_rules",
-      description: "Récupère les règles de fabrication, matériaux et opérations pour un type d'enseigne spécifique (caisson lumineux, néon flexible, lettres découpées, dibond, totem, panneau publicitaire).",
+      description: "Récupère les règles de fabrication d'un type d'enseigne en lisant la description complète du produit dans le catalogue. La description contient les matériaux, opérations et règles techniques. Retourne aussi un exemple de CDC si disponible.",
       parameters: {
         type: "object",
         properties: {
-          type_enseigne: { type: "string", description: "Type d'enseigne : 'caisson lumineux', 'néon flexible', 'lettres découpées', 'dibond', 'totem', 'panneau publicitaire'" }
+          type_enseigne: { type: "string", description: "Type d'enseigne (ex: 'caisson lumineux', 'néon flexible', 'totem', 'dibond', etc.)" }
         },
         required: ["type_enseigne"]
       }
@@ -69,54 +68,42 @@ export const TOOL_DEFINITIONS = {
     type: "function" as const,
     function: {
       name: "calculate_materials",
-      description: "Calcule les quantités de matériaux nécessaires en fonction des dimensions de l'enseigne. Retourne la liste des matériaux avec quantités calculées.",
+      description: "Calcule les quantités de matériaux nécessaires en fonction des dimensions de l'enseigne. Lit les règles depuis le produit catalogue correspondant.",
       parameters: {
         type: "object",
         properties: {
           type_enseigne: { type: "string", description: "Type d'enseigne" },
           largeur_cm: { type: "number", description: "Largeur en centimètres" },
           hauteur_cm: { type: "number", description: "Hauteur en centimètres" },
-          profondeur_cm: { type: "number", description: "Profondeur en centimètres (optionnel)" }
         },
         required: ["type_enseigne", "largeur_cm", "hauteur_cm"]
       }
     }
   },
-  list_enseigne_types: {
+  list_product_types: {
     type: "function" as const,
     function: {
-      name: "list_enseigne_types",
-      description: "Liste tous les types d'enseignes disponibles dans le catalogue de fabrication.",
-      parameters: {
-        type: "object",
-        properties: {}
-      }
+      name: "list_product_types",
+      description: "Liste tous les produits qui contiennent des règles de fabrication (description non vide), c'est-à-dire tous les types d'enseignes disponibles.",
+      parameters: { type: "object", properties: {} }
     }
   }
 };
 
-// Type de retour pour les outils
-export interface ToolResult {
-  success: boolean;
-  data: any;
-  error?: string;
-}
-
 // ============================================================
-// IMPLÉMENTATION DES OUTILS
+// IMPLÉMENTATION DES OUTILS (tous depuis Supabase)
 // ============================================================
 
-export async function executeToolCall(
-  toolName: string,
-  args: Record<string, any>
-): Promise<ToolResult> {
+export interface ToolResult { success: boolean; data: any; error?: string; }
+
+export async function executeToolCall(toolName: string, args: Record<string, any>): Promise<ToolResult> {
   try {
     switch (toolName) {
       case "search_products": {
         const { query } = args;
         const { data, error } = await supabase
           .from("products")
-          .select("name, description, main_image_url, variants")
+          .select("name, description, main_image_url, variants, exemple, manufacturing_rules")
           .ilike("name", `%${query}%`)
           .limit(5);
         if (error) throw error;
@@ -124,20 +111,21 @@ export async function executeToolCall(
           success: true,
           data: (data || []).map(p => ({
             nom: p.name,
-            description: p.description,
+            description: p.description?.substring(0, 500) || "",  // règles de fabrication
             image_url: p.main_image_url,
+            exemple_cdc: p.exemple?.substring(0, 500) || null,      // exemple CDC
             variantes: (p.variants as any[] || []).map((v: any) => ({
               nom: v.name,
               prix: v.price,
               sku: v.sku
-            }))
+            })),
+            règles_fabrication: p.manufacturing_rules || []
           }))
         };
       }
 
       case "search_factures": {
         const { query } = args;
-        // Chercher par numéro exact ou par nom client
         const { data, error } = await supabase
           .from("messages")
           .select("template_data")
@@ -153,14 +141,7 @@ export async function executeToolCall(
           success: true,
           data: (data || []).map(m => {
             const d = (m.template_data as any)?.data || {};
-            return {
-              factureNumero: d.factureNumero,
-              dateEmission: d.dateEmission,
-              client: d.client,
-              total: d.total,
-              statut: d.statut,
-              details: d.details
-            };
+            return { factureNumero: d.factureNumero, dateEmission: d.dateEmission, client: d.client, total: d.total, statut: d.statut, details: d.details };
           })
         };
       }
@@ -182,61 +163,83 @@ export async function executeToolCall(
           success: true,
           data: (data || []).map(m => {
             const d = (m.template_data as any)?.data || {};
-            return {
-              commandeNumero: d.commandeNumero,
-              dateCommande: d.dateCommande,
-              dateLivraison: d.dateLivraison,
-              client: d.client,
-              total: d.total,
-              statut: d.statut,
-              items: d.items
-            };
+            return { commandeNumero: d.commandeNumero, dateCommande: d.dateCommande, dateLivraison: d.dateLivraison, client: d.client, total: d.total, statut: d.statut, items: d.items };
           })
         };
       }
 
       case "get_fabrication_rules": {
         const { type_enseigne } = args;
-        const rule = getFabricationRule(type_enseigne);
-        if (!rule) {
-          return {
-            success: false,
-            data: null,
-            error: `Type d'enseigne "${type_enseigne}" non trouvé. Types disponibles : ${getAvailableTypes().join(", ")}`
-          };
+        const { data, error } = await supabase
+          .from("products")
+          .select("name, description, manufacturing_rules, exemple")
+          .ilike("name", `%${type_enseigne}%`)
+          .not("description", "is", null)
+          .limit(1);
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          // Fallback : lister les types disponibles
+          const { data: all } = await supabase.from("products").select("name").not("description", "is", null).limit(20);
+          const types = (all || []).map(p => p.name);
+          return { success: false, data: null, error: `Type "${type_enseigne}" non trouvé. Types avec règles disponibles : ${types.join(", ")}` };
         }
-        return { success: true, data: rule };
+        const p = data[0];
+        return {
+          success: true,
+          data: {
+            type: p.name,
+            description: p.description,
+            manufacturing_rules: p.manufacturing_rules || [],
+            exemple_cdc: p.exemple || null
+          }
+        };
       }
 
       case "calculate_materials": {
         const { type_enseigne, largeur_cm, hauteur_cm } = args;
-        const rule = getFabricationRule(type_enseigne);
-        if (!rule) {
-          return {
-            success: false,
-            data: null,
-            error: `Type "${type_enseigne}" non trouvé. Types : ${getAvailableTypes().join(", ")}`
-          };
+        // Lire les règles du produit correspondant
+        const { data } = await supabase
+          .from("products")
+          .select("name, description, manufacturing_rules")
+          .ilike("name", `%${type_enseigne}%`)
+          .not("description", "is", null)
+          .limit(1);
+        if (!data || data.length === 0) {
+          return { success: false, data: null, error: `Type "${type_enseigne}" non trouvé` };
         }
-        // Calcul simplifié des quantités
+        const prod = data[0];
+        const rules = prod.manufacturing_rules as any[] || [];
+        
         const surface_m2 = (largeur_cm * hauteur_cm) / 10000;
         const perimetre_m = (2 * (largeur_cm + hauteur_cm)) / 100;
-
-        const materials = rule.materiaux.map(m => {
-          let quantite = 0;
-          if (m.unite === "m²") quantite = Math.ceil(surface_m2 * 1.1); // +10% marge
-          else if (m.unite === "m") quantite = Math.ceil(perimetre_m * 1.1);
-          else if (m.unite === "pièce") quantite = 1;
-          else if (m.unite === "tube") quantite = Math.ceil(surface_m2 * 2);
-          else if (m.unite === "sac") quantite = 2;
-          return { ...m, quantite_calculee: quantite };
-        });
-
-        return { success: true, data: { type_enseigne, dimensions: { largeur_cm, hauteur_cm }, surface_m2, perimetre_m, materials } };
+        
+        return {
+          success: true,
+          data: {
+            type: prod.name,
+            dimensions: { largeur_cm, hauteur_cm },
+            surface_m2: Math.round(surface_m2 * 100) / 100,
+            perimetre_m: Math.round(perimetre_m * 100) / 100,
+            regles_applicables: rules,
+            note: "Les quantités exactes dépendent des matériaux spécifiques listés dans les règles de fabrication de ce produit."
+          }
+        };
       }
 
-      case "list_enseigne_types": {
-        return { success: true, data: getAvailableTypes() };
+      case "list_product_types": {
+        const { data } = await supabase
+          .from("products")
+          .select("name, description, exemple")
+          .not("description", "is", null)
+          .limit(20);
+        return {
+          success: true,
+          data: (data || []).map(p => ({
+            type: p.name,
+            has_rules: !!p.description,
+            has_example: !!p.exemple
+          }))
+        };
       }
 
       default:
@@ -250,18 +253,13 @@ export async function executeToolCall(
 // Filtrer les outils disponibles par agent
 export function getToolsForAgent(agent: string): any[] {
   const allTools = Object.values(TOOL_DEFINITIONS);
-  
   switch (agent) {
     case "wari":
-      return allTools.filter(t => 
-        ["search_products", "search_factures", "search_commandes"].includes(t.function.name)
-      );
+      return allTools.filter(t => ["search_products", "search_factures", "search_commandes"].includes(t.function.name));
     case "brico":
-      return allTools.filter(t =>
-        ["get_fabrication_rules", "calculate_materials", "search_commandes", "list_enseigne_types", "search_products"].includes(t.function.name)
-      );
+      return allTools.filter(t => ["get_fabrication_rules", "calculate_materials", "search_commandes", "list_product_types", "search_products"].includes(t.function.name));
     case "auto":
     default:
-      return allTools; // Tous les outils
+      return allTools;
   }
 }
