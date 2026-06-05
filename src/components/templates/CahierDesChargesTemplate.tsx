@@ -157,7 +157,12 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
   };
 
   const filteredMaterials = getFilteredMaterials();
-  const nonVides = DEFAULT_SECTIONS.filter(name => (filteredMaterials[name] || []).length > 0);
+
+  // Sections dans l'ordre : d'abord les connues qui existent, puis les inconnues
+  const existingSections = Object.keys(filteredMaterials).filter(k => (filteredMaterials[k] || []).length > 0);
+  const orderedKnown = DEFAULT_SECTIONS.filter(s => existingSections.includes(s));
+  const orderedUnknown = existingSections.filter(s => !DEFAULT_SECTIONS.includes(s));
+  const sectionsToShow = [...orderedKnown, ...orderedUnknown];
 
   return (
     <div className="w-full py-4 sm:py-6">
@@ -320,8 +325,8 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
           />
         </div>
 
-        {nonVides.length > 0 ? (
-          nonVides.map(name => (
+        {sectionsToShow.length > 0 ? (
+          sectionsToShow.map(name => (
             <MaterialSection
               key={`${name}-${selectedEnseigneFilter}`}
               name={name}

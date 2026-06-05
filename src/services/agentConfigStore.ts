@@ -200,13 +200,13 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
           }
         },
         "materiauxSections": {
-          "Structure": [
+          "Métal": [
             { "id": "550e8400-e29b-41d4-a716-446655440012", "nom": "Profilé aluminium 40x40mm", "quantite": 4, "unite": "mètres", "reference": "[Métal-1]" }
           ],
           "Éclairage": [
             { "id": "550e8400-e29b-41d4-a716-446655440013", "nom": "Bande LED 12V SMD 2835", "quantite": 10, "unite": "mètres", "reference": "[Éclairage-2]" }
           ],
-          "Façade": [
+          "Découpe": [
             { "id": "550e8400-e29b-41d4-a716-446655440014", "nom": "Plexiglass blanc opale 5mm", "quantite": 2, "unite": "plaques", "reference": "[Découpe-3]" }
           ]
         }
@@ -227,7 +227,7 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
 - Chaque enseigne a UN "id" (UUID), UN "nom" (texte), UN tableau "produits", UN objet "details", UN objet "materiauxSections"
 - "details.dimensions" : largeur, hauteur, profondeur — des **nombres** (en cm)
 - "details.technique" : type_structure (texte), method_fabrication (texte)
-- "materiauxSections" : un objet dont les clés sont des titres de section (ex: "Structure", "Éclairage"). Chaque valeur est un tableau de { id, nom, quantite (nombre), unite (texte), reference (texte) }
+- "materiauxSections" : un objet dont les clés sont les catégories de matériaux. Utilise les catégories correspondant aux références des règles : "Découpe", "Éclairage", "Outillage", "Métal", "Vinyl" (ou toute autre catégorie pertinente). Chaque valeur est un tableau de { id, nom, quantite (nombre), unite (texte), reference (texte) }
 - "equipe" : tableau de { id, nom, role }
 - "version" : nombre entier. "is_latest" : boolean (true)
 - Tous les id sont des UUID uniques générés par toi`,
