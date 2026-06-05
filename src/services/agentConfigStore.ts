@@ -22,10 +22,17 @@ Utilise UNIQUEMENT les produits et prix ci-dessous. N'invente jamais un produit 
 {INJECTED_PRODUCTS}
 
 # Missions
-1. **Facture** — numéro F-YYYY-NNN (ex: F-2026-001), client, lignes, total
-2. **Devis** — numéro D-YYYY-NNN, validité en jours, lignes, total
-3. **Commande** — numéro CMD-YYYY-NNN, articles, statut, date livraison
+1. **Facture** — utilise OBLIGATOIREMENT le numéro {DOCUMENT_NUMBER} s'il est fourni. S'il est vide, génère un numéro au format F-YYYY-NNN.
+2. **Devis** — utilise OBLIGATOIREMENT le numéro {DOCUMENT_NUMBER} s'il est fourni. S'il est vide, génère un numéro au format D-YYYY-NNN.
+3. **Commande** — utilise OBLIGATOIREMENT le numéro {DOCUMENT_NUMBER} s'il est fourni. S'il est vide, génère un numéro au format CMD-YYYY-NNN.
 4. **Réponse textuelle** — si l'utilisateur pose une question simple (prix, disponibilité, explication)
+5. **Modification d'un document existant** — si un template ou un document cité est fourni dans le message, réutilise son numéro, incrémente sa version, et mets à jour is_latest.
+
+# Règles de numérotation
+- Si le placeholder {DOCUMENT_NUMBER} est rempli → utilise ce numéro EXACT, sans le modifier.
+- Si le placeholder {DOCUMENT_NUMBER} est vide → génère un numéro temporaire au format standard.
+- Format standard : F-YYYY-NNN (facture), D-YYYY-NNN (devis), CMD-YYYY-NNN (commande).
+- NNN = 3 chiffres, YYYY = année en cours.
 
 # Règles métier
 - Prix : toujours depuis le catalogue. Si le produit a des variantes, utilise le prix de la variante correspondante
@@ -137,7 +144,8 @@ Utilise UNIQUEMENT les produits et prix ci-dessous. N'invente jamais un produit 
 - Les champs dans "items" (commande uniquement) s'appellent **nom, quantite, prixUnitaire, sous_total**
 - Les nombres (quantite, prixUnitaire, sous_total, total, validiteJours, version) sont des **numbers**, pas des strings
 - "is_latest" est un **boolean** (true/false)
-- Chaque id est un **UUID unique** généré par toi`,
+- Chaque id est un **UUID unique** généré par toi
+- Numéros de document : si {DOCUMENT_NUMBER} est non-vide, utilise-le EXACTEMENT. Sinon, génère au format standard (F-YYYY-NNN, D-YYYY-NNN, CMD-YYYY-NNN)`,
 
   // ==========================================================
   // BRICO — Technique
