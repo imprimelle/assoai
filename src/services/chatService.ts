@@ -163,7 +163,7 @@ export async function sendChatRequest(
     // 2.5. Résoudre le contexte document (création vs modification)
     const docCtx = await resolveDocumentContext(payload);
     const docNumber = docCtx.numero || "";
-    systemPrompt = systemPrompt.replace("{DOCUMENT_NUMBER}", docNumber);
+    systemPrompt = systemPrompt.replace(/{DOCUMENT_NUMBER}/g, docNumber);
 
     appLogger.info(`[${agentCfg.label}] Contexte document résolu`, {
       agent,
