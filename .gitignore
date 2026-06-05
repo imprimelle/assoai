@@ -4,3 +4,15 @@ dist/
 .env.local
 *.log
 .DS_Store
+
+# Fichiers de clés API (ne jamais commiter)
+.deepseek-key
+.github-token
+.openrouter-key
+.supabase-pat
+
+# Scripts utilitaires
+push.py
+update_key.py
+tail-logs.py
+

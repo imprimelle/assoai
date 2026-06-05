@@ -11,7 +11,8 @@ import {
   MessageSquare, 
   Folder,
   Menu,
-  X 
+  X,
+  SlidersHorizontal
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -156,7 +157,22 @@ const TopBar: React.FC<TopBarProps> = ({ className }) => {
         )}
       </div>
 
-      <div>
+      <div className="flex items-center gap-1">
+        <NavLink
+          to="/agent-config"
+          className={({ isActive }) =>
+            cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+              isActive
+                ? "bg-brand-orange/10 text-brand-orange"
+                : "text-gray-700 hover:bg-gray-100"
+            )
+          }
+          title="Configuration des agents"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          {!isMobile && <span>Agents</span>}
+        </NavLink>
         <NavItem 
           to="/profile" 
           icon={<User className="h-4 w-4" />} 

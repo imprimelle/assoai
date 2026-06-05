@@ -13,6 +13,7 @@ import Profile from "./pages/Profile";
 import CrmTemplates from "./pages/CrmTemplates";
 import ProductCatalog from "./pages/ProductCatalog";
 import Projects from "./pages/Projects";
+import AgentConfig from "./pages/AgentConfig";
 import NotFound from "./pages/NotFound";
 import InstallBanner from "./components/pwa/InstallBanner";
 import { initializeRealtime } from "./integrations/supabase/realtime";
@@ -209,6 +210,7 @@ const AppContent = () => {
             <Route path="/logs" element={<Logs />} />
             <Route path="/library" element={<CrmTemplates />} />
             <Route path="/products" element={<ProductCatalog />} />
+            <Route path="/agent-config" element={<AgentConfig />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
