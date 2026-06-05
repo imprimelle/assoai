@@ -31,7 +31,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   activeTemplate,
   onCancelTemplate,
   isLoading = false,
-  activeAgent = "auto",
+  activeAgent = "wari",
   onAgentChange
 }) => {
   const [message, setMessage] = useState("");
@@ -440,7 +440,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 <DropdownMenuTrigger asChild>
                   <motion.button
                     key="agent-button"
-                    className={getActionButtonStyles(activeAgent !== "auto")}
+                    className={getActionButtonStyles(activeAgent !== "wari")}
                     whileTap={{ scale: 0.95 }}
                     aria-label="Choisir un agent"
                     disabled={isLoading}

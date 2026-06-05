@@ -17,14 +17,6 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useChat } from "@/contexts/ChatContext";
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-} from "@/components/ui/navigation-menu";
 import { 
   Menubar, 
   MenubarContent, 
@@ -42,60 +34,60 @@ interface NavItemProps {
   icon: React.ReactNode;
   label: string;
   onClick?: () => void;
+  alwaysShowLabel?: boolean;
 }
 
-const NavItem: React.FC<NavItemProps> = ({ to, icon, label, onClick }) => {
-  const isMobile = useIsMobile();
-  
+const NavItem: React.FC<NavItemProps> = ({ to, icon, label, onClick, alwaysShowLabel }) => {
   return (
     <NavLink
       to={to}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors",
           isActive
             ? "bg-brand-orange/10 text-brand-orange"
             : "text-gray-700 hover:bg-gray-100"
         )
       }
       onClick={onClick}
+      title={label}
     >
       {icon}
-      {!isMobile && <span>{label}</span>}
+      {alwaysShowLabel && <span className="hidden md:inline">{label}</span>}
     </NavLink>
   );
 };
 
 const TopBar: React.FC<TopBarProps> = ({ className }) => {
-  const isMobile = useIsMobile();
   const { isChatOpen, toggleChat } = useChat();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Menu principal (toujours visible)
+  // Menu principal (toujours visible — icônes uniquement)
   const primaryNavItems = [
     { to: "/", icon: <Home className="h-4 w-4" />, label: "Accueil" },
     { to: "/library", icon: <Book className="h-4 w-4" />, label: "Bibliothèque" },
     { to: "/projects", icon: <Folder className="h-4 w-4" />, label: "Projets" },
   ];
 
-  // Menu secondaire (regroupé dans un menu sur mobile)
+  // Menu secondaire (toujours dans le dropdown)
   const secondaryNavItems = [
     { to: "/products", icon: <Package className="h-4 w-4" />, label: "Produits" },
     { to: "/logs", icon: <FileText className="h-4 w-4" />, label: "Logs" },
+    { to: "/agent-config", icon: <SlidersHorizontal className="h-4 w-4" />, label: "Agents" },
   ];
 
   return (
     <nav
       className={cn(
-        "border-b bg-white px-4 py-2 flex items-center justify-between sticky top-0 z-30",
+        "border-b bg-white px-3 py-1.5 flex items-center justify-between sticky top-0 z-30",
         className
       )}
     >
-      <div className="flex items-center space-x-2 md:space-x-4">
-        {/* Logo text qui ouvre/ferme le chat */}
+      <div className="flex items-center gap-1">
+        {/* Logo */}
         <span 
-          className="logo-text cursor-pointer flex items-center" 
+          className="logo-text cursor-pointer flex items-center mr-1" 
           onClick={toggleChat}
+          title="Chat"
         >
           Asso<span className="logo-highlight">AI</span>
           <MessageSquare className={cn("ml-1 h-4 w-4 transition-all", 
@@ -103,82 +95,50 @@ const TopBar: React.FC<TopBarProps> = ({ className }) => {
           )} />
         </span>
 
-        {/* Items principaux toujours visibles */}
-        <div className="flex items-center space-x-1">
-          {primaryNavItems.map((item) => (
-            <NavItem 
-              key={item.to} 
-              to={item.to} 
-              icon={item.icon} 
-              label={item.label} 
-            />
-          ))}
-        </div>
+        {/* Items principaux (icônes uniquement) */}
+        {primaryNavItems.map((item) => (
+          <NavItem 
+            key={item.to} 
+            to={item.to} 
+            icon={item.icon} 
+            label={item.label} 
+          />
+        ))}
 
-        {/* Menu déroulant pour les éléments secondaires sur mobile */}
-        {isMobile ? (
-          <Menubar className="border-none bg-transparent p-0">
-            <MenubarMenu>
-              <MenubarTrigger className="px-2 cursor-pointer data-[state=open]:bg-gray-100 rounded-md">
-                <Menu className="h-4 w-4" />
-              </MenubarTrigger>
-              <MenubarContent align="start" className="w-48">
-                {secondaryNavItems.map((item) => (
-                  <MenubarItem key={item.to} asChild>
-                    <NavLink
-                      to={item.to}
-                      className={({ isActive }) =>
-                        cn(
-                          "flex items-center gap-2 w-full",
-                          isActive ? "text-brand-orange" : "text-gray-700"
-                        )
-                      }
-                    >
-                      {item.icon}
-                      <span>{item.label}</span>
-                    </NavLink>
-                  </MenubarItem>
-                ))}
-              </MenubarContent>
-            </MenubarMenu>
-          </Menubar>
-        ) : (
-          // Afficher tous les items côte à côte sur desktop
-          <>
-            {secondaryNavItems.map((item) => (
-              <NavItem 
-                key={item.to} 
-                to={item.to} 
-                icon={item.icon} 
-                label={item.label} 
-              />
-            ))}
-          </>
-        )}
+        {/* Menu dropdown pour les items secondaires (toujours, desktop et mobile) */}
+        <Menubar className="border-none bg-transparent p-0">
+          <MenubarMenu>
+            <MenubarTrigger className="px-2.5 py-1.5 cursor-pointer data-[state=open]:bg-gray-100 rounded-md">
+              <Menu className="h-4 w-4" />
+            </MenubarTrigger>
+            <MenubarContent align="start" className="w-48">
+              {secondaryNavItems.map((item) => (
+                <MenubarItem key={item.to} asChild>
+                  <NavLink
+                    to={item.to}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-2 w-full px-2 py-1.5",
+                        isActive ? "text-brand-orange" : "text-gray-700"
+                      )
+                    }
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </NavLink>
+                </MenubarItem>
+              ))}
+            </MenubarContent>
+          </MenubarMenu>
+        </Menubar>
       </div>
 
-      <div className="flex items-center gap-1">
-        <NavLink
-          to="/agent-config"
-          className={({ isActive }) =>
-            cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-              isActive
-                ? "bg-brand-orange/10 text-brand-orange"
-                : "text-gray-700 hover:bg-gray-100"
-            )
-          }
-          title="Configuration des agents"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          {!isMobile && <span>Agents</span>}
-        </NavLink>
-        <NavItem 
-          to="/profile" 
-          icon={<User className="h-4 w-4" />} 
-          label="Profil" 
-        />
-      </div>
+      {/* Profil (icône uniquement) */}
+      <NavItem 
+        to="/profile" 
+        icon={<User className="h-4 w-4" />} 
+        label="Profil" 
+      />
     </nav>
   );
 };

@@ -1,38 +1,20 @@
 // agentConfigStore.ts — Store des prompts système éditables (localStorage)
 // L'utilisateur peut modifier chaque prompt via l'onglet AgentConfig
 
-export type AgentMode = "auto" | "wari" | "brico";
+export type AgentMode = "wari" | "brico";
 
 const LS_PREFIX = "assoai_agent_prompt_";
 
 // ============================================================
-// PROMPTS PAR DÉFAUT (si jamais modifié, on peut reset)
+// PROMPTS PAR DÉFAUT
 // ============================================================
 
 export const DEFAULT_PROMPTS: Record<AgentMode, string> = {
   // ==========================================================
-  // AUTO — Routeur
-  // ==========================================================
-  auto: `# Rôle
-Tu es le routeur d'Imprimelle. Ton unique mission : analyser la demande et répondre par UN SEUL MOT.
-
-# Règles de routage
-- Demande commerciale (facture, devis, commande, prix, client, vente) → réponds "wari"
-- Demande technique (cahier des charges, fabrication, matériaux, enseigne, dimensions, atelier) → réponds "brico"
-- Si ambigu → réponds "wari" par défaut
-
-# Format de réponse (CRITIQUE)
-Réponds EXACTEMENT et UNIQUEMENT :
-wari
-ou
-brico
-Pas de JSON. Pas d'explication. Pas de ponctuation. Juste le mot.`,
-
-  // ==========================================================
-  // WARI — Commercial
+  // WARI — Commercial (agent par défaut)
   // ==========================================================
   wari: `# Rôle
-Tu es **Wari**, l'assistant commercial d'Imprimelle, entreprise de fabrication d'enseignes lumineuses à Abidjan. Tu génères des factures, devis et commandes.
+Tu es **Wari**, l'assistant commercial d'Imprimelle, entreprise de fabrication d'enseignes lumineuses à Abidjan. Tu es l'assistant principal : tu réponds à toutes les questions, qu'elles soient commerciales ou techniques. Pour les questions très techniques, oriente l'utilisateur vers Brico.
 
 # Catalogue produits (injecté automatiquement)
 Utilise UNIQUEMENT les produits et prix ci-dessous. N'invente jamais un produit ou un prix.
@@ -277,7 +259,6 @@ export function resetPrompt(agent: AgentMode): string {
   return def;
 }
 
-/** Vérifie si un prompt a été modifié par l'utilisateur */
 export function isCustomized(agent: AgentMode): boolean {
   try {
     return localStorage.getItem(LS_PREFIX + agent) !== null;
@@ -285,7 +266,7 @@ export function isCustomized(agent: AgentMode): boolean {
 }
 
 // ============================================================
-// CONFIG AGENT (compatible avec l'ancien agentPrompts.ts)
+// CONFIG AGENT
 // ============================================================
 
 export interface AgentConfig {
@@ -296,24 +277,18 @@ export interface AgentConfig {
 }
 
 export const AGENTS_META: Record<AgentMode, AgentConfig> = {
-  auto: {
-    name: "auto",
-    icon: "🔄",
-    label: "Auto",
-    description: "L'IA choisit le meilleur agent",
-  },
   wari: {
     name: "wari",
     icon: "💼",
     label: "Wari",
-    description: "Commercial : factures, devis, commandes",
+    description: "Assistant principal — factures, devis, commandes",
   },
   brico: {
     name: "brico",
     icon: "🔧",
     label: "Brico",
-    description: "Technique : cahiers des charges, fabrication",
+    description: "Technique — cahiers des charges, fabrication",
   },
 };
 
-export const DEFAULT_AGENT: AgentMode = "auto";
+export const DEFAULT_AGENT: AgentMode = "wari";

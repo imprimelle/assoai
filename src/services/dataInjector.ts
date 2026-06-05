@@ -93,9 +93,6 @@ export async function injectProductData(
   systemPrompt: string,
   agent: AgentMode,
 ): Promise<string> {
-  // Auto n'a pas besoin des produits — il route seulement
-  if (agent === "auto") return systemPrompt;
-
   const products = await fetchProducts();
 
   if (agent === "wari") {

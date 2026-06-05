@@ -16,7 +16,7 @@ import {
   DEFAULT_PROMPTS,
 } from "@/services/agentConfigStore";
 
-const AGENT_ORDER: AgentMode[] = ["auto", "wari", "brico"];
+const AGENT_ORDER: AgentMode[] = ["wari", "brico"];
 
 const AgentConfig: React.FC = () => {
   const navigate = useNavigate();
@@ -31,7 +31,7 @@ const AgentConfig: React.FC = () => {
     return init as Record<AgentMode, string>;
   });
 
-  const [activeTab, setActiveTab] = useState<AgentMode>("auto");
+  const [activeTab, setActiveTab] = useState<AgentMode>("wari");
 
   const handleSave = (agent: AgentMode) => {
     setPrompt(agent, editing[agent]);
@@ -165,9 +165,6 @@ const AgentConfig: React.FC = () => {
             <li>
               <code>{`{INJECTED_RULES}`}</code> — Brico : remplacé par les règles
               de fabrication (manufacturing_rules) de tous les produits depuis Supabase
-            </li>
-            <li>
-              <strong>Auto</strong> ne reçoit aucune injection — il route seulement
             </li>
           </ul>
         </div>

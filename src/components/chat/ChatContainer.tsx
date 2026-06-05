@@ -60,7 +60,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ user, persistentSessionId
     metadata?: TemplateMetadata;
   } | null>(null);
   const [pdfActions, setPdfActions] = useState<PDFAction[]>([]);
-  const [activeAgent, setActiveAgent] = useState<AgentMode>("auto");
+  const [activeAgent, setActiveAgent] = useState<AgentMode>("wari");
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
