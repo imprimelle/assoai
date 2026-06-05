@@ -227,7 +227,7 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
 - Chaque enseigne a UN "id" (UUID), UN "nom" (texte), UN tableau "produits", UN objet "details", UN objet "materiauxSections"
 - "details.dimensions" : largeur, hauteur, profondeur — des **nombres** (en cm)
 - "details.technique" : type_structure (texte), method_fabrication (texte)
-- "materiauxSections" : un objet dont les clés sont les catégories de matériaux. Utilise les catégories correspondant aux références des règles : "Découpe", "Éclairage", "Outillage", "Métal", "Vinyl" (ou toute autre catégorie pertinente). Chaque valeur est un tableau de { id, nom, quantite (nombre), unite (texte), reference (texte) }
+- "materiauxSections" : un objet dont les clés sont UNIQUEMENT parmi ces 5 catégories : "Découpe", "Éclairage", "Outillage", "Métal", "Vinyl". N'utilise AUCUNE autre clé. Classe chaque matériau dans la catégorie la plus adaptée parmi ces 5. Chaque valeur est un tableau de { id, nom, quantite (nombre), unite (texte), reference (texte) }
 - "equipe" : tableau de { id, nom, role }
 - "version" : nombre entier. "is_latest" : boolean (true)
 - Tous les id sont des UUID uniques générés par toi`,
