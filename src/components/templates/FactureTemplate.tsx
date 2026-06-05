@@ -41,7 +41,8 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
   const [isEditMode, setIsEditMode] = useState(isEditable);
   const [data, setData] = useState<FactureData>({
     ...initialData,
-    details: initialData.details || [] // Ensure details is never undefined
+    details: initialData.details || [],
+    client: initialData.client || { nom: "", adresse: "" }
   });
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -53,7 +54,8 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
   useEffect(() => {
     const normalizedData = {
       ...initialData,
-      details: initialData.details || [], // Ensure details is always an array
+      details: initialData.details || [],
+      client: initialData.client || { nom: "", adresse: "" },
       dateEmission: initialData.dateEmission?.split("T")[0] || ""
     };
     setData(normalizedData);

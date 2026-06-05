@@ -39,7 +39,11 @@ const CommandeTemplate: React.FC<CommandeTemplateProps> = ({
   onSave,
 }) => {
   const [isEditMode, setIsEditMode] = useState(isEditable);
-  const [data, setData] = useState<CommandeData>(initialData);
+  const [data, setData] = useState<CommandeData>({
+    ...initialData,
+    client: initialData.client || { nom: "", adresse: "" },
+    items: initialData.items || []
+  });
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -50,6 +54,8 @@ const CommandeTemplate: React.FC<CommandeTemplateProps> = ({
   useEffect(() => {
     setData({
       ...initialData,
+      client: initialData.client || { nom: "", adresse: "" },
+      items: initialData.items || [],
       dateCommande: initialData.dateCommande?.split("T")[0] || "",
       dateEmission: initialData.dateEmission?.split("T")[0] || "",
       dateLivraison: initialData.dateLivraison?.split("T")[0] || ""

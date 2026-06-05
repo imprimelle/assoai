@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Product, ProductVariant, ManufacturingRule } from '@/types/product';
+import { Product, ProductVariant, FabricationRules } from '@/types/product';
 import { Json } from '@/integrations/supabase/types';
 import { appLogger } from '@/utils/logger';
 
@@ -17,14 +17,14 @@ const convertJsonToProductVariant = (jsonData: any): ProductVariant => {
   };
 };
 
-const convertJsonToManufacturingRule = (jsonData: any): ManufacturingRule => {
+// Helper to convert JSON to FabricationRules
+const convertJsonToFabricationRules = (jsonData: any): FabricationRules => {
+  if (!jsonData || typeof jsonData !== 'object') {
+    return { description_complete: '', exemples: '' };
+  }
   return {
-    id: jsonData.id || '',
-    type: jsonData.type || '',
-    description: jsonData.description || '',
-    timeRequired: jsonData.timeRequired,
-    materialRequired: jsonData.materialRequired,
-    specialInstructions: jsonData.specialInstructions,
+    description_complete: typeof jsonData.description_complete === 'string' ? jsonData.description_complete : '',
+    exemples: typeof jsonData.exemples === 'string' ? jsonData.exemples : '',
   };
 };
 
@@ -88,9 +88,7 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
           : [];
         
         // Convert manufacturing_rules
-        const manufacturingRules = Array.isArray(item.manufacturing_rules)
-          ? item.manufacturing_rules.map(r => convertJsonToManufacturingRule(r))
-          : [];
+        const fabricationRules = convertJsonToFabricationRules(item.manufacturing_rules);
         
         // Build the product with correct types
         return {
@@ -100,7 +98,7 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
           main_image_url: item.main_image_url,
           gallery_images: galleryImages,
           variants,
-          manufacturing_rules: manufacturingRules,
+          manufacturing_rules: fabricationRules,
           created_at: item.created_at,
           updated_at: item.updated_at,
           created_by: item.created_by || undefined,
@@ -160,9 +158,9 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
           variants: Array.isArray(newProduct.variants)
             ? newProduct.variants.map(convertJsonToProductVariant)
             : [],
-          manufacturing_rules: Array.isArray(newProduct.manufacturing_rules)
-            ? newProduct.manufacturing_rules.map(convertJsonToManufacturingRule)
-            : [],
+          manufacturing_rules: newProduct.manufacturing_rules 
+            ? convertJsonToFabricationRules(newProduct.manufacturing_rules)
+            : { description_complete: '', exemples: '' },
           created_at: newProduct.created_at,
           updated_at: newProduct.updated_at,
           created_by: newProduct.created_by || undefined,

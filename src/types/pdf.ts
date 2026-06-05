@@ -14,7 +14,6 @@ export interface PDFGenerationResponse {
   imageUrl?: string;
   // Enhanced error information
   errorType?: string; // TIMEOUT, NETWORK_ERROR, SERVICE_ERROR, etc.
-  webhookUrl?: string; // For debugging purposes
   responseTime?: number; // Response time in milliseconds
 }
 

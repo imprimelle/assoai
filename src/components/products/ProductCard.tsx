@@ -58,9 +58,9 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 {product.variants.length} var.
               </span>
               
-              {product.manufacturing_rules && product.manufacturing_rules.length > 0 && (
+              {product.manufacturing_rules?.description_complete && (
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
-                  {product.manufacturing_rules.length} règle{product.manufacturing_rules.length > 1 ? 's' : ''}
+                  Règles
                 </span>
               )}
             </div>

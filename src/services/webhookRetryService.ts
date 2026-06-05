@@ -1,10 +1,10 @@
 
 import { MessagePayload, ResponsePayload } from "@/types";
-import { sendMessageToWebhook } from "./webhook";
+import { sendChatRequest } from "./chatService";
 import { appLogger } from "@/utils/logger";
 import { toast } from "@/hooks/use-toast";
 
-export class WebhookRetryService {
+export class ChatRetryService {
   private static activeGenerations = new Map<string, boolean>();
 
   static async sendWithPersistentWait(
@@ -153,7 +153,7 @@ export class WebhookRetryService {
     try {
       while ((Date.now() - startTime) < maxWaitTime) {
         try {
-          const response = await sendMessageToWebhook(payload);
+          const response = await sendChatRequest(payload);
           clearInterval(progressInterval);
           return response;
         } catch (error: any) {

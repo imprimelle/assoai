@@ -8,13 +8,20 @@ export interface ProductVariant {
   image_url?: string | null; // URL de l'image de la variante
 }
 
+// ⚠️ Legacy — conservé pour rétrocompatibilité lecture seule
 export interface ManufacturingRule {
   id: string;
-  type: string; // ex: "découpe", "assemblage", "finition"
+  type: string;
   description: string;
-  timeRequired?: number; // temps en minutes
+  timeRequired?: number;
   materialRequired?: string;
   specialInstructions?: string;
+}
+
+/** Règles de fabrication — nouvelle structure (2 champs) */
+export interface FabricationRules {
+  description_complete: string;
+  exemples: string;
 }
 
 export interface Product {
@@ -24,7 +31,8 @@ export interface Product {
   main_image_url: string | null;
   gallery_images: string[];
   variants: ProductVariant[];
-  manufacturing_rules: ManufacturingRule[];
+  /** Nouveau format : { description_complete, exemples } */
+  manufacturing_rules: FabricationRules;
   created_at: string;
   updated_at: string;
   created_by?: string;
@@ -37,7 +45,7 @@ export interface ProductFormData {
   main_image_url: string | null;
   gallery_images: string[];
   variants: ProductVariant[];
-  manufacturing_rules: ManufacturingRule[];
+  manufacturing_rules: FabricationRules;
 }
 
 // For client suggestions

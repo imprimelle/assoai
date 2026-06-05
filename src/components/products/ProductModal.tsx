@@ -35,7 +35,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
     main_image_url: null,
     gallery_images: [],
     variants: [],
-    manufacturing_rules: [],
+    manufacturing_rules: { description_complete: '', exemples: '' },
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,7 +50,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
         main_image_url: product.main_image_url,
         gallery_images: product.gallery_images || [],
         variants: product.variants || [],
-        manufacturing_rules: product.manufacturing_rules || [],
+        manufacturing_rules: product.manufacturing_rules || { description_complete: '', exemples: '' },
       });
     } else {
       // Reset form if no product is provided

@@ -21,7 +21,7 @@ export interface TemplateMetadata {
   description?: string;
   availableActions: TemplateAction[];
   mode: "readonly" | "editable";
-  source?: "chatMessage" | "library" | "userGenerated" | "webhook";
+  source?: "chatMessage" | "library" | "userGenerated";
 }
 
 export interface Template {

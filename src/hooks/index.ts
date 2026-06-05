@@ -10,4 +10,4 @@ export { useProjects } from './useProjects';
 
 // Export des nouveaux services
 export { RetryService } from '../services/retryService';
-export { WebhookRetryService } from '../services/webhookRetryService';
+export { ChatRetryService } from '../services/webhookRetryService';

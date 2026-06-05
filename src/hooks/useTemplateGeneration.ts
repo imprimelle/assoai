@@ -1,7 +1,7 @@
 
 import { useState, useCallback } from 'react';
 import { TemplateType } from '@/types';
-import { WebhookRetryService } from '@/services/webhookRetryService';
+import { ChatRetryService } from '@/services/webhookRetryService';
 import { appLogger } from '@/utils/logger';
 import { toast } from '@/hooks/use-toast';
 

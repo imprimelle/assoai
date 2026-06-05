@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { File, Image, X, Download, Eye, AlertTriangle, RefreshCw, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { generatePDF, testWebhookConnectivity } from "@/services/pdfService";
+import { generatePDFClient } from "@/services/pdfGenerator";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogClose,
 } from "@/components/ui/dialog";
-import WebhookStatus from "./WebhookStatus";
+import ApiStatus from "./WebhookStatus";
 
 interface PDFActionMessageProps {
   action: PDFAction;
@@ -35,7 +35,7 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
   const [downloadUrl, setDownloadUrl] = useState<string | null>(action.downloadUrl || null);
   const [retryCount, setRetryCount] = useState(0);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [webhookStatus, setWebhookStatus] = useState<'unknown' | 'testing' | 'connected' | 'error'>('unknown');
+  const [apiStatus, setApiStatus] = useState<'unknown' | 'testing' | 'connected' | 'error'>('unknown');
   const isMobile = useIsMobile();
   
   // Enhanced logging for debugging
@@ -73,7 +73,7 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
     
     setIsPdfLoading(true);
     try {
-      const result = await generatePDF(
+      const result = await generatePDFClient(
         action.templateType, 
         action.templateData, 
         action.userId, 
@@ -95,7 +95,7 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
         });
       } else {
         setLastError(result.errorMessage || "Erreur lors de la génération du PDF");
-        setWebhookStatus('error');
+        setApiStatus('error');
         toast({
           variant: "destructive",
           title: "Erreur de génération",
@@ -111,7 +111,7 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
       setLastError(errorMessage);
-      setWebhookStatus('error');
+      setApiStatus('error');
       appLogger.error("PDF Generation UI Error:", error);
       toast({
         variant: "destructive",
@@ -142,7 +142,7 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
     
     setIsImageLoading(true);
     try {
-      const result = await generatePDF(
+      const result = await generatePDFClient(
         action.templateType,
         action.templateData,
         action.userId,
@@ -164,7 +164,7 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
         });
       } else {
         setLastError(result.errorMessage || "Erreur lors de la génération de l'image");
-        setWebhookStatus('error');
+        setApiStatus('error');
         toast({
           variant: "destructive",
           title: "Erreur de génération",
@@ -180,7 +180,7 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
       setLastError(errorMessage);
-      setWebhookStatus('error');
+      setApiStatus('error');
       appLogger.error("Image Generation UI Error:", error);
       toast({
         variant: "destructive",
@@ -258,7 +258,7 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
   const handleRetryGeneration = async (type: 'pdf' | 'image') => {
     setRetryCount(prev => prev + 1);
     setLastError(null);
-    setWebhookStatus('unknown');
+    setApiStatus('unknown');
     appLogger.info(`🔄 Retrying ${type} generation`, { 
       templateType: action.templateType, 
       retryCount: retryCount + 1,
@@ -426,9 +426,9 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
                     </div>
                     
                     {/* Webhook status indicator */}
-                    <WebhookStatus 
-                      status={webhookStatus} 
-                      onStatusChange={setWebhookStatus}
+                    <ApiStatus 
+                      status={apiStatus} 
+                      onStatusChange={setApiStatus}
                       compact={true}
                     />
                     

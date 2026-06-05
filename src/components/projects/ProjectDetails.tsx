@@ -23,7 +23,7 @@ import { buildQuoteData } from '@/utils/quote-utils';
 import { v4 as uuidv4 } from 'uuid';
 import { saveMessage } from '@/services/database';
 import { ProjectWorkflow } from '@/components/workflow';
-import { WebhookRetryService } from '@/services/webhookRetryService';
+import { ChatRetryService } from '@/services/webhookRetryService';
 import TemplateRecoveryService from './TemplateRecoveryService';
 import TemplateGenerationCard from './TemplateGenerationCard';
 import GenerationProgress from './GenerationProgress';

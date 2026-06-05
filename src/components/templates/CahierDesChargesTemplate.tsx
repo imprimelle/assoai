@@ -30,7 +30,11 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
   onSave,
 }) => {
   const [isEditMode, setIsEditMode] = useState(isEditable);
-  const [data, setData] = useState<CahierDesChargesData>(initialData);
+  const [data, setData] = useState<CahierDesChargesData>({
+    ...initialData,
+    enseignes: initialData.enseignes || [],
+    equipe: initialData.equipe || []
+  });
   const [selectedEnseigneFilter, setSelectedEnseigneFilter] = useState<string | "all">("all");
   const CAHIER_STATUSES: CahierStatus[] = ["Brouillon", "infographie", "demande", "Payé", "Livré"];
 

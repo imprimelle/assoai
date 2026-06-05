@@ -31,7 +31,11 @@ const DevisTemplate: React.FC<DevisTemplateProps> = ({
   onChange
 }) => {
   const [isEditMode, setIsEditMode] = useState(isEditable);
-  const [data, setData] = useState<DevisData>(initialData);
+  const [data, setData] = useState<DevisData>({
+    ...initialData,
+    client: initialData.client || { nom: "", adresse: "" },
+    details: initialData.details || []
+  });
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -42,7 +46,11 @@ const DevisTemplate: React.FC<DevisTemplateProps> = ({
 
   // Mettre à jour les données si initialData change
   useEffect(() => {
-    setData(initialData);
+    setData({
+      ...initialData,
+      client: initialData.client || { nom: "", adresse: "" },
+      details: initialData.details || []
+    });
   }, [initialData]);
 
   const handleDataChange = (newData: DevisData) => {
