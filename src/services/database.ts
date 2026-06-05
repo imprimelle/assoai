@@ -120,14 +120,91 @@ export const saveMessage = async (message: Message): Promise<string | null> => {
           });
         }
       }
+      // Après vérification, réparer les flags is_latest pour tous les
+      // documents de ce type (contourne le trigger DB défectueux qui
+      // met is_latest=false sur tous les anciens documents sans filtrer
+      // par numéro de document)
+      if (idKey) {
+        repairIsLatestAfterSave(templateType, idKey);
+      }
     }
-    
+
     return data.id;
   } catch (error) {
     appLogger.error('❌ Exception saving message', { error, message });
     return null;
   }
 };
+
+// ============================================================
+// RÉPARATION is_latest (contourne le trigger DB défectueux)
+// ============================================================
+
+/**
+ * Après chaque sauvegarde, répare les flags is_latest pour tous les
+ * documents du même type. Le trigger DB met incorrectement is_latest=false
+ * sur TOUS les anciens documents (quel que soit leur numéro). Cette fonction
+ * restaure is_latest=true sur la dernière version de chaque numéro distinct.
+ */
+export async function repairIsLatestAfterSave(
+  templateType: string,
+  idKey: string
+): Promise<void> {
+  try {
+    const { data: messages, error: fetchErr } = await supabase
+      .from("messages")
+      .select("id, template_data")
+      .eq("template_type", templateType)
+      .order("timestamp", { ascending: false })
+      .limit(200);
+
+    if (fetchErr || !messages) {
+      appLogger.warning("repairIsLatest: fetch echoue", { error: fetchErr });
+      return;
+    }
+
+    // Grouper par identifiant (numero) et trouver la version max
+    const groups = new Map<string, { id: string; version: number }>();
+    for (const msg of messages) {
+      const td = (msg.template_data as any)?.data;
+      if (!td) continue;
+      const identifier = td[idKey];
+      if (!identifier) continue;
+      const version = typeof td.version === "number" ? td.version : 1;
+      const existing = groups.get(identifier);
+      if (!existing || version > existing.version) {
+        groups.set(identifier, { id: msg.id, version });
+      }
+    }
+
+    // Pour chaque identifiant, mettre is_latest=true sur le plus recent
+    let fixed = 0;
+    for (const [, { id: latestId }] of groups) {
+      const msg = messages.find(m => m.id === latestId);
+      if (!msg) continue;
+      const td = (msg.template_data as any)?.data;
+      if (!td || td.is_latest === true) continue;
+
+      const updatedTd = { ...td, is_latest: true };
+      const { error: updErr } = await supabase
+        .from("messages")
+        .update({ template_data: { data: updatedTd } })
+        .eq("id", latestId);
+
+      if (!updErr) fixed++;
+    }
+
+    if (fixed > 0) {
+      appLogger.info(`repairIsLatest: ${fixed} documents ${templateType} corriges`, {
+        total: messages.length,
+        uniqueIdentifiers: groups.size,
+        fixed,
+      });
+    }
+  } catch (err) {
+    appLogger.warning("repairIsLatest exception", { error: err });
+  }
+}
 
 /**
  * Charge les messages d'une session spécifique
