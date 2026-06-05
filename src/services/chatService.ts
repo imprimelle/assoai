@@ -179,6 +179,10 @@ export async function sendChatRequest(
     ];
 
     let userContent = payload.message.content || "";
+    // Injecter le numéro de document directement dans le message (bypass prompt personnalisé)
+    if (docNumber) {
+      userContent = `⚠️ NUMÉRO RÉSERVÉ : ${docNumber}. Utilise EXACTEMENT ce numéro dans le document.\n\n${userContent}`;
+    }
     if (payload.message.template) {
       userContent +=
         "\n\n--- TEMPLATE EXISTANT ---\n" +
