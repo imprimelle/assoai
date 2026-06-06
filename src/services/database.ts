@@ -182,7 +182,11 @@ export async function repairIsLatestAfterSave(
     for (const msg of messages) {
       const td = (msg.template_data as any)?.data;
       if (!td) continue;
-      const identifier = td[idKey];
+      // CDC legacy : si pas de cdcNumero, fallback sur titre
+      const identifier =
+        idKey === "cdcNumero"
+          ? td["cdcNumero"] || td["titre"]
+          : td[idKey];
       if (!identifier) continue;
       const version = typeof td.version === "number" ? td.version : 1;
       const existing = groups.get(identifier);

@@ -35,7 +35,9 @@ function extractExistingNumero(
     case "commande":
       return data.commandeNumero || null;
     case "cahier_des_charges":
-      return data.cdcNumero || data.titre || null;
+      // CDC : ne pas fallback sur titre pour l'identification atomique.
+      // Si pas de cdcNumero, on alloue un nouveau numero dans resolveDocumentContext.
+      return data.cdcNumero || null;
     default:
       return null;
   }
@@ -104,12 +106,17 @@ async function resolveDocumentContext(
     }
     // Meme type → modification
     const numero = extractExistingNumero(templateType, data as Record<string, any>);
+    // CDC legacy sans cdcNumero : allouer un numero atomique au premier passage
+    const docNumber =
+      templateType === "cahier_des_charges" && !numero
+        ? await allocateDocumentNumber("cahier_des_charges")
+        : numero;
     appLogger.info("Contexte document : MODIFICATION", {
       templateType,
-      numero,
+      numero: docNumber,
       source: "template",
     });
-    return { action: "modify", docType: templateType, numero };
+    return { action: "modify", docType: templateType, numero: docNumber };
   }
 
   // 2. MODIFIER ou DERIVER : citation d'un document (quote)
