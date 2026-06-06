@@ -132,7 +132,8 @@ export function detectPriceHints(text: string): PriceHint[] {
 export interface ScoredProduct {
   product: Product;
   score: number;
-  matchedVariant?: ProductVariant;
+  matchedVariant?: ProductVariant;           // meilleure variante (backward compat)
+  allMatchedVariants: ProductVariant[];      // toutes les variantes qui matchent
   matchDetails: string[];
 }
 
@@ -142,7 +143,7 @@ export interface ScoredProduct {
  */
 export function smartSearch(query: string, products: Product[]): ScoredProduct[] {
   if (!query || !query.trim()) {
-    return products.map(p => ({ product: p, score: 0, matchDetails: [] }));
+    return products.map(p => ({ product: p, score: 0, allMatchedVariants: [], matchDetails: [] }));
   }
 
   const normalizedQuery = normalizeText(query);
@@ -156,6 +157,7 @@ export function smartSearch(query: string, products: Product[]): ScoredProduct[]
     let score = 0;
     const matchDetails: string[] = [];
     let bestVariant: ProductVariant | undefined;
+    const allMatchedVariants: ProductVariant[] = [];
 
     const normName = normalizeText(product.name);
     const normDesc = normalizeText(product.description || "");
@@ -204,7 +206,9 @@ export function smartSearch(query: string, products: Product[]): ScoredProduct[]
     }
 
     // ── 3. Match des variantes (bonus sur le score nom) ──
+    // Collecte TOUTES les variantes qui matchent (pas seulement la première)
     if (product.variants && Array.isArray(product.variants)) {
+      let bestVariantScore = 0;
       for (const variant of product.variants) {
         const normVariantName = normalizeText(variant.name);
         let variantScore = 0;
@@ -223,12 +227,18 @@ export function smartSearch(query: string, products: Product[]): ScoredProduct[]
           }
         }
 
-        if (variantScore > 0 && (!bestVariant || variantScore > 5)) {
-          bestVariant = variant;
-          score += variantScore;
-          matchDetails.push(`variante: ${variant.name}`);
-          break; // première variante qui match
+        if (variantScore > 0) {
+          allMatchedVariants.push(variant);
+          if (variantScore > bestVariantScore) {
+            bestVariantScore = variantScore;
+            bestVariant = variant;
+          }
+          matchDetails.push(`variante: ${variant.name} (score ${variantScore.toFixed(1)})`);
         }
+      }
+      // Ajouter le score de la meilleure variante au score total
+      if (bestVariantScore > 0) {
+        score += bestVariantScore;
       }
     }
 
@@ -297,7 +307,7 @@ export function smartSearch(query: string, products: Product[]): ScoredProduct[]
 
     // ── Filtre : score > 0 pour être inclus ──
     if (score > 0 || !query.trim()) {
-      scored.push({ product, score, matchedVariant: bestVariant, matchDetails });
+      scored.push({ product, score, matchedVariant: bestVariant, allMatchedVariants, matchDetails });
     }
   }
 
