@@ -17,3 +17,4 @@ update_key.py
 tail-logs.py
 
 .supabase-service-role
+.supabase-db-password
