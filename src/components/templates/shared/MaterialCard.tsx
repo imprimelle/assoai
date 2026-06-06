@@ -421,8 +421,8 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
             )}
           </div>
 
-          {/*show ImageUpload when editable only for découpe et vinyl */}
-          {isEditable && ["Découpe", "Vinyl"].includes(section) && (
+          {/* ImageUpload pour tous les matériaux */}
+          {isEditable && (
             <div className="mt-4">
               <ImageUpload
                 imageUrl={item.image_url || ""}
