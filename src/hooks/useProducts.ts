@@ -64,9 +64,10 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
         query = query.or(`session_id.eq.${sessionFilter},created_by.eq.${sessionFilter}`);
       }
 
-      // Apply name search if specified
+      // Apply name OR description search if specified (ilike = case-insensitive)
       if (searchTerm) {
-        query = query.ilike('name', `%${searchTerm}%`);
+        // Normaliser le terme pour la recherche (PostgreSQL ilike est déjà case-insensitive)
+        query = query.or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
       }
         
       const { data, error: fetchError } = await query.order('created_at', { ascending: false });

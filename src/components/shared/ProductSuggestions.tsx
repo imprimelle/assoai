@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Command,
   CommandEmpty,
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { Product, ProductVariant } from "@/types/product";
 import { useProducts } from "@/hooks/useProducts";
 import { formatCFA } from "@/utils/format";
+import { smartSearch, normalizeText, tokenize } from "@/utils/productSearch";
 
 interface ProductSuggestionItem {
   id: string;
@@ -94,11 +95,25 @@ const ProductSuggestions: React.FC<ProductSuggestionsProps> = ({
     processProducts();
   }, [products]);
 
-  // Filter suggestions based on search term
-  const filteredSuggestions = suggestions.filter(item => 
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.parentProduct && item.parentProduct.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Filter suggestions using smart search (accent-insensitive, dimension-aware, price-aware)
+  const filteredSuggestions = useMemo(() => {
+    if (!searchTerm.trim()) return suggestions;
+    
+    // Use smart search on the raw products array
+    const scored = smartSearch(searchTerm, products);
+    const matchedProductIds = new Set(scored.map(s => s.product.id));
+    const matchedVariantIds = new Set(
+      scored.filter(s => s.matchedVariant).map(s => s.matchedVariant!.id)
+    );
+    
+    // Filter: include product if it matches, or if any of its variants match
+    return suggestions.filter(item => {
+      if (item.isVariant) {
+        return matchedVariantIds.has(item.id);
+      }
+      return matchedProductIds.has(item.id);
+    });
+  }, [searchTerm, suggestions, products]);
 
   return (
     <Popover open={open && !disabled} onOpenChange={setOpen}>
