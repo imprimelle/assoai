@@ -4,6 +4,8 @@
 export type AgentMode = "wari" | "brico";
 
 const LS_PREFIX = "assoai_agent_prompt_";
+const VERSION_KEY = "assoai_agent_prompt_version";
+const CURRENT_VERSION = 3; // ← incrémente à chaque mise à jour des DEFAULT_PROMPTS
 
 // ============================================================
 // PROMPTS PAR DÉFAUT
@@ -271,6 +273,16 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
 
 export function getPrompt(agent: AgentMode): string {
   try {
+    const storedVersion = localStorage.getItem(VERSION_KEY);
+    // Version mismatch → les prompts par défaut ont changé, ignorer le cache
+    if (storedVersion !== String(CURRENT_VERSION)) {
+      // Purger les anciens prompts et réinitialiser
+      for (const a of ["wari", "brico"] as AgentMode[]) {
+        localStorage.removeItem(LS_PREFIX + a);
+      }
+      localStorage.setItem(VERSION_KEY, String(CURRENT_VERSION));
+      return DEFAULT_PROMPTS[agent];
+    }
     const stored = localStorage.getItem(LS_PREFIX + agent);
     if (stored !== null) return stored;
   } catch { /* localStorage indisponible */ }
@@ -280,6 +292,7 @@ export function getPrompt(agent: AgentMode): string {
 export function setPrompt(agent: AgentMode, prompt: string): void {
   try {
     localStorage.setItem(LS_PREFIX + agent, prompt);
+    localStorage.setItem(VERSION_KEY, String(CURRENT_VERSION));
   } catch { /* localStorage plein ou indisponible */ }
 }
 
@@ -287,6 +300,7 @@ export function resetPrompt(agent: AgentMode): string {
   const def = DEFAULT_PROMPTS[agent];
   try {
     localStorage.setItem(LS_PREFIX + agent, def);
+    localStorage.setItem(VERSION_KEY, String(CURRENT_VERSION));
   } catch { /* ignore */ }
   return def;
 }
