@@ -134,7 +134,7 @@ const ProductSuggestions: React.FC<ProductSuggestionsProps> = ({
           <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0">
+      <PopoverContent className="w-[300px] max-w-[calc(100vw-2rem)] p-0" align="start">
         <Command>
           <CommandInput 
             placeholder={placeholder} 
@@ -142,7 +142,7 @@ const ProductSuggestions: React.FC<ProductSuggestionsProps> = ({
             value={searchTerm}
             onValueChange={setSearchTerm}
           />
-          <CommandList>
+          <CommandList className="max-h-[280px] sm:max-h-[350px] overflow-y-auto">
             <CommandEmpty>
               {isLoading ? "Chargement..." : "Aucun produit trouvé"}
             </CommandEmpty>
