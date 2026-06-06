@@ -134,8 +134,14 @@ export const uiMessageToDbMessage = (message: Message): Omit<DBMessage, "timesta
   } : null;
 
   // Utiliser systématiquement la structure standardisée avec wrapper data pour les données de template
+  // ⚠️ Ne PAS persister template_type/template_data pour les messages utilisateur :
+  // les templates attachés aux messages utilisateur sont des RÉFÉRENCES (citation, dérivation),
+  // pas des versions de document. Les persister déclenche trg_messages_deflag
+  // (qui déflague TOUTES les factures même sans rapport) et pollue le groupement
+  // par numéro dans repairIsLatestAfterSave().
   let templateData = null;
-  if (message.template?.data) {
+  let templateType: string | null = null;
+  if (message.template?.data && !message.isUser) {
     // Créer une copie propre des données
     const data = JSON.parse(JSON.stringify(message.template.data));
     
@@ -146,11 +152,17 @@ export const uiMessageToDbMessage = (message: Message): Omit<DBMessage, "timesta
     
     // Toujours utiliser le wrapper data pour une structure de base de données cohérente
     templateData = { data };
+    templateType = message.template.templateType;
     
     appLogger.info("💾 Enregistrement des données de template avec structure standardisée", {
       templateType: message.template.templateType,
       version: data.version,
       is_latest: data.is_latest
+    });
+  } else if (message.template?.data && message.isUser) {
+    appLogger.info("⏭️ Template utilisateur NON persisté (référence, pas une version document)", {
+      templateType: message.template.templateType,
+      reason: "user-message-reference"
     });
   }
 
@@ -162,7 +174,7 @@ export const uiMessageToDbMessage = (message: Message): Omit<DBMessage, "timesta
     sender: message.isUser ? 'user' : 'ai',
     content: message.content,
     attachments: attachments,
-    template_type: message.template?.templateType || null,
+    template_type: templateType,
     template_data: templateData as Json,
     quote: quote,
     version_ref: null

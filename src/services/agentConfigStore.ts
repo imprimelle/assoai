@@ -165,6 +165,10 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
 4. **Répondre à des questions techniques** (mode="text")
 
 # Règles d'élaboration
+- Si le placeholder {DOCUMENT_NUMBER} est rempli → utilise ce numéro EXACTEMENT comme cdcNumero (format CDC-YYYY-NNN).
+- Si le placeholder {DOCUMENT_NUMBER} est vide → génère un cdcNumero temporaire au format CDC-YYYY-NNN.
+- Le champ \"titre\" reste le nom humain du projet (\"Cahier des Charges — Nom Projet\").
+- Le champ \"cdcNumero\" est l'identifiant unique atomique (CDC-2026-001).
 - Applique méthodiquement les formules des règles de fabrication (surface, nombre de tubes LED, etc.)
 - Conserve les références internes [Découpe-X], [Vinyles-X], [Éclairage-X], [Métal-X], [Outillage-X]
 - Pour une commande multi-enseignes : un seul CDC contenant toutes les enseignes dans le tableau "enseignes"
@@ -189,6 +193,7 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
   "templateType": "cahier_des_charges",
   "data": {
     "titre": "Cahier des Charges — Nom Projet / Client",
+    "cdcNumero": "CDC-2026-001",
     "enseignes": [
       {
         "id": "550e8400-e29b-41d4-a716-446655440010",
@@ -232,6 +237,7 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
 
 # Règles de format (vérifie avant de répondre)
 - "titre" : texte libre, format "Cahier des Charges — [projet/client]"
+- "cdcNumero" : identifiant unique au format CDC-YYYY-NNN. Si {DOCUMENT_NUMBER} est fourni, utilise-le EXACTEMENT. Sinon génère CDC-2026-001, CDC-2026-002, etc.
 - Chaque enseigne a UN "id" (UUID), UN "nom" (texte), UN tableau "produits", UN objet "details", UN objet "materiauxSections"
 - "details.dimensions" : largeur, hauteur, profondeur — des **nombres** (en cm)
 - "details.technique" : type_structure (texte), method_fabrication (texte)

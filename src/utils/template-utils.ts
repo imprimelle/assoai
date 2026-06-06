@@ -85,9 +85,9 @@ export function getTemplateIdentifier(templateType: TemplateType, data: Template
       case 'commande': 
         return isCommandeData(data) ? data.commandeNumero : '';
       case 'cahier_des_charges': 
-        // Using enhanced type guard and checking for titre explicitly
+        // Utiliser cdcNumero (atomique) ou fallback titre (legacy)
         if (isCahierDesChargesData(data)) {
-          return data.titre || 'Sans titre';
+          return data.cdcNumero || data.titre || 'Sans titre';
         }
         return '';
       default:

@@ -35,7 +35,7 @@ function extractExistingNumero(
     case "commande":
       return data.commandeNumero || null;
     case "cahier_des_charges":
-      return data.titre || null;
+      return data.cdcNumero || data.titre || null;
     default:
       return null;
   }
@@ -56,7 +56,6 @@ function detectDocTypeFromContent(content: string): string | null {
  * Retourne le numéro ou null si échec (fallback IA).
  */
 async function allocateDocumentNumber(docType: string): Promise<string | null> {
-  if (docType === "cahier_des_charges") return null; // CDC = titre libre
   try {
     const { data, error } = await supabase.rpc("next_document_number", {
       p_doc_type: docType,

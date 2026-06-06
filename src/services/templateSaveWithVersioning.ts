@@ -37,8 +37,8 @@ export const saveTemplateAndSync = async (message: Message, userId: string): Pro
         identifierValue = (data as any).commandeNumero;
         break;
       case "cahier_des_charges":
-        identifierKey = "titre";
-        identifierValue = (data as any).titre;
+        identifierKey = "cdcNumero";
+        identifierValue = (data as any).cdcNumero || (data as any).titre;
         // Log détaillé pour le cahier des charges
         appLogger.info("🔍 Détails du cahier des charges", {
           titre: (data as any).titre,

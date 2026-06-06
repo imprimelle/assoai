@@ -168,6 +168,11 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Cahier des charges</h2>
+            {data.cdcNumero && (
+              <p className="font-semibold mt-1 text-sm text-brand-orange">
+                N° {data.cdcNumero}
+              </p>
+            )}
             <p className="font-medium mt-1 text-md text-gray-600">
               N° {data.titre}
             </p>

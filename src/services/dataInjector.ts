@@ -5,6 +5,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { AgentMode } from "./agentConfigStore";
+import { appLogger } from "@/utils/logger";
 
 const MAX_PRODUCTS = 20;
 
@@ -97,11 +98,30 @@ export async function injectProductData(
 
   if (agent === "wari") {
     const injected = formatForWari(products);
+    appLogger.info(`[Wari] Injection DB: ${products.length} produits`, {
+      agent: "wari",
+      source: "db-injection",
+      products_count: products.length,
+      injected_len: injected.length,
+      injected_preview: injected.substring(0, 300),
+    });
     return systemPrompt.replace("{INJECTED_PRODUCTS}", injected);
   }
 
   if (agent === "brico") {
     const injected = formatForBrico(products);
+    const withRules = products.filter((p) => {
+      const mr = p.manufacturing_rules as any;
+      return mr?.description_complete || p.description;
+    });
+    appLogger.info(`[Brico] Injection DB: ${withRules.length}/${products.length} produits avec règles`, {
+      agent: "brico",
+      source: "db-injection",
+      products_total: products.length,
+      products_with_rules: withRules.length,
+      injected_len: injected.length,
+      injected_preview: injected.substring(0, 300),
+    });
     return systemPrompt.replace("{INJECTED_RULES}", injected);
   }
 

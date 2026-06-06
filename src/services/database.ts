@@ -28,8 +28,10 @@ export const saveMessage = async (message: Message): Promise<string | null> => {
       templateType: message.template?.templateType
     });
     
-    // Si le message a un template, exécuter la fonction de synchronisation du template pour la journalisation et la validation
-    if (message.template) {
+    // Si le message a un template ET n'est pas un message utilisateur,
+    // exécuter la fonction de synchronisation du template pour la journalisation et la validation.
+    // Les messages utilisateur avec template sont des RÉFÉRENCES, pas des versions document.
+    if (message.template && !message.isUser) {
       await saveTemplateAndSync(message, message.userId);
     }
     
@@ -64,8 +66,11 @@ export const saveMessage = async (message: Message): Promise<string | null> => {
       sessionId: message.sessionId 
     });
     
-    // Après l'enregistrement, vérifier si le déclencheur a correctement mis à jour les anciennes versions si c'est un template
-    if (message.template) {
+    // Après l'enregistrement, vérifier si le déclencheur a correctement
+    // mis à jour les anciennes versions si c'est un template généré par l'IA.
+    // ⚠️ Ignorer les messages utilisateur : leurs templates sont des RÉFÉRENCES,
+    // pas des versions document. Les persister briserait le versioning.
+    if (message.template && !message.isUser) {
       const { templateType, data: templateData } = message.template;
       
       // Déterminer la clé d'identifiant et la valeur
@@ -86,8 +91,8 @@ export const saveMessage = async (message: Message): Promise<string | null> => {
           idValue = (templateData as any).commandeNumero;
           break;
         case "cahier_des_charges":
-          idKey = "titre";
-          idValue = (templateData as any).titre;
+          idKey = "cdcNumero";
+          idValue = (templateData as any).cdcNumero || (templateData as any).titre;
           break;
       }
       
@@ -130,7 +135,7 @@ export const saveMessage = async (message: Message): Promise<string | null> => {
           { type: "facture", key: "factureNumero" },
           { type: "devis", key: "devisNumero" },
           { type: "commande", key: "commandeNumero" },
-          { type: "cahier_des_charges", key: "titre" },
+          { type: "cahier_des_charges", key: "cdcNumero" },
         ];
         await Promise.all(
           ALL_TYPES.map(t => repairIsLatestAfterSave(t.type, t.key))

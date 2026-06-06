@@ -147,7 +147,7 @@ const TemplatePreview: React.FC<TemplatePreviewProps> = ({
         };
       case "cahier_des_charges":
         return {
-          numero: templateData.titre || "N/A",
+          numero: (templateData as any).cdcNumero || templateData.titre || "N/A",
           date: "",
           client: templateData.equipe && Array.isArray(templateData.equipe) && templateData.equipe.length > 0 
             ? `Équipe: ${templateData.equipe.length} membres` 

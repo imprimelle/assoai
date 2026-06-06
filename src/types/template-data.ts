@@ -141,6 +141,7 @@ export interface CommandeData {
 
 export interface CahierDesChargesData {
   titre: string;
+  cdcNumero?: string;
   commande_id?: string;
   statut?: CahierStatus;
   

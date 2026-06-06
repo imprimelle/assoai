@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { File, Image, X, Download, Eye, AlertTriangle, RefreshCw, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { generatePDFClient } from "@/services/pdfGenerator";
+import { generatePDFClient, generateImageClient } from "@/services/pdfGenerator";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
@@ -78,11 +78,10 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
         action.templateData, 
         action.userId, 
         action.sessionId || "",
-        "pdf" // Specify PDF generation type
       );
       
       if (result.success && result.pdfUrl) {
-        // Store both URLs - one for preview, one for direct download
+        // Store both URLs — le pdfUrl est un blob URL ou un HTML blob
         setPreviewUrl(result.pdfUrl);
         setDownloadUrl(result.downloadUrl || result.pdfUrl);
         setPreviewType("pdf");
@@ -94,12 +93,12 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
           description: `Le document ${action.documentNumber || ''} est prêt à être visualisé.`
         });
       } else {
-        setLastError(result.errorMessage || "Erreur lors de la génération du PDF");
+        setLastError(result.error || "Erreur lors de la génération du PDF");
         setApiStatus('error');
         toast({
           variant: "destructive",
           title: "Erreur de génération",
-          description: result.errorMessage || "Une erreur s'est produite lors de la génération du PDF.",
+          description: result.error || "Une erreur s'est produite lors de la génération du PDF.",
           action: (
             <Button variant="outline" size="sm" onClick={() => handleRetryGeneration('pdf')}>
               Réessayer
@@ -131,7 +130,7 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
   
   const handleGenerateImage = async () => {
     // Vérifier d'abord si les données nécessaires sont présentes
-    if (!action.templateData || !action.userId) {
+    if (!action.templateData) {
       toast({
         variant: "destructive",
         title: "Erreur",
@@ -142,18 +141,15 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
     
     setIsImageLoading(true);
     try {
-      const result = await generatePDFClient(
+      const result = await generateImageClient(
         action.templateType,
         action.templateData,
-        action.userId,
-        action.sessionId || "",
-        "image" // Specify image generation type
       );
       
-      if (result.success && result.url) {
-        // Store both URLs - one for preview, one for direct download
-        setPreviewUrl(result.url);
-        setDownloadUrl(result.downloadUrl || result.url);
+      if (result.success && result.pdfUrl) {
+        // Store both URLs — pdfUrl est un blob URL HTML
+        setPreviewUrl(result.pdfUrl);
+        setDownloadUrl(result.downloadUrl || result.pdfUrl);
         setPreviewType("image");
         setShowPreviewDialog(true);
         setPreviewError(false);
@@ -163,12 +159,12 @@ const PDFActionMessage: React.FC<PDFActionMessageProps> = ({ action, onRemove })
           description: `L'image du document ${action.documentNumber || ''} est prête à être visualisée.`
         });
       } else {
-        setLastError(result.errorMessage || "Erreur lors de la génération de l'image");
+        setLastError(result.error || "Erreur lors de la génération de l'image");
         setApiStatus('error');
         toast({
           variant: "destructive",
           title: "Erreur de génération",
-          description: result.errorMessage || "Une erreur s'est produite lors de la génération de l'image.",
+          description: result.error || "Une erreur s'est produite lors de la génération de l'image.",
           action: (
             <Button variant="outline" size="sm" onClick={() => handleRetryGeneration('image')}>
               Réessayer

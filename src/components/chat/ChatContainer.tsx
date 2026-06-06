@@ -265,8 +265,8 @@ if (finalTemplate) {
       idValue = (finalTemplate.data as CommandeData).commandeNumero;
       break;
     case "cahier_des_charges":
-      idKey = "titre";
-      idValue = (finalTemplate.data as CahierDesChargesData).titre;
+      idKey = "cdcNumero";
+      idValue = (finalTemplate.data as CahierDesChargesData).cdcNumero || (finalTemplate.data as CahierDesChargesData).titre;
       break;
   }
 }
@@ -481,6 +481,7 @@ const lastVersion = finalTemplate
       case "cahier_des_charges":
         return {
           titre: `Projet-${Date.now().toString().slice(-6)}`,
+          cdcNumero: "",
           commande_id: "",
           materiaux: [
             { 
@@ -568,8 +569,8 @@ const getDocumentNumber = (templateType: TemplateType, data: TemplateData): stri
       return (data as DevisData).devisNumero;
     case "commande":
       return (data as CommandeData).commandeNumero;
-    default:
-      return undefined;
+    case "cahier_des_charges":
+      return (data as CahierDesChargesData).cdcNumero || (data as CahierDesChargesData).titre;
   }
 };
 
