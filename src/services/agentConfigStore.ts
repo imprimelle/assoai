@@ -5,7 +5,7 @@ export type AgentMode = "wari" | "brico";
 
 const LS_PREFIX = "assoai_agent_prompt_";
 const VERSION_KEY = "assoai_agent_prompt_version";
-const CURRENT_VERSION = 3; // ← incrémente à chaque mise à jour des DEFAULT_PROMPTS
+const CURRENT_VERSION = 4; // ← incrémente à chaque mise à jour des DEFAULT_PROMPTS
 
 // ============================================================
 // PROMPTS PAR DÉFAUT
@@ -35,6 +35,15 @@ Utilise UNIQUEMENT les produits et prix ci-dessous. N'invente jamais un produit 
 - Si le placeholder {DOCUMENT_NUMBER} est vide → génère un numéro temporaire au format standard.
 - Format standard : F-YYYY-NNN (facture), D-YYYY-NNN (devis), CMD-YYYY-NNN (commande).
 - NNN = 3 chiffres, YYYY = année en cours.
+
+# Règles de dérivation (quand un template existant est fourni)
+- **Facture → Commande** : si un template de facture est fourni (--- TEMPLATE EXISTANT ---) :
+  - renseigne OBLIGATOIREMENT "linked_facture_id" avec le factureNumero de la facture source
+  - copie le client (nom, adresse, telephone) dans la commande
+  - copie deliveryAddress si présent
+  - convertis les details[] de la facture en items[] de la commande (description → nom)
+  - conserve les quantites et prix
+- **Modification d'un document** : réutilise le numéro existant, incrémente version, mets is_latest=true
 
 # Règles métier
 - Prix : toujours depuis le catalogue. Si le produit a des variantes, utilise le prix de la variante correspondante
@@ -78,6 +87,11 @@ Utilise UNIQUEMENT les produits et prix ci-dessous. N'invente jamais un produit 
     ],
     "total": 300000,
     "statut": "En attente",
+    "deliveryAddress": {
+      "label": "Abidjan, Cocody",
+      "lat": 5.3599,
+      "lng": -4.0083
+    },
     "version": 1,
     "is_latest": true
   }
@@ -107,6 +121,11 @@ Utilise UNIQUEMENT les produits et prix ci-dessous. N'invente jamais un produit 
       }
     ],
     "total": 250000,
+    "deliveryAddress": {
+      "label": "Abidjan, Cocody",
+      "lat": 5.3599,
+      "lng": -4.0083
+    },
     "version": 1,
     "is_latest": true
   }
@@ -123,7 +142,8 @@ Utilise UNIQUEMENT les produits et prix ci-dessous. N'invente jamais un produit 
     "dateLivraison": "2026-06-18",
     "client": {
       "nom": "Entreprise X",
-      "adresse": "Abidjan, Cocody"
+      "adresse": "Abidjan, Cocody",
+      "telephone": "+225 01 02 03 04"
     },
     "items": [
       {
@@ -131,20 +151,42 @@ Utilise UNIQUEMENT les produits et prix ci-dessous. N'invente jamais un produit 
         "nom": "Totem lumineux double face",
         "quantite": 1,
         "prixUnitaire": 450000,
-        "sous_total": 450000
+        "sous_total": 450000,
+        "image_url": "https://..."
+      }
+    ],
+    "details": [
+      {
+        "note": "Livraison express",
+        "option": "Couleur rouge",
+        "delaiLivraison": "2 semaines",
+        "montantAvance": 200000
       }
     ],
     "total": 450000,
     "statut": "En cours",
+    "linked_facture_id": "F-2026-005",
+    "recu_image_url": "https://...",
+    "deliveryAddress": {
+      "label": "Abidjan, Cocody",
+      "lat": 5.3599,
+      "lng": -4.0083
+    },
     "version": 1,
     "is_latest": true
   }
 }
 
 # Rappel des règles de format
-- Les champs dans "details" s'appellent **description, quantite, prixUnitaire, sous_total** (pas "nom", pas "item")
-- Les champs dans "items" (commande uniquement) s'appellent **nom, quantite, prixUnitaire, sous_total**
-- Les nombres (quantite, prixUnitaire, sous_total, total, validiteJours, version) sont des **numbers**, pas des strings
+- FACTURE : les champs dans "details" s'appellent **description, quantite, prixUnitaire, sous_total** (pas "nom")
+- DEVIS : mêmes champs que facture (details[].description, etc.) + validiteJours
+- COMMANDE : les champs dans "items" s'appellent **nom, quantite, prixUnitaire, sous_total** (pas "description")
+- Commande "items[].image_url" : URL de l'image du produit (optionnel, copie-la depuis la facture ou le catalogue)
+- Commande "linked_facture_id" : si la commande dérive d'une facture, mets le factureNumero source
+- Commande "details[]" : tableau optionnel de { note, option, delaiLivraison, montantAvance }
+- Commande "recu_image_url" : URL du reçu de paiement (optionnel)
+- Commande "deliveryAddress" : optionnel, format { label, lat, lng }
+- Les nombres (quantite, prixUnitaire, sous_total, total, validiteJours, version, montantAvance) sont des **numbers**, pas des strings
 - "is_latest" est un **boolean** (true/false)
 - Chaque id est un **UUID unique** généré par toi
 - Numéros de document : si {DOCUMENT_NUMBER} est non-vide, utilise-le EXACTEMENT. Sinon, génère au format standard (F-YYYY-NNN, D-YYYY-NNN, CMD-YYYY-NNN)`,
