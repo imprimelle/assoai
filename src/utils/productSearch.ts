@@ -137,9 +137,42 @@ export interface ScoredProduct {
   matchDetails: string[];
 }
 
+/** Fraction de caractères de a trouvés dans b (dans l'ordre). Pour le fuzzy matching. */
+function charOverlap(a: string, b: string): number {
+  if (!a || !b) return 0;
+  let matches = 0;
+  let pos = 0;
+  for (const ch of a) {
+    const idx = b.indexOf(ch, pos);
+    if (idx >= 0) { matches++; pos = idx + 1; }
+  }
+  return matches / a.length;
+}
+
+/** Extrait les mots-clés d'un texte pour l'expansion sémantique */
+function extractKeywords(text: string): string[] {
+  // Mots significatifs (≥3 lettres) après normalisation, sans ponctuation, sans stop words
+  const stopWords = new Set(["les","des","est","pas","que","qui","une","sur","avec","pour","par","dans","aux","ces"]);
+  return tokenize(text)
+    .map(t => t.replace(/[.,;:!?()]$/, ""))
+    .filter(t => t.length >= 3 && !stopWords.has(t));
+}
+
+/** Calcule l'overlap de mots-clés entre deux ensembles */
+function keywordOverlap(a: Set<string>, b: Set<string>): number {
+  let common = 0;
+  for (const k of a) { if (b.has(k)) common++; }
+  return a.size > 0 ? common / a.size : 0;
+}
+
+const MIN_SCORE = 2;        // score minimum pour apparaitre (abaissé pour plus de suggestions)
+const MAX_RESULTS = 15;     // max de suggestions affichées
+const EXPANSION_BOOST = 8;  // bonus de similarité pour produits apparentés
+
 /**
  * Recherche intelligente dans le catalogue.
  * Score sur 100 : nom (40) + description (20) + tokens (20) + dimensions (10) + prix (10)
+ * + expansion par mots-clés partagés
  */
 export function smartSearch(query: string, products: Product[]): ScoredProduct[] {
   if (!query || !query.trim()) {
@@ -148,6 +181,7 @@ export function smartSearch(query: string, products: Product[]): ScoredProduct[]
 
   const normalizedQuery = normalizeText(query);
   const queryTokens = tokenize(query);
+  const queryKeywords = extractKeywords(query);
   const dimHints = detectDimensions(query);
   const priceHints = detectPriceHints(query);
 
@@ -164,7 +198,7 @@ export function smartSearch(query: string, products: Product[]): ScoredProduct[]
     const nameTokens = tokenize(product.name);
     const descTokens = tokenize(product.description || "");
 
-    // ── 1. Match exact nom (40 points) ──
+    // ── 1. Match nom (0-40 pts) ──
     if (normName === normalizedQuery) {
       score += 40;
       matchDetails.push("nom exact");
@@ -172,41 +206,43 @@ export function smartSearch(query: string, products: Product[]): ScoredProduct[]
       score += 30;
       matchDetails.push("nom contient");
     } else {
-      // Sous-chaîne dans le nom
       let nameTokenMatches = 0;
       for (const qt of queryTokens) {
-        if (normName.includes(qt)) {
-          nameTokenMatches++;
-        }
+        if (normName.includes(qt)) nameTokenMatches++;
       }
       if (nameTokenMatches > 0) {
         score += (nameTokenMatches / queryTokens.length) * 25;
-        matchDetails.push(`nom: ${nameTokenMatches}/${queryTokens.length} tokens`);
-      }
-    }
-
-    // ── 2. Match description (20 points) ──
-    if (normDesc) {
-      let descMatches = 0;
-      for (const qt of queryTokens) {
-        if (normDesc.includes(qt)) {
-          descMatches++;
+        matchDetails.push(`nom:${nameTokenMatches}/${queryTokens.length}`);
+      } else {
+        // Fuzzy : chevauchement de caractères pour tokens courts
+        for (const qt of queryTokens) {
+          if (qt.length >= 3 && charOverlap(qt, normName) >= 0.75) {
+            score += 8;
+            matchDetails.push(`nom≈${qt}`);
+            break;
+          }
         }
       }
-      if (descMatches > 0) {
-        score += (descMatches / queryTokens.length) * 15;
-        matchDetails.push(`desc: ${descMatches}/${queryTokens.length} tokens`);
-      }
+    }
 
-      // Recherche de la requête complète dans la description
+    // ── 2. Match description (0-20 pts, standalone) ──
+    if (normDesc) {
       if (normDesc.includes(normalizedQuery)) {
-        score += 5;
-        matchDetails.push("desc contient requête complète");
+        score += 20;
+        matchDetails.push("desc contient");
+      } else {
+        let descMatches = 0;
+        for (const qt of queryTokens) {
+          if (normDesc.includes(qt)) descMatches++;
+        }
+        if (descMatches > 0) {
+          score += (descMatches / queryTokens.length) * 15;
+          matchDetails.push(`desc:${descMatches}/${queryTokens.length}`);
+        }
       }
     }
 
-    // ── 3. Match des variantes (bonus sur le score nom) ──
-    // Collecte TOUTES les variantes qui matchent (pas seulement la première)
+    // ── 3. Match variantes (0-20 pts sur le score max) ──
     if (product.variants && Array.isArray(product.variants)) {
       let bestVariantScore = 0;
       for (const variant of product.variants) {
@@ -233,88 +269,109 @@ export function smartSearch(query: string, products: Product[]): ScoredProduct[]
             bestVariantScore = variantScore;
             bestVariant = variant;
           }
-          matchDetails.push(`variante: ${variant.name} (score ${variantScore.toFixed(1)})`);
+          matchDetails.push(`variante:${variant.name}`);
         }
       }
-      // Ajouter le score de la meilleure variante au score total
-      if (bestVariantScore > 0) {
-        score += bestVariantScore;
-      }
+      if (bestVariantScore > 0) score += bestVariantScore;
     }
 
-    // ── 4. Bonus dimensions (10 points) ──
+    // ── 4. Bonus dimensions (0-10 pts) ──
     if (dimHints.length > 0 && normDesc) {
       let dimMatches = 0;
       for (const hint of dimHints) {
-        // Cherche des nombres proches dans la description
         const dimPattern = new RegExp(
           `(?:${hint.valueCm - 5})\\s*cm|(?:${hint.valueCm})\\s*cm|(?:${hint.valueCm + 5})\\s*cm|` +
           `${Math.round(hint.valueCm / 100)}[.,]?\\d*\\s*m`,
           "i"
         );
-        if (dimPattern.test(normDesc)) {
-          dimMatches++;
-        }
-        // Cherche aussi dans le nom
-        if (dimPattern.test(normName)) {
-          dimMatches++;
-        }
+        if (dimPattern.test(normDesc)) dimMatches++;
+        if (dimPattern.test(normName)) dimMatches++;
       }
       if (dimMatches > 0) {
         score += Math.min(10, dimMatches * 5);
-        matchDetails.push(`dimensions: ${dimMatches} correspondances`);
+        matchDetails.push(`dim:${dimMatches}`);
       }
     }
 
-    // ── 5. Bonus prix (10 points) ──
+    // ── 5. Bonus prix (0-10 pts) ──
     if (priceHints.length > 0) {
-      const productPrice =
-        bestVariant?.price ||
-        (product.variants?.[0]?.price ?? 0);
-
+      const productPrice = bestVariant?.price || (product.variants?.[0]?.price ?? 0);
       if (productPrice > 0) {
         for (const hint of priceHints) {
           switch (hint.operator) {
             case "lt":
-              if (productPrice <= hint.value) {
-                score += 10;
-                matchDetails.push(`prix ≤ ${hint.value}`);
-              } else if (productPrice <= hint.value * 1.2) {
-                score += 5;
-                matchDetails.push(`prix proche ≤ ${hint.value} (${productPrice})`);
-              }
+              if (productPrice <= hint.value) { score += 10; matchDetails.push(`prix≤${hint.value}`); }
+              else if (productPrice <= hint.value * 1.2) { score += 5; matchDetails.push(`prix~≤${hint.value}`); }
               break;
             case "gt":
-              if (productPrice >= hint.value) {
-                score += 10;
-                matchDetails.push(`prix ≥ ${hint.value}`);
-              }
+              if (productPrice >= hint.value) { score += 10; matchDetails.push(`prix≥${hint.value}`); }
               break;
             case "around":
               const diff = Math.abs(productPrice - hint.value) / hint.value;
-              if (diff <= 0.1) {
-                score += 10;
-                matchDetails.push(`prix ≈ ${hint.value}`);
-              } else if (diff <= 0.3) {
-                score += 5;
-                matchDetails.push(`prix ~${hint.value} (${productPrice})`);
-              }
+              if (diff <= 0.1) { score += 10; matchDetails.push(`prix≈${hint.value}`); }
+              else if (diff <= 0.3) { score += 5; matchDetails.push(`prix~${hint.value}`); }
               break;
           }
         }
       }
     }
 
-    // ── Filtre : score > 0 pour être inclus ──
-    if (score > 0 || !query.trim()) {
+    // ── 6. Floor fuzzy : si rien ne matche, tenter description fuzzy ──
+    if (score === 0 && normDesc) {
+      for (const qt of queryTokens) {
+        if (qt.length >= 3 && charOverlap(qt, normDesc) >= 0.5) {
+          score = 2;
+          matchDetails.push(`desc≈${qt}`);
+          break;
+        }
+      }
+    }
+
+    if (score >= MIN_SCORE) {
       scored.push({ product, score, matchedVariant: bestVariant, allMatchedVariants, matchDetails });
+    }
+  }
+
+  // ── 7. Expansion par mots-clés partagés ──
+  // Pour chaque produit déjà retenu, booste les produits similaires
+  const keywordSets = new Map<string, Set<string>>(); // product.id → keywords
+  for (const p of products) {
+    keywordSets.set(p.id, new Set(extractKeywords(p.name + " " + (p.description || ""))));
+  }
+
+  const boostMap = new Map<string, number>(); // product.id → bonus score
+  for (const s of scored) {
+    const myKeywords = keywordSets.get(s.product.id)!;
+    if (myKeywords.size === 0) continue;
+    
+    for (const p of products) {
+      if (p.id === s.product.id) continue;
+      const theirKeywords = keywordSets.get(p.id)!;
+      const overlap = keywordOverlap(myKeywords, theirKeywords);
+      if (overlap >= 0.25) {
+        const boost = Math.round(EXPANSION_BOOST * overlap);
+        boostMap.set(p.id, Math.max(boostMap.get(p.id) || 0, boost));
+      }
+    }
+  }
+
+  // Appliquer les boosts aux produits non encore scorés
+  for (const p of products) {
+    const boost = boostMap.get(p.id) || 0;
+    if (boost > 0 && !scored.some(s => s.product.id === p.id)) {
+      scored.push({
+        product: p,
+        score: boost,
+        allMatchedVariants: [],
+        matchDetails: [`apparenté (boost ${boost})`],
+      });
     }
   }
 
   // Trier par score décroissant
   scored.sort((a, b) => b.score - a.score);
 
-  return scored;
+  return scored.slice(0, MAX_RESULTS);
 }
 
 /**
