@@ -124,16 +124,17 @@ export const saveMessage = async (message: Message): Promise<string | null> => {
       // types (contourne le trigger DB défectueux qui met is_latest=false
       // sur tous les anciens messages sans filtrer ni par type ni par numéro)
       if (idKey) {
-        // Réparer le type sauvegardé ET les autres types impactés par le trigger
+        // Réparer TOUS les types en parallèle et ATTENDRE la fin
+        // (sinon l'UI affiche les données périmées du trigger)
         const ALL_TYPES = [
           { type: "facture", key: "factureNumero" },
           { type: "devis", key: "devisNumero" },
           { type: "commande", key: "commandeNumero" },
           { type: "cahier_des_charges", key: "titre" },
         ];
-        for (const t of ALL_TYPES) {
-          repairIsLatestAfterSave(t.type, t.key);
-        }
+        await Promise.all(
+          ALL_TYPES.map(t => repairIsLatestAfterSave(t.type, t.key))
+        );
       }
     }
 
