@@ -120,12 +120,20 @@ export const saveMessage = async (message: Message): Promise<string | null> => {
           });
         }
       }
-      // Après vérification, réparer les flags is_latest pour tous les
-      // documents de ce type (contourne le trigger DB défectueux qui
-      // met is_latest=false sur tous les anciens documents sans filtrer
-      // par numéro de document)
+      // Après vérification, réparer les flags is_latest pour TOUS les
+      // types (contourne le trigger DB défectueux qui met is_latest=false
+      // sur tous les anciens messages sans filtrer ni par type ni par numéro)
       if (idKey) {
-        repairIsLatestAfterSave(templateType, idKey);
+        // Réparer le type sauvegardé ET les autres types impactés par le trigger
+        const ALL_TYPES = [
+          { type: "facture", key: "factureNumero" },
+          { type: "devis", key: "devisNumero" },
+          { type: "commande", key: "commandeNumero" },
+          { type: "cahier_des_charges", key: "titre" },
+        ];
+        for (const t of ALL_TYPES) {
+          repairIsLatestAfterSave(t.type, t.key);
+        }
       }
     }
 
