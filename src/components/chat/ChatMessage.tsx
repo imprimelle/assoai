@@ -288,7 +288,7 @@ const handleCreateCahierDesCharges = () => {
     // Envoyer le message comme un message utilisateur
     onSendMessage(quoteMessage, [], {
       templateType: "commande",
-      data: quoteData
+      data: templateData
     });
   }
 };
