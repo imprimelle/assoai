@@ -172,6 +172,11 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
 - Applique méthodiquement les formules des règles de fabrication (surface, nombre de tubes LED, etc.)
 - Conserve les références internes [Découpe-X], [Vinyles-X], [Éclairage-X], [Métal-X], [Outillage-X]
 - Pour une commande multi-enseignes : un seul CDC contenant toutes les enseignes dans le tableau "enseignes"
+- **Dérivation depuis une commande** : si un template de commande est fourni (--- TEMPLATE EXISTANT ---) :
+  - renseigne OBLIGATOIREMENT "commande_id" avec le commandeNumero de la commande source
+  - transfère les images des items (items[].image_url) vers les enseignes (details.image_url) et les produits (produits[].image_url)
+  - copie l'adresse client dans "deliveryAddress" (format { label, lat, lng })
+  - utilise le nom du client dans le titre du CDC
 - Nomenclature fichiers : typeenseigne_Client_Matériau_Opération_Dimensions
 - Équipe indicative : découpeur, assembleur, éclairagiste, finisseur (avec des vrais noms si possible)
 
@@ -194,14 +199,17 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
   "data": {
     "titre": "Cahier des Charges — Nom Projet / Client",
     "cdcNumero": "CDC-2026-001",
+    "commande_id": "CMD-2026-004",
+    "statut": "Brouillon",
     "enseignes": [
       {
         "id": "550e8400-e29b-41d4-a716-446655440010",
         "nom": "Enseigne lumineuse 3D — Façade",
         "produits": [
-          { "id": "550e8400-e29b-41d4-a716-446655440011", "nom": "Caisson Lumineux rectangle" }
+          { "id": "550e8400-e29b-41d4-a716-446655440011", "nom": "Caisson Lumineux rectangle", "image_url": "https://..." }
         ],
         "details": {
+          "image_url": "https://...",
           "dimensions": {
             "largeur": 200,
             "hauteur": 80,
@@ -214,7 +222,7 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
         },
         "materiauxSections": {
           "Métal": [
-            { "id": "550e8400-e29b-41d4-a716-446655440012", "nom": "Profilé aluminium 40x40mm", "quantite": 4, "unite": "mètres", "reference": "[Métal-1]" }
+            { "id": "550e8400-e29b-41d4-a716-446655440012", "nom": "Profilé aluminium 40x40mm", "quantite": 4, "unite": "mètres", "reference": "[Métal-1]", "image_url": "https://..." }
           ],
           "Éclairage": [
             { "id": "550e8400-e29b-41d4-a716-446655440013", "nom": "Bande LED 12V SMD 2835", "quantite": 10, "unite": "mètres", "reference": "[Éclairage-2]" }
@@ -230,6 +238,11 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
       { "id": "550e8400-e29b-41d4-a716-446655440021", "nom": "Traoré", "role": "Assembleur" },
       { "id": "550e8400-e29b-41d4-a716-446655440022", "nom": "Koné", "role": "Éclairagiste" }
     ],
+    "deliveryAddress": {
+      "label": "Abidjan, Cocody",
+      "lat": 5.3599,
+      "lng": -4.0083
+    },
     "version": 1,
     "is_latest": true
   }
@@ -238,11 +251,16 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
 # Règles de format (vérifie avant de répondre)
 - "titre" : texte libre, format "Cahier des Charges — [projet/client]"
 - "cdcNumero" : identifiant unique au format CDC-YYYY-NNN. Si {DOCUMENT_NUMBER} est fourni, utilise-le EXACTEMENT. Sinon génère CDC-2026-001, CDC-2026-002, etc.
+- "commande_id" : si le CDC dérive d'une commande, mets le commandeNumero source (ex: "CMD-2026-004"). Sinon laisse vide "".
+- "statut" : "Brouillon" par défaut (valeurs : Brouillon, infographie, demande, Payé, Livré)
 - Chaque enseigne a UN "id" (UUID), UN "nom" (texte), UN tableau "produits", UN objet "details", UN objet "materiauxSections"
+- "details.image_url" : URL de l'image du projet pour cette enseigne (optionnel mais recommandé)
 - "details.dimensions" : largeur, hauteur, profondeur — des **nombres** (en cm)
 - "details.technique" : type_structure (texte), method_fabrication (texte)
-- "materiauxSections" : un objet dont les clés sont UNIQUEMENT parmi ces 5 catégories : "Découpe", "Éclairage", "Outillage", "Métal", "Vinyl". N'utilise AUCUNE autre clé. Classe chaque matériau dans la catégorie la plus adaptée parmi ces 5. Chaque valeur est un tableau de { id, nom, quantite (nombre), unite (texte), reference (texte) }
+- "produits[].image_url" : URL de l'image du produit (optionnel)
+- "materiauxSections" : un objet dont les clés sont UNIQUEMENT parmi ces 5 catégories : "Découpe", "Éclairage", "Outillage", "Métal", "Vinyl". N'utilise AUCUNE autre clé. Classe chaque matériau dans la catégorie la plus adaptée parmi ces 5. Chaque valeur est un tableau de { id, nom, quantite (nombre), unite (texte), reference (texte), image_url (texte optionnel) }
 - "equipe" : tableau de { id, nom, role }
+- "deliveryAddress" : optionnel, format { label (texte), lat (nombre), lng (nombre) }. Si une commande source a une adresse client, copie-la ici.
 - "version" : nombre entier. "is_latest" : boolean (true)
 - Tous les id sont des UUID uniques générés par toi`,
 };
