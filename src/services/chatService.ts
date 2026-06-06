@@ -51,14 +51,61 @@ function detectDocTypeFromContent(content: string): string | null {
   return null;
 }
 
+/**
+ * Alloue un numéro atomique via le RPC Supabase.
+ * Retourne le numéro ou null si échec (fallback IA).
+ */
+async function allocateDocumentNumber(docType: string): Promise<string | null> {
+  if (docType === "cahier_des_charges") return null; // CDC = titre libre
+  try {
+    const { data, error } = await supabase.rpc("next_document_number", {
+      p_doc_type: docType,
+    });
+    if (error) {
+      appLogger.warning("RPC next_document_number echoue, fallback IA", {
+        docType,
+        error: (error as any)?.message || String(error),
+      });
+      return null;
+    }
+    appLogger.info("Numero alloue", { docType, numero: data });
+    return data as string;
+  } catch (rpcErr: any) {
+    appLogger.warning("RPC next_document_number exception, fallback IA", {
+      docType,
+      error: rpcErr?.message || String(rpcErr),
+    });
+    return null;
+  }
+}
+
 async function resolveDocumentContext(
   payload: MessagePayload
 ): Promise<DocContext> {
-  // 1. MODIFIER : édition d'un document existant (template présent)
+  const userMsgType = detectDocTypeFromContent(payload.message.content || "");
+
+  // 1. MODIFIER ou DERIVER : template present
+  //    Si le message mentionne un type DIFFERENT → creation du nouveau type
+  //    Sinon → modification du document reference
   if (payload.message.template) {
     const { templateType, data } = payload.message.template;
+    if (userMsgType && userMsgType !== templateType) {
+      // L'utilisateur veut un document d'un AUTRE type a partir de celui-ci
+      const docNumber = await allocateDocumentNumber(userMsgType);
+      appLogger.info("Contexte document : DERIVATION", {
+        from: templateType,
+        to: userMsgType,
+        numero: docNumber || "(fallback IA)",
+      });
+      return {
+        action: "create",
+        docType: userMsgType,
+        numero: docNumber,
+      };
+    }
+    // Meme type → modification
     const numero = extractExistingNumero(templateType, data as Record<string, any>);
-    appLogger.info("📄 Contexte document détecté : MODIFICATION", {
+    appLogger.info("Contexte document : MODIFICATION", {
       templateType,
       numero,
       source: "template",
@@ -66,55 +113,45 @@ async function resolveDocumentContext(
     return { action: "modify", docType: templateType, numero };
   }
 
-  // 2. MODIFIER : citation/référence d'un document (quote présent)
+  // 2. MODIFIER ou DERIVER : citation d'un document (quote)
   if (payload.message.quote?.templateType && payload.message.quote?.numero) {
-    appLogger.info("📄 Contexte document détecté : CITATION", {
-      templateType: payload.message.quote.templateType,
+    const quoteType = payload.message.quote.templateType;
+    if (userMsgType && userMsgType !== quoteType) {
+      const docNumber = await allocateDocumentNumber(userMsgType);
+      appLogger.info("Contexte document : DERIVATION (via quote)", {
+        from: quoteType,
+        to: userMsgType,
+        numero: docNumber || "(fallback IA)",
+      });
+      return {
+        action: "create",
+        docType: userMsgType,
+        numero: docNumber,
+      };
+    }
+    appLogger.info("Contexte document : CITATION", {
+      templateType: quoteType,
       numero: payload.message.quote.numero,
       source: "quote",
     });
     return {
       action: "modify",
-      docType: payload.message.quote.templateType,
+      docType: quoteType,
       numero: payload.message.quote.numero,
     };
   }
 
-  // 3. CRÉER : détection du type par mot-clé dans le message
-  const detectedType = detectDocTypeFromContent(payload.message.content || "");
-  if (detectedType) {
-    // Allouer un numéro atomique via le RPC Supabase
-    if (detectedType === "cahier_des_charges") {
-      // CDC utilise un titre libre, pas de numéro alloué
-      return { action: "create", docType: detectedType, numero: null };
-    }
-    try {
-      const { data: docNumber, error } = await supabase.rpc(
-        "next_document_number",
-        { p_doc_type: detectedType }
-      );
-      if (error) {
-        appLogger.warning("⚠️ RPC next_document_number échoué, fallback IA", {
-          docType: detectedType,
-          error: (error as any)?.message || String(error),
-        });
-        return { action: "unknown", numero: null };
-      }
-      appLogger.info("🔢 Numéro alloué", {
-        docType: detectedType,
-        numero: docNumber,
-      });
-      return { action: "create", docType: detectedType, numero: docNumber as string };
-    } catch (rpcErr: any) {
-      appLogger.warning("⚠️ RPC next_document_number exception, fallback IA", {
-        docType: detectedType,
-        error: rpcErr?.message || String(rpcErr),
-      });
-      return { action: "unknown", numero: null };
-    }
+  // 3. CREER : detection du type par mot-cle dans le message
+  if (userMsgType) {
+    const docNumber = await allocateDocumentNumber(userMsgType);
+    return {
+      action: docNumber ? "create" : "unknown",
+      docType: userMsgType,
+      numero: docNumber,
+    };
   }
 
-  // 4. AMBIGU : on laisse l'IA décider (comportement actuel, pas de régression)
+  // 4. AMBIGU : on laisse l'IA decider
   return { action: "unknown", numero: null };
 }
 
