@@ -13,7 +13,7 @@ export interface ProjectTask {
   project_id: string;
   title: string;
   description?: string;
-  column: KanbanColumn;
+  kanban_column: KanbanColumn;
   position: number;
   assignee?: TaskAssignee;
   assignee_contact?: string;
@@ -29,7 +29,7 @@ export interface ProjectTask {
 export interface ProjectTaskFormData {
   title: string;
   description?: string;
-  column?: KanbanColumn;
+  kanban_column?: KanbanColumn;
   assignee?: TaskAssignee;
   due_date?: string;
   priority?: TaskPriority;

@@ -36,7 +36,7 @@ export const useProjectTasks = (projectId?: string) => {
           project_id: form.project_id,
           title: form.title,
           description: form.description,
-          column: form.column || 'a_faire',
+          kanban_column: form.kanban_column || 'a_faire',
           assignee: form.assignee,
           due_date: form.due_date,
           priority: form.priority || 'medium',
@@ -63,10 +63,10 @@ export const useProjectTasks = (projectId?: string) => {
     mutationFn: async ({ id, ...updates }: Partial<ProjectTask> & { id: string }) => {
       // If moving to 'termine', set completed_at
       const patch: Record<string, unknown> = { ...updates };
-      if (updates.column === 'termine') {
+      if (updates.kanban_column === 'termine') {
         patch.completed_at = new Date().toISOString();
       }
-      if (updates.column && updates.column !== 'termine') {
+      if (updates.kanban_column && updates.kanban_column !== 'termine') {
         patch.completed_at = null;
       }
 
@@ -110,7 +110,7 @@ export const useProjectTasks = (projectId?: string) => {
 
   // Tasks grouped by column
   const tasksByColumn = (tasks || []).reduce((acc, task) => {
-    const col = task.column || 'a_faire';
+    const col = task.kanban_column || 'a_faire';
     if (!acc[col]) acc[col] = [];
     acc[col].push(task);
     return acc;

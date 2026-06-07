@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS project_tasks (
   description text,
 
   -- Kanban
-  column text NOT NULL DEFAULT 'a_faire',
+  kanban_column text NOT NULL DEFAULT 'a_faire',
   -- Valeurs: 'a_faire', 'en_cours', 'en_revision', 'termine'
   position integer DEFAULT 0,
 
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS project_tasks (
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_project_tasks_project ON project_tasks(project_id);
-CREATE INDEX IF NOT EXISTS idx_project_tasks_column ON project_tasks(project_id, column);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_column ON project_tasks(project_id, kanban_column);
 CREATE INDEX IF NOT EXISTS idx_project_tasks_due ON project_tasks(due_date) WHERE completed_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_project_tasks_assignee ON project_tasks(assignee);
 

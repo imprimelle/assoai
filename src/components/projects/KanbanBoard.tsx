@@ -46,7 +46,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
     createTask.mutate({
       project_id: projectId,
       title: newTaskTitle.trim(),
-      column,
+      kanban_column,
     });
     setNewTaskTitle('');
     setAddingToColumn(null);
@@ -118,7 +118,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
                 <KanbanCard
                   key={task.id}
                   task={task}
-                  onMove={(newCol) => updateTask.mutate({ id: task.id, column: newCol })}
+                  onMove={(newCol) => updateTask.mutate({ id: task.id, kanban_column: newCol })}
                   onDelete={() => deleteTask.mutate(task.id)}
                 />
               ))}
@@ -150,7 +150,7 @@ const KanbanCard: React.FC<{
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-40">
-            {COLUMNS.filter(c => c.id !== task.column).map(col => (
+            {COLUMNS.filter(c => c.id !== task.kanban_column).map(col => (
               <DropdownMenuItem key={col.id} onClick={() => onMove(col.id)}>
                 → {col.label}
               </DropdownMenuItem>
