@@ -9,3 +9,5 @@ export * from "./pdf";
 export * from "./message";
 export * from "./common";
 export * from "./project";
+export * from "./project-task";
+export * from "./checklist";

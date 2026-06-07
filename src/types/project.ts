@@ -26,11 +26,38 @@ export interface Project {
   created_by: string;
   session_id: string;
   templates: ProjectTemplates;
+  status?: 'actif' | 'en_attente' | 'termine' | 'archive';
+  phase?: 'facturation' | 'commande' | 'fabrication' | 'livraison' | 'termine';
+  date_livraison?: string;
+  workflow_config?: ProjectWorkflow;
+  chat_session_id?: string;
 }
 
 export interface ProjectFormData {
   name: string;
   description?: string;
+}
+
+// Workflow configuration
+export interface ProjectWorkflow {
+  auto_transitions: boolean;
+  notifications: boolean;
+  phases: ProjectPhase[];
+}
+
+export interface ProjectPhase {
+  name: string;
+  label: string;
+  order: number;
+  required_documents: TemplateType[];
+  checklist_sections: string[];
+  auto_tasks: AutoTask[];
+}
+
+export interface AutoTask {
+  title: string;
+  assignee: string;
+  due_offset_days: number;
 }
 
 // Convert ProjectTemplates to JSON format compatible with Supabase

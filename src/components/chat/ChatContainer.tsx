@@ -18,7 +18,7 @@ import {
   CommandeData,
   CahierDesChargesData
 } from "@/types";
-import { orchestrateRequest } from "@/services/orchestrator";
+import { routeMessage } from "@/services/hermesRouter";
 import { generatePDFClient } from "@/services/pdfGenerator";
 import { determineMessagePayloadType } from "@/services/webhook";
 import type { AgentMode } from "@/services/agentPrompts";
@@ -343,7 +343,7 @@ const lastVersion = finalTemplate
       }
       
       // Envoyer le message à l'IA avec l'agent sélectionné
-      const response = await orchestrateRequest(payload, activeAgent);
+      const response = await routeMessage(payload, activeAgent);
       
       // Créer un message de réponse avec un UUID v4 réel
       const responseMessageId = crypto.randomUUID();
