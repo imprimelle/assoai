@@ -1,11 +1,10 @@
 import React, { useState } from "react";
-import { X, Save, Edit, Eye, FileText, FileDown, Check, FolderPlus } from "lucide-react";
+import { X, Save, Edit, Eye, FileText, FileDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DialogTitle } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { TemplateData, TemplateType, TemplateAction, TemplateMetadata } from "@/types";
 import { Badge } from "@/components/ui/badge";
-import AddToProjectModal from "@/components/projects/AddToProjectModal";
 import { getTemplateIdentifier } from "@/utils/template-utils";
 
 interface TemplateModalHeaderProps {
@@ -37,8 +36,6 @@ const TemplateModalHeader: React.FC<TemplateModalHeaderProps> = ({
   onGeneratePDF,
   sessionId
 }) => {
-  const [addToProjectModalOpen, setAddToProjectModalOpen] = useState(false);
-  
   const getTemplateTitle = () => {
     return metadata?.displayName || templateType.charAt(0).toUpperCase() + templateType.slice(1);
   };
@@ -117,19 +114,6 @@ const TemplateModalHeader: React.FC<TemplateModalHeaderProps> = ({
               </Button>
             )}
             
-            {/* Add to Project button - Mobile */}
-            {sessionId && templateId && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setAddToProjectModalOpen(true)}
-                className="h-8 w-8 mobile-touch-target bg-white rounded-md"
-                aria-label="Ajouter au projet"
-              >
-                <FolderPlus className="h-3.5 w-3.5" />
-              </Button>
-            )}
-      
             {/* PDF Download Button - Mobile View - Always show if onGeneratePDF exists */}
             {onGeneratePDF && (
               <Button
@@ -160,16 +144,6 @@ const TemplateModalHeader: React.FC<TemplateModalHeaderProps> = ({
           </div>
         </div>
         
-        {/* Add to Project Modal */}
-        {sessionId && (
-          <AddToProjectModal
-            isOpen={addToProjectModalOpen}
-            onClose={() => setAddToProjectModalOpen(false)}
-            templateId={templateId}
-            templateType={templateType}
-            sessionId={sessionId}
-          />
-        )}
       </>
     );
   }
@@ -231,18 +205,6 @@ const TemplateModalHeader: React.FC<TemplateModalHeaderProps> = ({
               </Button>
             )}
             
-            {/* Add to Project button - Desktop */}
-            {sessionId && templateId && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAddToProjectModalOpen(true)}
-                className="gap-1 bg-white rounded-md h-8 px-2.5"
-              >
-                <FolderPlus className="h-3.5 w-3.5" /> Projet
-              </Button>
-            )}
-            
             {/* PDF Download Button - Always show if onGeneratePDF exists */}
             {onGeneratePDF && (
               <Button
@@ -291,16 +253,6 @@ const TemplateModalHeader: React.FC<TemplateModalHeaderProps> = ({
         </div>
       </div>
       
-      {/* Add to Project Modal */}
-      {sessionId && (
-        <AddToProjectModal
-          isOpen={addToProjectModalOpen}
-          onClose={() => setAddToProjectModalOpen(false)}
-          templateId={templateId}
-          templateType={templateType}
-          sessionId={sessionId}
-        />
-      )}
     </>
   );
 };
