@@ -12,7 +12,7 @@ export const useNotifications = (userId?: string) => {
       if (!userId) return [];
       
       const { data, error } = await supabase
-        .from('notifications')
+        .from('app_notifications')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
@@ -32,7 +32,7 @@ export const useNotifications = (userId?: string) => {
   const markAsRead = useMutation({
     mutationFn: async (notifId: string) => {
       const { error } = await supabase
-        .from('notifications')
+        .from('app_notifications')
         .update({ read: true })
         .eq('id', notifId);
       if (error) throw new Error(error.message);
@@ -47,7 +47,7 @@ export const useNotifications = (userId?: string) => {
     mutationFn: async () => {
       if (!userId) return;
       const { error } = await supabase
-        .from('notifications')
+        .from('app_notifications')
         .update({ read: true })
         .eq('user_id', userId)
         .eq('read', false);

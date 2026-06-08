@@ -1,12 +1,12 @@
--- Migration 004: Table notifications (in-app)
+-- Migration 004: Table app_notifications (in-app)
 -- Date: 8 Juin 2026
--- Remplace le canal WhatsApp par des notifications 100% in-app
 -- Contexte: Plan de refonte v3.1 — Bloc 3 Notifications In-App
+-- Note: renommée app_notifications pour éviter conflit avec l'ancienne table notifications
 
-CREATE TABLE IF NOT EXISTS notifications (
+CREATE TABLE IF NOT EXISTS app_notifications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES app_users(id) ON DELETE CASCADE,
-  project_id uuid REFERENCES projects(id) ON DELETE SET NULL,
+  user_id uuid,
+  project_id uuid,
   type text DEFAULT 'info' CHECK (type IN ('alerte', 'rappel', 'info', 'escalade')),
   level text DEFAULT 'info' CHECK (level IN ('critical', 'warning', 'info')),
   title text NOT NULL,
@@ -16,15 +16,13 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at timestamptz DEFAULT now()
 );
 
--- Index pour les requêtes fréquentes
-CREATE INDEX idx_notifications_user ON notifications(user_id, read, created_at DESC);
-CREATE INDEX idx_notifications_project ON notifications(project_id);
+CREATE INDEX IF NOT EXISTS idx_app_notifications_user ON app_notifications(user_id, read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_app_notifications_project ON app_notifications(project_id);
 
--- RLS
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_notifications ENABLE ROW LEVEL SECURITY;
 
--- Politique : chaque utilisateur voit ses propres notifications
-CREATE POLICY notifications_user_policy ON notifications
+DROP POLICY IF EXISTS app_notifications_user_policy ON app_notifications;
+CREATE POLICY app_notifications_user_policy ON app_notifications
   FOR ALL
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
