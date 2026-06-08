@@ -1,4 +1,2 @@
-
-import NotificationHandler from './NotificationHandler';
-
-export { NotificationHandler };
+export { default as NotificationHandler } from './NotificationHandler';
+export { NotificationBell, NotificationCenter } from './NotificationBell';

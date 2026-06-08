@@ -17,6 +17,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useChat } from "@/contexts/ChatContext";
+import { NotificationBell } from "@/components/notifications";
 import { 
   Menubar, 
   MenubarContent, 
@@ -132,6 +133,9 @@ const TopBar: React.FC<TopBarProps> = ({ className }) => {
           </MenubarMenu>
         </Menubar>
       </div>
+
+      {/* Notifications */}
+      <NotificationBell />
 
       {/* Profil (icône uniquement) */}
       <NavItem 
