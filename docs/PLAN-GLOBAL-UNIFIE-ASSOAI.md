@@ -988,7 +988,7 @@ SEMAINE 1          SEMAINE 2          SEMAINE 3          SEMAINE 4+
 │                  SYSTÈME DE NOTIFICATION IN-APP              │
 │                                                              │
 │  Cron (8h, 4h) ──→ Hermes-Notificateur ──→ Supabase         │
-│                                            notifications    │
+│                                         app_notifications   │
 │                                                  │          │
 │                    ┌─────────────────────────────┤          │
 │                    ▼                             ▼          │
@@ -1012,7 +1012,7 @@ SEMAINE 1          SEMAINE 2          SEMAINE 3          SEMAINE 4+
 | 3.3 | Créer le composant `NotificationBell` | Icône cloche 🔔 dans la TopBar avec badge compteur |
 | 3.4 | Créer le composant `NotificationCenter` | Panel dropdown listant les notifications, filtre par projet, marquer comme lu |
 | 3.5 | Créer le hook `useNotifications` | React Query : fetch, mark read, compteur non-lu |
-| 3.6 | Programmer les crons | Vérification retards (4h), rapport quotidien (8h) → insertion dans `notifications` |
+| 3.6 | Programmer les crons | Vérification retards (4h), rapport quotidien (8h) → insertion dans `app_notifications` |
 | 3.7 | Activer l'escalade progressive | Retard > 24h → notification + toast, > 48h → notification + message chat superviseur, > 72h → notification critique + message Admin |
 | 3.8 | Intégrer les toasts | Alertes critiques en popup temporaire (3s) + notification persistante |
 
