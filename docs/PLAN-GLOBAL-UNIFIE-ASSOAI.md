@@ -1,9 +1,10 @@
 # Plan Global Unifié — Refonte Architecture AssoAI
 
 **Architecture Hermes-native · Sidebar unifiée · Gestion de projet pilotée par IA**
-**Date** : 7 Juin 2026 — Version 3.0 · Document de référence unique
+**Date** : 8 Juin 2026 — Version 3.1 · Document de référence unique
 **Auteur** : Imprimelle (CEO) & Hermes Agent (Architecte)
-**Statut** : Prêt pour exécution — Bloc 1
+**Statut** : Blocs 1-2 terminés, Bloc 3 (Notifications In-App) prêt
+**Décision 08/06** : WhatsApp retiré du périmètre. Communication 100% via l'application.
 
 ---
 
@@ -28,10 +29,11 @@
 10. [Matrice de routage — Quel agent sur quelle page](#10-matrice-de-routage--quel-agent-sur-quelle-page)
 
 ### PARTIE E — DÉPLOIEMENT
-11. [Plan Walking Skeleton — 4 Blocs](#11-plan-walking-skeleton--4-blocs)
-12. [Détail par bloc — Tâches, fichiers, validation](#12-détail-par-bloc--tâches-fichiers-validation)
-13. [Stratégie de transition — Ancien → Nouveau](#13-stratégie-de-transition--ancien--nouveau)
-14. [Récapitulatif des livrables](#14-récapitulatif-des-livrables)
+| 11. [Plan Walking Skeleton — 4 Blocs](#11-plan-walking-skeleton--4-blocs)
+| 12. [Détail par bloc — Tâches, fichiers, validation](#12-détail-par-bloc--tâches-fichiers-validation)
+| 12b. [Nouveau Bloc 3 — Notifications & Suivi In-App](#12b-nouveau-bloc-3--notifications--suivi-in-app)
+| 13. [Stratégie de transition — Ancien → Nouveau](#13-stratégie-de-transition--ancien--nouveau)
+| 14. [Récapitulatif des livrables](#14-récapitulatif-des-livrables)
 
 ---
 
@@ -368,12 +370,12 @@ hermes config set personality "$(cat /tmp/brico-prompt.txt)" --profile hermes-br
 │  │ Commercial    │  │ Technique    │  │   Chef de projet      │ │
 │  │ Factures,     │  │ CDC, règles  │  │   Kanban, checklists  │ │
 │  │ Devis,        │  │ fabrication, │  │   Coordination équipe │ │
-│  │ Commandes     │  │ matériaux    │  │   WhatsApp, rappels   │ │
+│  │ Commandes     │  │ matériaux    │  │   Notifications app   │ │
 │  └───────┬───────┘  └──────┬───────┘  └───────────┬───────────┘ │
 │          │                 │                       │              │
 │  ┌───────┴─────────────────┴───────────────────────┴───────────┐ │
-│  │              HERMES-COMMUNICANT 📱                           │ │
-│  │              Messages WhatsApp, rappels, escalade             │ │
+│  │              HERMES-NOTIFICATEUR 🔔                           │ │
+│  │              Notifications in-app, rappels, escalade          │ │
 │  └──────────────────────────┬───────────────────────────────────┘ │
 │                             │                                     │
 │  ┌──────────────────────────┴───────────────────────────────────┐ │
@@ -388,8 +390,8 @@ hermes config set personality "$(cat /tmp/brico-prompt.txt)" --profile hermes-br
 | **Hermes-Wari** | 💼 | Commercial : Factures, Devis, Commandes, questions générales | Utilisateur (sidebar) | `/chat`, `/facture`, `/devis`, `/commande`, `/templates` |
 | **Hermes-Brico** | 🔧 | Technique : CDC, règles fabrication, matériaux | Utilisateur (sidebar) | `/products`, `/cdc` |
 | **Hermes-PM** | 🎯 | Chef de projet : Kanban, checklists, coordination | Utilisateur (chat projet) | `/projects/:id` |
-| **Hermes-Communicant** | 📱 | Messager : WhatsApp, rappels, notifications | Équipe terrain (WhatsApp) | Background (Kanban + Cron) |
-| **Hermes-Sentinelle** | 👁️ | Veilleur : Surveillance 24/7, scores, alertes | Personne (autonome) | Background (Cron horaire) |
+| **Hermes-Notificateur** | 🔔 | Notificateur : Rappels, alertes, escalades in-app | Admin + Équipe (app) | Background (Cron/Kanban) | Communication, Cron |
+| `hermes-sentinelle` | 👁️ | Veilleur : Surveillance 24/7, scores, alertes | Personne (autonome) | Background (Cron/Kanban) | Scan, Alerte, Notification |
 
 ---
 
@@ -459,24 +461,32 @@ tools:
     - delegation     # Sous-traiter à Wari/Brico
 ```
 
-### 5.4 Hermes-Communicant 📱
+### 5.4 Hermes-Notificateur 🔔
+
+> **Décision 08/06/2026** : WhatsApp retiré du périmètre. Toute la communication passe par l'application.
 
 ```yaml
-# ~/.hermes/profiles/hermes-communicant/config.yaml
+# ~/.hermes/profiles/hermes-notificateur/config.yaml
 skills:
   auto_load:
-    - whatsapp-notifier     # Templates WhatsApp
+    - notification-app      # Envoyer notifications in-app (centre notif, toast, badge)
     - cron-reminders        # Programmation rappels
-    - message-router        # Interpréter réponses WhatsApp
+    - notification-router   # Router les alertes (qui, quoi, comment)
     - escalation-manager    # Escalade progressive
 
 tools:
   enabled:
-    - messaging      # send_message WhatsApp
-    - cronjob        # Rappels
-    - memory         # Historique communications
+    - cronjob        # Rappels programmés
+    - memory         # Historique notifications
     - web            # Vérification statut
+    - kanban         # Créer alertes → Directeur
 ```
+
+**Mode de livraison** : Les notifications sont stockées dans la table `notifications` et affichées dans :
+- Le **centre de notifications** (cloche 🔔 dans la TopBar avec badge compteur)
+- Les **toasts** (popups temporaires pour les alertes)
+- Le **chat projet** (message du Directeur pour les escalades critiques)
+- Le **badge** sur l'icône du projet concerné
 
 ### 5.5 Hermes-Sentinelle 👁️
 
@@ -700,7 +710,7 @@ La page actuelle `/agent-config` devient une **page de configuration unifiée** 
 │  │ 💼 Wari (Commercial)                    [Éditer] │     │
 │  │ 🔧 Brico (Technique)                    [Éditer] │     │
 │  │ 🎯 Chef de Projet                       [Éditer] │     │
-│  │ 📱 Communicant                          [Éditer] │     │
+│  │ 🔔 Notificateur                         [Éditer] │     │
 │  │ 👁️ Sentinelle                           [Éditer] │     │
 │  └─────────────────────────────────────────────────┘     │
 │                                                           │
@@ -759,9 +769,9 @@ C'est le **flux clé** qui différencie le nouveau système de l'ancien. Quand u
     2. Assigne au logisticien
     3. Priorité selon dépendances
 
-ÉTAPE 5 : NOTIFICATION (Hermes-Communicant)
-  WhatsApp → Logisticien : liste des matériaux à commander
-  WhatsApp → Technicien : planning des tâches
+ÉTAPE 5 : NOTIFICATION (Hermes-Notificateur)
+  🔔 Notification → Logisticien : liste des matériaux à commander
+  🔔 Notification → Technicien : planning des tâches
 ```
 
 ### 9.2 Exemple concret
@@ -852,7 +862,7 @@ SEMAINE 1          SEMAINE 2          SEMAINE 3          SEMAINE 4+
      │                  │                  │                  │
      ▼                  ▼                  ▼                  ▼
 ┌─────────┐      ┌─────────┐      ┌─────────┐      ┌─────────┐
-│Sidebar  │      │Outils   │      │WhatsApp │      │Sentinelle│
+│Sidebar  │      │Outils   │      │Notif.   │      │Sentinelle│
 │unifiée  │  →   │actifs   │  →   │terrain  │  →   │24/7     │
 │+ Noyau  │      │+ Dériv. │      │+ Photos │      │+ Scores │
 │projet   │      │CDC→Kanb.│      │+ Vocaux │      │+ Escal. │
@@ -861,14 +871,14 @@ SEMAINE 1          SEMAINE 2          SEMAINE 3          SEMAINE 4+
      ▼                  ▼                  ▼                  ▼
  100% fonct.       L'IA agit        L'atelier         Zéro oubli
  Sidebar OK        sur les docs     connecté          garanti
- Projets OK        et le Kanban     via WhatsApp
+ Projets OK        et le Kanban     via app
 ```
 
 | Bloc | Jours | Objectif | Livrable clé | Fonctionnel après ? |
 |------|-------|----------|-------------|-------------------|
 | **1** | J1-3 | Unifier sidebar + noyau projet | Sidebar route via API Hermes. Nouvelle page `/projects/:id` avec accordéons + Kanban | ✅ OUI — sidebar 100% fonctionnelle, projets visibles |
 | **2** | J4-7 | Activer outils + dérivation | Skills Wari/Brico actifs. CDC→Kanban automatique. Checklists | ✅ OUI — l'IA crée/modifie documents et tâches |
-| **3** | J8-11 | WhatsApp terrain | Communicant envoie/reçoit WhatsApp. Photos et vocaux → Supabase | ✅ OUI — l'atelier est connecté |
+| **3** | J8-10 | Notifications In-App | Notificateur envoie rappels/alertes via centre de notifications. Cron 8h/4h → app | ✅ OUI — l'Admin et l'équipe sont notifiés |
 | **4** | J12+ | Surveillance autonome | Sentinelle scanne 24/7. Scores. Escalade automatique | ✅ OUI — le système est autonome |
 
 ---
@@ -965,31 +975,56 @@ SEMAINE 1          SEMAINE 2          SEMAINE 3          SEMAINE 4+
 
 ---
 
-### BLOC 3 — Le Canal Terrain WhatsApp (Jours 8-11)
+### BLOC 3 — Notifications & Suivi In-App (Jours 8-10)
 
-**Objectif :** L'équipe terrain reçoit et répond via WhatsApp. Photos et vocaux stockés.
+> **Décision 08/06/2026** : WhatsApp retiré du périmètre. Toute la communication terrain passe par l'application.
+
+**Objectif :** L'équipe terrain et l'Admin reçoivent rappels, alertes et escalades directement dans l'application via le centre de notifications et le chat projet.
+
+#### Architecture de notification
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  SYSTÈME DE NOTIFICATION IN-APP              │
+│                                                              │
+│  Cron (8h, 4h) ──→ Hermes-Notificateur ──→ Supabase         │
+│                                            notifications    │
+│                                                  │          │
+│                    ┌─────────────────────────────┤          │
+│                    ▼                             ▼          │
+│  ┌──────────────────────┐    ┌──────────────────────────┐  │
+│  │ 🔔 Centre Notifications│    │ 💬 Chat Projet           │  │
+│  │  • Badge compteur     │    │  • Message Directeur     │  │
+│  │  • Liste alerts/rappels│   │  • Escalade Admin        │  │
+│  │  • Marquer comme lu   │    │  • Contexte projet       │  │
+│  └──────────────────────┘    └──────────────────────────┘  │
+│                                                              │
+│  Toasts (popups) pour alertes temps réel                     │
+└─────────────────────────────────────────────────────────────┘
+```
 
 #### Tâches
 
 | # | Tâche | Détail |
 |---|-------|--------|
-| 3.1 | Créer le profil `hermes-communicant` | + skills : `whatsapp-notifier`, `cron-reminders`, `message-router`, `escalation-manager` |
-| 3.2 | Configurer la gateway Hermes WhatsApp | `hermes gateway setup` → WhatsApp Business |
-| 3.3 | Créer les templates WhatsApp | Rappel tâche, notification phase, question suivi, escalade |
-| 3.4 | Activer `message-router` | Interpréter les réponses WhatsApp → MAJ Kanban/Supabase |
-| 3.5 | Gérer les photos | Photo WhatsApp → `required_image: true` → Supabase Storage |
-| 3.6 | Gérer les vocaux | Note vocale → transcription → commentaire Kanban |
-| 3.7 | Programmer les crons | Vérification retards (4h), rapport quotidien (8h) |
-| 3.8 | Activer l'escalade | Retard > 24h → rappel, > 48h → copie superviseur, > 72h → Admin |
+| 3.1 | Créer le profil `hermes-notificateur` | + skills : `notification-app`, `cron-reminders`, `notification-router`, `escalation-manager` |
+| 3.2 | Créer la table `notifications` | Supabase : colonnes `id, user_id, project_id, type, level, title, message, read, created_at` |
+| 3.3 | Créer le composant `NotificationBell` | Icône cloche 🔔 dans la TopBar avec badge compteur |
+| 3.4 | Créer le composant `NotificationCenter` | Panel dropdown listant les notifications, filtre par projet, marquer comme lu |
+| 3.5 | Créer le hook `useNotifications` | React Query : fetch, mark read, compteur non-lu |
+| 3.6 | Programmer les crons | Vérification retards (4h), rapport quotidien (8h) → insertion dans `notifications` |
+| 3.7 | Activer l'escalade progressive | Retard > 24h → notification + toast, > 48h → notification + message chat superviseur, > 72h → notification critique + message Admin |
+| 3.8 | Intégrer les toasts | Alertes critiques en popup temporaire (3s) + notification persistante |
 
 #### Validation Bloc 3
 
 ```
-✅ Logisticien reçoit WhatsApp "Commander acrylique" → répond "Fait" → tâche cochée
-✅ Technicien reçoit WhatsApp "Découpe panneaux" → envoie photo → attachée à la checklist
-✅ 8h : Admin reçoit rapport quotidien WhatsApp
-✅ Retard > 48h : Superviseur reçoit copie automatique
-✅ Retard > 72h : Admin reçoit alerte critique
+✅ 8h : Admin voit le rapport quotidien dans le centre de notifications
+✅ Retard > 24h : Badge 🔔 s'incrémente, notification visible dans le panneau
+✅ Retard > 48h : Message automatique du Directeur dans le chat projet
+✅ Retard > 72h : Toast critique + notification urgence + message Admin
+✅ Clic sur une notification → ouvre le projet concerné
+✅ Notification marquée comme lue → badge décrémenté
 ```
 
 ---
@@ -1006,7 +1041,7 @@ SEMAINE 1          SEMAINE 2          SEMAINE 3          SEMAINE 4+
 | 4.2 | Déployer le cron horaire | `0 * * * *` → Sentinelle scanne tous les projets |
 | 4.3 | Implémenter le Project Health Score | Formule : 25×(docs/3) + 25×(tâches_ok/total) + 25×(%checklists) + 25×(1−blocage/7) |
 | 4.4 | Détecter les patterns anormaux | Blocage prolongé, cascade de retards, incohérence documents |
-| 4.5 | Activer l'escalade automatique | Score < 50 → Kanban Directeur, < 30 → WhatsApp Admin |
+| 4.5 | Activer l'escalade automatique | Score < 50 → Kanban Directeur, < 30 → Notification critique + message Admin dans le chat projet |
 | 4.6 | Dashboard santé (optionnel) | Widget dans `/projects` montrant les scores |
 
 #### Validation Bloc 4
@@ -1014,7 +1049,7 @@ SEMAINE 1          SEMAINE 2          SEMAINE 3          SEMAINE 4+
 ```
 ✅ Toutes les heures : Sentinelle scanne et calcule les scores
 ✅ Score < 50 : Alerte Kanban créée pour le Directeur
-✅ Score < 30 : WhatsApp automatique à l'Admin
+✅ Score < 30 : Notification critique + message Admin dans le chat projet
 ✅ Blocage > 7j : Escalade automatique
 ✅ Dashboard : scores visibles sur la liste des projets
 ```
@@ -1087,10 +1122,10 @@ SEMAINE 1          SEMAINE 2          SEMAINE 3          SEMAINE 4+
 ### Profils & Skills Hermes
 | Type | Nombre | Détail |
 |------|--------|--------|
-| Profils Hermes | 5 | `hermes-wari`, `hermes-brico`, `hermes-pm`, `hermes-communicant`, `hermes-sentinelle` |
-| Skills | 21 | 6 (Wari) + 5 (Brico) + 5 (PM) + 4 (Communicant) + 3 (Sentinelle) = 23 (dont 2 partagés) |
+| Profils Hermes | 5 | `hermes-wari`, `hermes-brico`, `hermes-pm`, `hermes-notificateur`, `hermes-sentinelle` |
+| Skills | 21 | 6 (Wari) + 5 (Brico) + 5 (PM) + 3 (Notificateur) + 3 (Sentinelle) = 22 (dont 2 partagés) |
 | Serveur API | 1 | `server/hermes-api.ts` (Express, port 11434) |
-| Cron jobs | 4 | Scan horaire, rapport 8h, vérification retards 4h, escalade silence 24h |
+| Cron jobs | 3 | Scan horaire (Sentinelle), rapport quotidien 8h, vérification retards 4h (Notificateur) |
 
 ### Arborescence finale
 
@@ -1140,8 +1175,8 @@ SEMAINE 1          SEMAINE 2          SEMAINE 3          SEMAINE 4+
 ├── hermes-wari/          ← NOUVEAU (prompt Wari migré)
 ├── hermes-brico/         ← NOUVEAU (prompt Brico migré)
 ├── hermes-pm/            ← NOUVEAU
-├── hermes-communicant/   ← NOUVEAU
-└── hermes-sentinelle/    ← NOUVEAU
+├── hermes-notificateur/  ← NOUVEAU
+├── hermes-sentinelle/    ← NOUVEAU
 
 ~/.hermes/skills/
 ├── product-search/       ← NOUVEAU (Wari + Brico)
@@ -1160,10 +1195,10 @@ SEMAINE 1          SEMAINE 2          SEMAINE 3          SEMAINE 4+
 ├── checklist-validator/  ← NOUVEAU (PM)
 ├── project-reporting/    ← NOUVEAU (PM)
 ├── team-coordinator/     ← NOUVEAU (PM)
-├── whatsapp-notifier/    ← NOUVEAU (Communicant)
-├── cron-reminders/       ← NOUVEAU (Communicant)
-├── message-router/       ← NOUVEAU (Communicant)
-├── escalation-manager/   ← NOUVEAU (Communicant)
+├── notification-app/     ← NOUVEAU (Notificateur)
+├── cron-reminders/       ← NOUVEAU (Notificateur)
+├── notification-router/  ← NOUVEAU (Notificateur)
+├── escalation-manager/   ← NOUVEAU (Notificateur)
 ├── project-watcher/      ← NOUVEAU (Sentinelle)
 ├── anomaly-detector/     ← NOUVEAU (Sentinelle)
 └── health-scorer/        ← NOUVEAU (Sentinelle)
