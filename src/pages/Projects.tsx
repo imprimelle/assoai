@@ -1,70 +1,179 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '@/hooks/useProjects';
 import { Project } from '@/types/project';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
-} from '@/components/ui/accordion';
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
 import {
-  Search, Plus, FolderOpen, FileText, ShoppingCart,
-  ClipboardList, FileCheck, Clock, ArrowRight,
+  Plus, FolderOpen, Trash2, AlertTriangle, Loader2,
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { ProjectSearchWidget, type SearchSuggestion } from '@/components/projects/ProjectSearchWidget';
+import { useProjectsDocumentCounts } from '@/hooks/useProjectsDocumentCounts';
+import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
+import { ViewSelector, type ProjectView } from '@/components/projects/ViewSelector';
+import { ProjectListView } from '@/components/projects/ProjectListView';
+import { ProjectKanbanView } from '@/components/projects/ProjectKanbanView';
+import { ProjectCalendarView } from '@/components/projects/ProjectCalendarView';
+import { ProjectMapView } from '@/components/projects/ProjectMapView';
+import { ProjectFilterBar, type ProjectFilters } from '@/components/projects/ProjectFilterBar';
+import { useProjectsHealth } from '@/hooks/useProjectsHealth';
+import { useProjectsTaskCounts } from '@/hooks/useProjectsTaskCounts';
+import { useProjectsAddresses } from '@/hooks/useProjectsAddresses';
+import { useProjectsInitDates } from '@/hooks/useProjectsInitDates';
+import { supabase } from '@/integrations/supabase/client';
+import { usePageVisit } from '@/hooks/usePageVisit';
+
+const PHASE_CONFIG_ICON: Record<string, string> = {
+  'facturation': '🔵',
+  'commande': '🟠',
+  'fabrication': '🟣',
+  'livraison': '🟢',
+  'termine': '⚫',
+};
 
 interface ProjectsProps {
   user: { id: string; name?: string } | null;
   persistentSessionId: string | null;
 }
 
-// Constantes de phase
-const PHASE_CONFIG: Record<string, { color: string; bg: string; label: string; icon: string }> = {
-  'facturation': { color: 'text-blue-700', bg: 'bg-blue-50', label: 'Facturation', icon: '🔵' },
-  'commande': { color: 'text-orange-700', bg: 'bg-orange-50', label: 'Commande', icon: '🟠' },
-  'fabrication': { color: 'text-purple-700', bg: 'bg-purple-50', label: 'Fabrication', icon: '🟣' },
-  'livraison': { color: 'text-green-700', bg: 'bg-green-50', label: 'Livraison', icon: '🟢' },
-  'termine': { color: 'text-gray-500', bg: 'bg-gray-100', label: 'Terminé', icon: '⚫' },
-};
-
 const Projects: React.FC<ProjectsProps> = ({ user, persistentSessionId }) => {
   const navigate = useNavigate();
-  const { projects, isLoading, createProject } = useProjects(persistentSessionId || undefined);
+  const { projects, isLoading, deleteProject } = useProjects(user?.id, user?.role);
+  const [view, setView] = useState<ProjectView>('kanban');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedProject, setExpandedProject] = useState<string | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [filters, setFilters] = useState<ProjectFilters>({ phases: [], sort: 'date-desc' });
   const isMobile = useIsMobile();
+  const { recordVisit } = usePageVisit();
 
-  // Filtrage
-  const filtered = (projects || []).filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.description || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Enregistrer la visite pour les compteurs
+  useEffect(() => {
+    if (user) recordVisit(user.id, "projets");
+  }, [user, recordVisit]);
+
+  // Données batch (lazy par vue)
+  const projectIds = (projects || []).map(p => p.id);
+  const docCounts = useProjectsDocumentCounts(projectIds);
+  const healthScores = useProjectsHealth(projectIds, view === 'kanban');
+  const taskCounts = useProjectsTaskCounts(projectIds, view === 'kanban' || view === 'list');
+  const addresses = useProjectsAddresses(projectIds, view === 'map');
+  const initDates = useProjectsInitDates(projectIds, view === 'calendar');
+
+  // Filtrage + tri
+  const filtered = useMemo(() => {
+    let result = (projects || []).filter(p => {
+      // Recherche texte
+      const matchesSearch =
+        !searchTerm ||
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.description || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+      // Filtre phases
+      const matchesPhase = filters.phases.length === 0 || filters.phases.includes(p.phase || 'facturation');
+
+      return matchesSearch && matchesPhase;
+    });
+
+    // Tri
+    result = [...result].sort((a, b) => {
+      switch (filters.sort) {
+        case 'name-asc':
+          return a.name.localeCompare(b.name);
+        case 'name-desc':
+          return b.name.localeCompare(a.name);
+        case 'date-asc':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'date-desc':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'livraison-asc': {
+          const da = a.date_livraison ? new Date(a.date_livraison).getTime() : Infinity;
+          const db = b.date_livraison ? new Date(b.date_livraison).getTime() : Infinity;
+          return da - db;
+        }
+        case 'livraison-desc': {
+          const da = a.date_livraison ? new Date(a.date_livraison).getTime() : -Infinity;
+          const db = b.date_livraison ? new Date(b.date_livraison).getTime() : -Infinity;
+          return db - da;
+        }
+        case 'health-desc': {
+          const ha = healthScores.get(a.id)?.healthScore ?? 0;
+          const hb = healthScores.get(b.id)?.healthScore ?? 0;
+          return hb - ha;
+        }
+        case 'health-asc': {
+          const ha = healthScores.get(a.id)?.healthScore ?? 0;
+          const hb = healthScores.get(b.id)?.healthScore ?? 0;
+          return ha - hb;
+        }
+        case 'docs-desc': {
+          const da = docCounts.get(a.id)?.total ?? 0;
+          const db = docCounts.get(b.id)?.total ?? 0;
+          return db - da;
+        }
+        case 'docs-asc': {
+          const da = docCounts.get(a.id)?.total ?? 0;
+          const db = docCounts.get(b.id)?.total ?? 0;
+          return da - db;
+        }
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [projects, searchTerm, filters, healthScores, docCounts]);
 
   const handleCreateProject = () => {
-    // @todo: ouvrir le modal de création (recherche facture OU nouvelle)
-    navigate('/chat?action=new-project');
+    setShowCreateDialog(true);
   };
 
-  const handleOpenProject = (projectId: string) => {
-    navigate(`/projects/${projectId}`);
+  const handleDeleteProject = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteProject.mutateAsync(deleteTarget.id);
+      supabase.from('communicator_queue').insert({
+        project_id: deleteTarget.id,
+        direction: 'pm_to_communicator',
+        action: 'project_deleted',
+        status: 'pending',
+        payload: { project_name: deleteTarget.name, project_id: deleteTarget.id },
+      }).then(({ error }) => {
+        if (error) console.error('Queue project_deleted insert error:', error);
+      });
+      setDeleteTarget(null);
+    } catch {
+    } finally {
+      setDeleting(false);
+    }
   };
 
-  const getPhaseConfig = (phase?: string) => {
-    return PHASE_CONFIG[phase || 'facturation'] || PHASE_CONFIG['facturation'];
-  };
+  // Suggestions de recherche
+  const searchSuggestions: SearchSuggestion[] = useMemo(() => {
+    if (!searchTerm || !projects) return [];
+    return filtered.slice(0, 5).map(p => {
+      const icon = p.phase ? PHASE_CONFIG_ICON[p.phase] : undefined;
+      return {
+        id: p.id,
+        label: p.name,
+        subtitle: p.date_livraison
+          ? `Livraison ${new Date(p.date_livraison).toLocaleDateString('fr')}`
+          : undefined,
+        icon,
+        onClick: () => navigate(`/projects/${p.id}`),
+      };
+    });
+  }, [searchTerm, filtered, projects]);
 
-  const getTemplateCounts = (project: Project) => ({
-    factures: project.templates.factures.length,
-    commandes: project.templates.commandes.length,
-    devis: project.templates.devis.length,
-    cdCs: project.templates.cahiers_des_charges.length,
-    total: project.templates.factures.length + project.templates.commandes.length +
-           project.templates.devis.length + project.templates.cahiers_des_charges.length,
-  });
+  // === RENDU ===
 
   if (!user || !persistentSessionId) {
     return (
@@ -75,168 +184,162 @@ const Projects: React.FC<ProjectsProps> = ({ user, persistentSessionId }) => {
     );
   }
 
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="space-y-4">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-24 w-full rounded-lg" />
+          ))}
+        </div>
+      );
+    }
+
+    if (filtered.length === 0) {
+      return (
+        <div className="text-center py-16">
+          <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+          <p className="text-muted-foreground text-lg">
+            {searchTerm || filters.phases.length > 0
+              ? 'Aucun projet ne correspond à vos critères'
+              : (user?.role && ['directeur', 'directrice_adjointe', 'commerciale'].includes(user.role)
+                ? 'Aucun projet pour le moment'
+                : "Vous n'avez pas encore de projet")}
+          </p>
+          {!searchTerm && filters.phases.length === 0 && (
+            <Button variant="outline" className="mt-4" onClick={handleCreateProject}>
+              <Plus className="h-4 w-4 mr-2" /> Créer mon premier projet
+            </Button>
+          )}
+        </div>
+      );
+    }
+
+    switch (view) {
+      case 'kanban':
+        return (
+          <ProjectKanbanView
+            projects={filtered}
+            healthScores={healthScores}
+            taskCounts={taskCounts}
+            docCounts={docCounts}
+          />
+        );
+      case 'calendar':
+        return <ProjectCalendarView projects={filtered} initDates={initDates} />;
+      case 'map':
+        return (
+          <ProjectMapView
+            addresses={addresses}
+            projects={filtered}
+          />
+        );
+      case 'list':
+      default:
+        return (
+          <ProjectListView
+            projects={filtered}
+            docCounts={docCounts}
+            taskCounts={taskCounts}
+            expandedProject={expandedProject}
+            onExpand={setExpandedProject}
+            onDelete={(project) => setDeleteTarget({ id: project.id, name: project.name })}
+          />
+        );
+    }
+  };
+
   return (
     <div className={`container mx-auto px-4 py-6 md:py-8 ${isMobile ? 'max-w-full' : ''}`}>
       {/* En-tête */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
         <h1 className="text-xl md:text-2xl font-bold">Projets</h1>
         <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher un projet..."
-              className="pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <Button onClick={handleCreateProject} className="flex items-center gap-2">
+          <ProjectSearchWidget
+            value={searchTerm}
+            onChange={setSearchTerm}
+            suggestions={searchSuggestions}
+            className="flex-1 sm:w-64"
+          />
+          <Button onClick={handleCreateProject} className="flex items-center gap-2 shrink-0">
             <Plus className="h-4 w-4" />
             <span className={isMobile ? 'sr-only' : ''}>Nouveau</span>
           </Button>
         </div>
       </div>
 
-      {/* Liste */}
-      {isLoading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map(i => (
-            <Skeleton key={i} className="h-24 w-full rounded-lg" />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16">
-          <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-          <p className="text-muted-foreground text-lg">
-            {searchTerm ? 'Aucun projet ne correspond à votre recherche' : "Vous n'avez pas encore de projet"}
-          </p>
-          {!searchTerm && (
-            <Button variant="outline" className="mt-4" onClick={handleCreateProject}>
-              <Plus className="h-4 w-4 mr-2" /> Créer mon premier projet
-            </Button>
-          )}
-        </div>
-      ) : (
-        <Accordion
-          type="single"
-          collapsible
-          value={expandedProject || undefined}
-          onValueChange={(val) => setExpandedProject(val || null)}
-          className="space-y-3"
-        >
-          {filtered.map(project => {
-            const phaseCfg = getPhaseConfig(project.phase);
-            const counts = getTemplateCounts(project);
+      {/* Sélecteur de vues + Filtres */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <ViewSelector active={view} onChange={setView} />
+        <ProjectFilterBar
+          filters={filters}
+          onChange={setFilters}
+          activeCount={filtered.length}
+          totalCount={(projects || []).length}
+        />
+      </div>
 
-            return (
-              <AccordionItem
-                key={project.id}
-                value={project.id}
-                className="border rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow"
-              >
-                {/* En-tête de la carte — toujours visible */}
-                <div className="flex items-center justify-between px-4 py-3">
-                  <AccordionTrigger className="flex-1 hover:no-underline py-0">
-                    <div className="flex items-center gap-3 text-left">
-                      <span className="text-lg">{phaseCfg.icon}</span>
-                      <div>
-                        <h3 className="font-semibold text-base md:text-lg truncate max-w-[200px] sm:max-w-xs">
-                          {project.name}
-                        </h3>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <Badge variant="outline" className={`text-xs ${phaseCfg.color} ${phaseCfg.bg} border-0`}>
-                            {phaseCfg.label}
-                          </Badge>
-                          {project.date_livraison && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {format(new Date(project.date_livraison), 'dd MMM yyyy', { locale: fr })}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </AccordionTrigger>
+      {/* Contenu de la vue active — avec transition */}
+      <div
+        key={view}
+        className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+      >
+        {renderContent()}
+      </div>
 
-                  <div className="flex items-center gap-2 shrink-0 ml-2">
-                    <Badge variant="secondary" className="text-xs">
-                      {counts.total} doc{counts.total !== 1 ? 's' : ''}
-                    </Badge>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenProject(project.id);
-                      }}
-                    >
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Contenu dépliable — accordéon */}
-                <AccordionContent>
-                  <div className="px-4 pb-4 pt-0 border-t">
-                    {project.description && (
-                      <p className="text-sm text-muted-foreground mb-3">{project.description}</p>
-                    )}
-
-                    {/* Section Documents */}
-                    <div className="space-y-2">
-                      {counts.factures > 0 && (
-                        <div className="flex items-center gap-2 text-sm p-2 rounded bg-gray-50">
-                          <FileText className="h-4 w-4 text-blue-600" />
-                          <span className="text-muted-foreground">Factures</span>
-                          <Badge variant="outline" className="ml-auto text-xs">{counts.factures}</Badge>
-                        </div>
-                      )}
-                      {counts.commandes > 0 && (
-                        <div className="flex items-center gap-2 text-sm p-2 rounded bg-gray-50">
-                          <ShoppingCart className="h-4 w-4 text-orange-600" />
-                          <span className="text-muted-foreground">Commandes</span>
-                          <Badge variant="outline" className="ml-auto text-xs">{counts.commandes}</Badge>
-                        </div>
-                      )}
-                      {counts.cdCs > 0 && (
-                        <div className="flex items-center gap-2 text-sm p-2 rounded bg-gray-50">
-                          <ClipboardList className="h-4 w-4 text-purple-600" />
-                          <span className="text-muted-foreground">Cahiers des charges</span>
-                          <Badge variant="outline" className="ml-auto text-xs">{counts.cdCs}</Badge>
-                        </div>
-                      )}
-                      {counts.devis > 0 && (
-                        <div className="flex items-center gap-2 text-sm p-2 rounded bg-gray-50">
-                          <FileCheck className="h-4 w-4 text-green-600" />
-                          <span className="text-muted-foreground">Devis</span>
-                          <Badge variant="outline" className="ml-auto text-xs">{counts.devis}</Badge>
-                        </div>
-                      )}
-                    </div>
-
-                    {counts.total === 0 && (
-                      <p className="text-sm text-muted-foreground italic">
-                        Aucun document associé. Utilisez le chat pour créer une facture.
-                      </p>
-                    )}
-
-                    <div className="mt-3 pt-3 border-t flex justify-end">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={() => handleOpenProject(project.id)}
-                      >
-                        <FolderOpen className="h-4 w-4 mr-1" /> Ouvrir le projet
-                      </Button>
-                    </div>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            );
-          })}
-        </Accordion>
+      {/* Modal de création */}
+      {user && persistentSessionId && (
+        <CreateProjectModal
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          userId={user.id}
+          userSessionId={persistentSessionId}
+          onProjectCreated={(projectId) => navigate(`/projects/${projectId}`)}
+        />
       )}
+
+      {/* Dialogue de confirmation de suppression */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Supprimer le projet
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-3">
+            <p className="text-sm">
+              Vous allez supprimer définitivement le projet <strong>« {deleteTarget?.name} »</strong>.
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800 space-y-1">
+              <p className="font-medium">⚠️ Cette action est irréversible :</p>
+              <ul className="list-disc list-inside text-xs space-y-0.5">
+                <li>Toutes les tâches Kanban seront supprimées</li>
+                <li>Toutes les checklists seront supprimées</li>
+                <li>Les documents seront détachés du projet</li>
+                <li>Les communications WhatsApp seront nettoyées</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              Annuler
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteProject}
+              disabled={deleting}
+              className="gap-2"
+            >
+              {deleting ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Suppression...</>
+              ) : (
+                <><Trash2 className="h-4 w-4" /> Supprimer définitivement</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
