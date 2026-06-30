@@ -168,8 +168,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ user, persistentSessionId
   const clientPhone = cmdRaw.client?.telephone || facRaw.client?.telephone || '';
   // Total : commande d'abord, facture en fallback
   const totalProjet = cmdRaw.total || facRaw.total || 0;
-  // Avance : commande uniquement
-  const avance = cmdRaw.details?.[0]?.montantAvance || 0;
+  // Avance : commande uniquement (cherche dans tout le tableau details)
+  const avance = (cmdRaw.details || []).find((d: any) => d.montantAvance)?.montantAvance || 0;
   const reste = totalProjet - avance;
   const deliveryAddress = cmdRaw.deliveryAddress || facRaw.deliveryAddress || null;
   const dateLivraison = cmdRaw.dateLivraison || project?.date_livraison || '';
