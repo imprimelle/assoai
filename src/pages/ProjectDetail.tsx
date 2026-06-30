@@ -51,21 +51,6 @@ const PHASE_CONFIG: Record<string, { color: string; bg: string; label: string; i
   termine: { color: 'text-gray-500', bg: 'bg-gray-100', label: 'Terminé', icon: '⚫' },
 };
 
-// ── Helper : extraire le % d'avance depuis l'échéancier facture ──
-// Ex: "70% au départ, 30% à la livraison" → 70
-// Ex: "50% à la commande, 50% à la livraison" → 50
-// Ex: "100% à la livraison" → 0 (pas d'avance)
-const parseEcheancierAdvance = (echeancier: string): number => {
-  if (!echeancier) return 0;
-  // Cherche un % suivi d'un mot-clé d'avance
-  const advanceMatch = echeancier.match(/(\d+)\s*%\s*(?:au\s+départ|à\s+la\s+commande|d['\u2019]acompte|d['\u2019]avance)/i);
-  if (advanceMatch) return parseInt(advanceMatch[1], 10);
-  // Fallback : premier % trouvé (supposé être l'avance)
-  const firstPct = echeancier.match(/(\d+)\s*%/);
-  if (firstPct) return parseInt(firstPct[1], 10);
-  return 0;
-};
-
 // ── Carte plein écran (zoom/scroll actifs) ──
 const FullscreenMap: React.FC<{ lat: number; lng: number; label: string }> = ({ lat, lng, label }) => {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -181,12 +166,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ user, persistentSessionId
 
   const clientName = cmdRaw.client?.nom || facRaw.client?.nom || '';
   const clientPhone = cmdRaw.client?.telephone || facRaw.client?.telephone || '';
-  // 🔧 Fix : total et avance extraits de la FACTURE d'abord, fallback commande
-  const totalProjet = facRaw.total || cmdRaw.total || 0;
-  const avanceFromEcheancier = facRaw.echeancier
-    ? Math.round((parseEcheancierAdvance(facRaw.echeancier) / 100) * totalProjet)
-    : 0;
-  const avance = avanceFromEcheancier || cmdRaw.details?.[0]?.montantAvance || 0;
+  // Total : commande d'abord, facture en fallback
+  const totalProjet = cmdRaw.total || facRaw.total || 0;
+  // Avance : commande uniquement
+  const avance = cmdRaw.details?.[0]?.montantAvance || 0;
   const reste = totalProjet - avance;
   const deliveryAddress = cmdRaw.deliveryAddress || facRaw.deliveryAddress || null;
   const dateLivraison = cmdRaw.dateLivraison || project?.date_livraison || '';
