@@ -1,16 +1,18 @@
 
+export type UserRole = 'directeur' | 'directrice_adjointe' | 'commerciale' | 'chef_technique' | 'technicien_adjoint' | 'superviseur_logistique';
+
 export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role?: "agent" | "super-agent";
-  service?: "Commercial" | "Graphiste" | "Technique" | "Partenaire" | "Superviseur";
+  id: string;           // human_contacts.id
+  name: string;         // human_contacts.name
+  role: UserRole;       // human_contacts.role
+  phone?: string;
+  login?: string;
   session_id?: string;
 }
 
 export type CurrentUser = {
   id: string;
-  role?: "agent" | "super-agent";
-  service?: "Commercial" | "Graphiste" | "Technique" | "Partenaire" | "Superviseur";
+  role: UserRole;
+  name: string;
   session_id?: string;
 };

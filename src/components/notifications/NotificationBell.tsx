@@ -62,8 +62,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ open, on
       markAsRead.mutate(notif.id);
     }
     if (notif.link) {
-      navigate(notif.link);
-      onClose();
+      // Valider que le lien est une route interne valide
+      const isValidLink = /^\/(projects|chat|products|agent-config|logs|library)/.test(notif.link);
+      if (isValidLink) {
+        navigate(notif.link);
+        onClose();
+      }
     }
   };
 

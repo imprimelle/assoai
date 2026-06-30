@@ -32,7 +32,8 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId] = useState<string>(
-    initialSessionId || `project_${projectId}_${Date.now()}`
+    // Bug 6 : aligner avec la convention sidebar (project-{id})
+    `project-${projectId}`
   );
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
@@ -55,9 +56,9 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
       const formatted: ChatMessage[] = (data || []).map((m: any) => ({
         id: m.id,
         content: m.content,
-        isUser: m.is_user || false,
+        isUser: m.sender === 'user',
         timestamp: m.timestamp,
-        agent: m.template_data?.metadata?.agent,
+        agent: m.sender === 'system' ? 'Chef de Projet' : undefined,
       }));
       setMessages(formatted);
     };
@@ -87,8 +88,19 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
     setIsLoading(true);
 
     try {
+      // Sauvegarder le message utilisateur dans Supabase AVANT l'appel API
+      await supabase.from('messages').insert({
+        session_id: sessionId,
+        user_id: userId,
+        sender: 'user',
+        content: userMsg.content,
+        project_id: projectId,
+        session_type: 'project',
+        timestamp: userMsg.timestamp,
+      });
+
       // Appeler l'API Hermes locale avec le contexte projet
-      const response = await fetch('http://localhost:11434/hermes/router', {
+      const response = await fetch('/hermes/router', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -112,9 +124,10 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
 
       const aiMsg: ChatMessage = {
         id: crypto.randomUUID(),
-        content: data.response?.textFallback || data.response?.data
-          ? JSON.stringify(data.response.data, null, 2)
-          : 'Aucune réponse générée.',
+        content: data.response?.textFallback 
+          || (data.response?.data 
+            ? `✅ Document généré avec succès.` 
+            : 'Aucune réponse générée.'),
         isUser: false,
         timestamp: new Date().toISOString(),
         agent: data.profile || 'hermes-pm',
@@ -126,8 +139,8 @@ export const ProjectChat: React.FC<ProjectChatProps> = ({
       await supabase.from('messages').insert({
         session_id: sessionId,
         user_id: userId,
+        sender: 'system',
         content: aiMsg.content,
-        is_user: false,
         project_id: projectId,
         session_type: 'project',
         timestamp: aiMsg.timestamp,

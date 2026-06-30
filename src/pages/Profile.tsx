@@ -5,7 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { User } from "@/types";
-import { LogOut, User as UserIcon, Settings } from "lucide-react";
+import { LogOut, User as UserIcon, Phone, Shield } from "lucide-react";
+
+const ROLE_LABELS: Record<string, string> = {
+  directeur: "👔 Directeur",
+  directrice_adjointe: "👔 Directrice adjointe",
+  commerciale: "💼 Commerciale",
+  chef_technique: "🔧 Chef d'équipe technique",
+  technicien_adjoint: "🔧 Technicien adjoint",
+  superviseur_logistique: "📦 Superviseur logistique",
+};
 
 interface ProfileProps {
   user: User | null;
@@ -37,14 +46,16 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout }) => {
     navigate("/login");
   };
 
+  const roleLabel = ROLE_LABELS[user.role] || user.role;
+
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div className="container mx-auto py-8 px-4 max-w-md">
       <h1 className="text-2xl font-bold mb-6">Profil utilisateur</h1>
-      
+
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <UserIcon className="h-5 w-5" /> Informations utilisateur
+            <UserIcon className="h-5 w-5" /> Informations
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -52,23 +63,29 @@ const Profile: React.FC<ProfileProps> = ({ user, onLogout }) => {
             <p className="text-sm text-gray-500">Nom</p>
             <p className="font-medium">{user.name}</p>
           </div>
-          <div>
-            <p className="text-sm text-gray-500">Email</p>
-            <p className="font-medium">{user.email}</p>
-          </div>
-          {user.role && (
+          {user.login && (
             <div>
-              <p className="text-sm text-gray-500">Rôle</p>
-              <p className="font-medium capitalize">{user.role === 'super-agent' ? 'Administrateur' : 'Agent'}</p>
+              <p className="text-sm text-gray-500">Login</p>
+              <p className="font-medium">{user.login}</p>
             </div>
           )}
           <div>
-            <p className="text-sm text-gray-500">ID utilisateur</p>
-            <p className="font-medium text-xs truncate">{user.id}</p>
+            <p className="text-sm text-gray-500 flex items-center gap-1">
+              <Shield className="h-3.5 w-3.5" /> Rôle
+            </p>
+            <p className="font-medium">{roleLabel}</p>
           </div>
+          {user.phone && (
+            <div>
+              <p className="text-sm text-gray-500 flex items-center gap-1">
+                <Phone className="h-3.5 w-3.5" /> Téléphone
+              </p>
+              <p className="font-medium">{user.phone}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
-      
+
       <div className="mt-8">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>

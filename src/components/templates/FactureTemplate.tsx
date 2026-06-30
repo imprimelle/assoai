@@ -17,13 +17,12 @@ import {
 import DetailItemForm from "./shared/DetailItemForm";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import AddressPicker from "../shared/AddressPicker";
-import StatusLine from "@/components/ui/StatusLine";
-import { formatCFA } from "@/utils/format";
-import { getStatusLineState } from "@/utils/status-utils";
 import ClientSuggestions from "../shared/ClientSuggestions";
 import ProductSuggestions from "../shared/ProductSuggestions";
 import CollapsibleSection from "../ui/CollapsibleSection";
+import StatusLine from "@/components/ui/StatusLine";
+import { formatCFA } from "@/utils/format";
+import { getStatusLineState } from "@/utils/status-utils";
 
 interface FactureTemplateProps {
   data: FactureData;
@@ -216,7 +215,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
           </div>
         </div>
         
-        {!isMobile && (
+        {!isMobile && isEditable && (
           <div className="flex space-x-2 items-center">
             <Button 
               variant="outline" 
@@ -375,15 +374,6 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
         </CollapsibleSection>
       </div>
 
-      {/* Adresse de livraison - Now Collapsible */}
-      <CollapsibleSection title="Adresse de livraison" defaultOpen={true} className="bg-gray-50 rounded-lg mb-6">
-        <AddressPicker
-          value={data.deliveryAddress}
-          onChange={addr => handleDataChange({ ...data, deliveryAddress: addr })}
-          isEditable={isEditMode}
-        />
-      </CollapsibleSection>
-
       {/* Détails - Now Collapsible */}
       <CollapsibleSection title="Articles" defaultOpen={true} className="mb-6">
         <div className="flex justify-end items-center mb-4">
@@ -511,7 +501,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
       </CollapsibleSection>
       
       {/* Barre d'actions mobile */}
-      {isMobile && (
+      {isMobile && isEditable && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 flex justify-between items-center z-10">
           <Button 
             variant="outline" 

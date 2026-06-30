@@ -72,7 +72,7 @@ const NotificationHandler: React.FC = () => {
     
     // Subscribe to the notifications table
     const channel = supabase
-      .channel('public:notifications')
+      .channel('notifications-handler')
       .on('postgres_changes', 
         { 
           event: 'INSERT', 

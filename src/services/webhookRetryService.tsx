@@ -1,6 +1,6 @@
 
 import { MessagePayload, ResponsePayload } from "@/types";
-import { sendChatRequest } from "./chatService";
+import { routeMessage } from "./hermesRouter";
 import { appLogger } from "@/utils/logger";
 import { toast } from "@/hooks/use-toast";
 
@@ -162,7 +162,7 @@ export class ChatRetryService {
         maxWaitTime
       });
 
-      const response = await sendChatRequest(payload);
+      const response = await routeMessage(payload);
       clearInterval(progressInterval);
       
       appLogger.info('✅ Génération réussie du premier coup', {

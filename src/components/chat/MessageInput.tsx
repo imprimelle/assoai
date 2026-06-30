@@ -22,6 +22,7 @@ interface MessageInputProps {
   onCancelTemplate: () => void;
   isLoading?: boolean;
   activeAgent?: AgentMode;
+  effectiveAgent?: AgentMode;
   onAgentChange?: (agent: AgentMode) => void;
 }
 
@@ -32,6 +33,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   onCancelTemplate,
   isLoading = false,
   activeAgent = "wari",
+  effectiveAgent,
   onAgentChange
 }) => {
   const [message, setMessage] = useState("");
@@ -270,7 +272,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
  <div
-   className="fixed bottom-0 left-0 w-full z-10 border-t p-3 space-y-4 bg-transparent"
+   className="w-full z-10 border-t p-3 space-y-4 bg-white shrink-0"
    ref={containerRef}
  >
       {/* Template actif en style WhatsApp */}
@@ -434,19 +436,22 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 </DropdownMenuContent>
               </DropdownMenu>
             </AnimatePresence>
-            \n            <AnimatePresence>
+            
+            <AnimatePresence>
               {/* Menu déroulant pour le choix d'agent */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <motion.button
                     key="agent-button"
-                    className={getActionButtonStyles(activeAgent !== "wari")}
+                    className={getActionButtonStyles(
+                      effectiveAgent ? effectiveAgent !== "wari" : activeAgent !== "wari"
+                    )}
                     whileTap={{ scale: 0.95 }}
                     aria-label="Choisir un agent"
                     disabled={isLoading}
-                    title={AGENTS[activeAgent]?.description || "Choisir un agent"}
+                    title={AGENTS[effectiveAgent || activeAgent]?.description || "Choisir un agent"}
                   >
-                    <span className="text-sm">{AGENTS[activeAgent]?.icon || "🔄"}</span>
+                    <span className="text-sm">{AGENTS[effectiveAgent || activeAgent]?.icon || "🔄"}</span>
                   </motion.button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="bg-white border border-gray-200 rounded-lg shadow-md p-2 min-w-[180px]">

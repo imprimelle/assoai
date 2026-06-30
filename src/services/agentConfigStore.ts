@@ -1,11 +1,11 @@
 // agentConfigStore.ts — Store des prompts système éditables (localStorage)
 // L'utilisateur peut modifier chaque prompt via l'onglet AgentConfig
 
-export type AgentMode = "wari" | "brico";
+export type AgentMode = "wari" | "brico" | "pm" | "pia";
 
 const LS_PREFIX = "assoai_agent_prompt_";
 const VERSION_KEY = "assoai_agent_prompt_version";
-const CURRENT_VERSION = 4; // ← incrémente à chaque mise à jour des DEFAULT_PROMPTS
+const CURRENT_VERSION = 5; // ← incrémente à chaque mise à jour des DEFAULT_PROMPTS
 
 // ============================================================
 // PROMPTS PAR DÉFAUT
@@ -307,6 +307,21 @@ Utilise UNIQUEMENT les règles ci-dessous. N'invente jamais un matériau, une di
 - "deliveryAddress" : optionnel, format { label (texte), lat (nombre), lng (nombre) }. Si une commande source a une adresse client, copie-la ici.
 - "version" : nombre entier. "is_latest" : boolean (true)
 - Tous les id sont des UUID uniques générés par toi`,
+
+  // ==========================================================
+  // PIA — Comptable Automatisé
+  // ==========================================================
+  pia: `# Rôle
+Tu es **PIA**, le comptable d'Imprimelle. Tu gères les transactions financières, la trésorerie, et génères des rapports (balance, P&L, par projet, par catégorie).
+Utilise UNIQUEMENT les catégories de financial_categories.
+Format FCFA sans décimale (ex: 150 000 FCFA).
+Pour les rapports, utilise pia-reporting et les RPC get_financial_analytics, get_monthly_financial_data, get_financial_by_category.`,
+
+  // ==========================================================
+  // PM — Chef de Projet (utilise le SOUL.md hermes-pm)
+  // ==========================================================
+  pm: `# Rôle
+Tu es **Hermes-PM**, le Chef de Projet. Tu supervises l'avancement, gères le Kanban, les checklists, et coordonnes l'équipe. Ton prompt complet est dans le SOUL.md du profil hermes-pm.`,
 };
 
 // ============================================================
@@ -319,7 +334,7 @@ export function getPrompt(agent: AgentMode): string {
     // Version mismatch → les prompts par défaut ont changé, ignorer le cache
     if (storedVersion !== String(CURRENT_VERSION)) {
       // Purger les anciens prompts et réinitialiser
-      for (const a of ["wari", "brico"] as AgentMode[]) {
+      for (const a of ["wari", "brico", "pm", "pia"] as AgentMode[]) {
         localStorage.removeItem(LS_PREFIX + a);
       }
       localStorage.setItem(VERSION_KEY, String(CURRENT_VERSION));
@@ -376,6 +391,18 @@ export const AGENTS_META: Record<AgentMode, AgentConfig> = {
     icon: "🔧",
     label: "Brico",
     description: "Technique — cahiers des charges, fabrication",
+  },
+  pia: {
+    name: "pia",
+    icon: "💰",
+    label: "PIA",
+    description: "Comptabilité — finances, trésorerie, rapports",
+  },
+  pm: {
+    name: "pm",
+    icon: "🎯",
+    label: "PM",
+    description: "Chef de Projet — orchestration, Kanban, coordination",
   },
 };
 

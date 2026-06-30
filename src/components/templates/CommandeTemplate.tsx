@@ -11,7 +11,8 @@ import {
   Eye,
   Pencil,
   Phone, 
-  Save
+  Save,
+  Split
 } from "lucide-react";
 import ImageUpload from "./shared/ImageUpload";
 import DetailItemForm from "./shared/DetailItemForm";
@@ -143,6 +144,34 @@ const CommandeTemplate: React.FC<CommandeTemplateProps> = ({
     handleDataChange({ ...data, items, total: items.reduce((s, i) => s + i.sous_total, 0) });
   };
 
+  // Fractionne un produit : crée un clone avec quantite=1 et réduit l'original de 1
+  const fractionateItem = (index: number) => {
+    const items = [...data.items];
+    const original = items[index];
+    if (original.quantite <= 1) return;
+    
+    // Clone avec quantite=1, nouvelle image vide, nouvel ID
+    const clone: CommandeItem = {
+      ...original,
+      id: crypto.randomUUID(),
+      quantite: 1,
+      sous_total: original.prixUnitaire,
+      image_url: '',
+    };
+    
+    // Réduire l'original de 1
+    items[index] = {
+      ...original,
+      quantite: original.quantite - 1,
+      sous_total: (original.quantite - 1) * original.prixUnitaire,
+    };
+    
+    // Insérer le clone juste après l'original
+    items.splice(index + 1, 0, clone);
+    
+    handleDataChange({ ...data, items, total: items.reduce((s, i) => s + i.sous_total, 0) });
+  };
+
   return (
     <div className="w-full py-4 sm:py-6 space-y-6">
       {/* En-tête */}
@@ -152,7 +181,7 @@ const CommandeTemplate: React.FC<CommandeTemplateProps> = ({
           <h1 className="text-xl font-bold">N°{data.commandeNumero}</h1>
         </div>
 
-        {!isMobile && (
+        {!isMobile && isEditable && (
           <div className="flex space-x-2">
             <Button 
               variant="outline" 
@@ -294,37 +323,89 @@ const CommandeTemplate: React.FC<CommandeTemplateProps> = ({
       {/* Conditions de paiement - Utilisation de CollapsibleSection */}
       {data.details?.length ? (
         <CollapsibleSection title="Conditions de paiement" defaultOpen={true}>
-          <ul className="space-y-1">
-            {/* 1. Affiche le délai */}
-            {delaiLivraison && (
-              <li className="flex justify-between">
-                <span>Délai</span>
-                <span>{delaiLivraison}</span>
-              </li>
-            )}
+          {isEditMode ? (
+            <div className="space-y-3">
+              <div>
+                <Label>Délai de livraison</Label>
+                <Input
+                  placeholder="ex: 2 semaines"
+                  value={delaiLivraison}
+                  onChange={e => {
+                    handleDataChange({
+                      ...data,
+                      details: [
+                        { note: noteValue },
+                        { option: optionValue },
+                        { delaiLivraison: e.target.value },
+                        { montantAvance },
+                      ]
+                    });
+                  }}
+                />
+              </div>
+              <div>
+                <Label>Avance (FCFA)</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={montantAvance || ''}
+                  onChange={e => {
+                    handleDataChange({
+                      ...data,
+                      details: [
+                        { note: noteValue },
+                        { option: optionValue },
+                        { delaiLivraison },
+                        { montantAvance: Number(e.target.value) || 0 },
+                      ]
+                    });
+                  }}
+                />
+              </div>
+              {montantAvance > 0 && (
+                <div className="flex justify-between text-sm bg-gray-100 rounded p-2">
+                  <span>Reste à payer</span>
+                  <span className="font-bold">{formatCFA(data.total - montantAvance)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm border-t pt-2">
+                <span>Total</span>
+                <span className="font-bold">{formatCFA(data.total)}</span>
+              </div>
+            </div>
+          ) : (
+            <ul className="space-y-1">
+              {/* 1. Affiche le délai */}
+              {delaiLivraison && (
+                <li className="flex justify-between">
+                  <span>Délai</span>
+                  <span>{delaiLivraison}</span>
+                </li>
+              )}
 
-            {/* 2. Affiche l'avance */}
-            {montantAvance !== undefined && (
-              <li className="flex justify-between">
-                <span>Avance</span>
-                <span>{formatCFA(montantAvance)}</span>
-              </li>
-            )}
+              {/* 2. Affiche l'avance */}
+              {montantAvance !== undefined && (
+                <li className="flex justify-between">
+                  <span>Avance</span>
+                  <span>{formatCFA(montantAvance)}</span>
+                </li>
+              )}
 
-            {/* 2. Affiche l'avance */}
-            {montantAvance > 0 && (
-              <li className="flex justify-between">
-                <span>Reste</span>
-                <span>{formatCFA(data.total - montantAvance)} €</span>
-              </li>
-            )}
+              {/* 3. Affiche le reste */}
+              {montantAvance > 0 && (
+                <li className="flex justify-between">
+                  <span>Reste</span>
+                  <span>{formatCFA(data.total - montantAvance)} FCFA</span>
+                </li>
+              )}
 
-            {/* 3. Affiche le total */}
-            <li className="border-t pt-2 flex justify-between">
-              <span>Total</span>
-              <span className="font-bold">{formatCFA(data.total)}</span>
-            </li>
-          </ul>
+              {/* 4. Affiche le total */}
+              <li className="border-t pt-2 flex justify-between">
+                <span>Total</span>
+                <span className="font-bold">{formatCFA(data.total)}</span>
+              </li>
+            </ul>
+          )}
         </CollapsibleSection>
       ) : null}
 
@@ -339,12 +420,13 @@ const CommandeTemplate: React.FC<CommandeTemplateProps> = ({
                 placeholder="Saisissez une note"
                 value={noteValue}
                 onChange={e => {
-                  // On reconstruit details ARRAY fixe : [{note},{option}]
                   handleDataChange({
                     ...data,
                     details: [
                       { note: e.target.value },
-                      { option: optionValue }
+                      { option: optionValue },
+                      { delaiLivraison },
+                      { montantAvance },
                     ]
                   });
                 }}
@@ -362,7 +444,9 @@ const CommandeTemplate: React.FC<CommandeTemplateProps> = ({
                     ...data,
                     details: [
                       { note: noteValue },
-                      { option: e.target.value }
+                      { option: e.target.value },
+                      { delaiLivraison },
+                      { montantAvance },
                     ]
                   });
                 }}
@@ -408,6 +492,19 @@ const CommandeTemplate: React.FC<CommandeTemplateProps> = ({
                 isEditable={isEditMode} 
                 disableAmountEdit={true} 
               />
+              {isEditMode && item.quantite > 1 && (
+                <div className="mt-1 flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fractionateItem(idx)}
+                    className="text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                  >
+                    <Split className="h-3 w-3 mr-1" />
+                    Fractionner (×{item.quantite})
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -424,7 +521,7 @@ const CommandeTemplate: React.FC<CommandeTemplateProps> = ({
       </section>
       
       {/* Barre d'actions mobile */}
-      {isMobile && (
+      {isMobile && isEditable && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 flex justify-between items-center z-10">
           <Button 
             variant="outline" 

@@ -490,9 +490,9 @@ const handleCreateCahierDesCharges = () => {
       )}
 
       <div 
-        className={`flex ${isUserMessage ? 'justify-end' : 'justify-start'} mb-3 animate-fadeIn w-full`}
+        className={`flex ${isUserMessage ? 'justify-end' : 'justify-start'} mb-3 animate-fadeIn min-w-0`}
       >
-        <div className={`max-w-[85%] w-full`}>
+        <div className={`max-w-[85%]`}>
           {isQuoteCard && quoteCardData ? (
             <div>
               <QuoteMessage
@@ -535,13 +535,13 @@ const handleCreateCahierDesCharges = () => {
                 ${hasAttachments && !message.content ? 'hidden' : ''}
               `}>
                 {isTemplateResponse && hasTemplateTypeAndData && templateType && templateData ? (
-                  <div className="my-2 w-full">
+                  <div className="my-2 w-full max-w-full">
                     {textFallback && (
                       <div className="bg-gray-100 text-gray-800 rounded-xl rounded-bl-none px-4 py-2 mb-3 shadow-sm break-words whitespace-pre-wrap" style={{ overflowWrap: 'break-word' }}>
                         {shouldStreamText ? <StreamedComponent /> : textFallback}
                       </div>
                     )}
-                    <div className="mt-2 w-full">
+                    <div className="mt-2 w-full max-w-full">
                       <TemplatePreview
                         templateType={templateType}
                         data={templateData}

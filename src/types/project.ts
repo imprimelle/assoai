@@ -107,6 +107,12 @@ export const normalizeProject = (rawProject: Record<string, any>): Project => {
     updated_at: rawProject.updated_at,
     created_by: rawProject.created_by,
     session_id: rawProject.session_id,
-    templates: normalizeTemplates(rawProject.templates)
+    templates: normalizeTemplates(rawProject.templates),
+    // Champs ajoutés par la migration 003 (refonte v3)
+    status: rawProject.status || 'actif',
+    phase: rawProject.phase || 'facturation',
+    date_livraison: rawProject.date_livraison || undefined,
+    workflow_config: rawProject.workflow_config || undefined,
+    chat_session_id: rawProject.chat_session_id || undefined,
   };
 };

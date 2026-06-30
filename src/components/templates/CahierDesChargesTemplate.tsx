@@ -181,7 +181,7 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
       </div>
 
       {/* Statut */}
-      <CollapsibleSection title="Statut" defaultOpen={true}>
+      <CollapsibleSection title="Statut" defaultOpen={false}>
         <StatusLine
           label={data.statut ?? "Brouillon"}
           status={getStatusLineState((data.statut as CahierStatus) ?? "Brouillon")}
@@ -200,7 +200,7 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
       </CollapsibleSection>
 
       {/* Informations générales */}
-      <CollapsibleSection title="Informations générales" defaultOpen={true}>
+      <CollapsibleSection title="Informations générales" defaultOpen={false}>
         <div>
           <Label htmlFor="commandeId">ID de la commande</Label>
           <Input
@@ -213,7 +213,7 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
       </CollapsibleSection>
 
       {/* Enseignes */}
-      <CollapsibleSection title="Enseignes" defaultOpen={true}>
+      <CollapsibleSection title="Enseignes" defaultOpen={false}>
         <div className="space-y-4">
           {data.enseignes?.map((enseigne, index) => (
             <EnseigneSection
@@ -239,7 +239,7 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
       </CollapsibleSection>
 
       {/* Équipe */}
-      <CollapsibleSection title="Équipe" defaultOpen={true}>
+      <CollapsibleSection title="Équipe" defaultOpen={false}>
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
@@ -307,7 +307,7 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
       </CollapsibleSection>
 
       {/* Adresse de livraison */}
-      <CollapsibleSection title="Adresse de livraison" defaultOpen={true}>
+      <CollapsibleSection title="Adresse de livraison" defaultOpen={false}>
         <AddressPicker
           value={data.deliveryAddress}
           onChange={addr => handleChange({ deliveryAddress: addr })}
@@ -316,7 +316,7 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
       </CollapsibleSection>
 
       {/* Matériaux avec filtre */}
-      <CollapsibleSection title="Matériaux" defaultOpen={true}>
+      <CollapsibleSection title="Matériaux" defaultOpen={false}>
         <div className="mb-4">
           <EnseigneFilter
             enseignes={data.enseignes || []}

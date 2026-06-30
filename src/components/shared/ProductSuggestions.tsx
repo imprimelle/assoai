@@ -1,26 +1,16 @@
-
-import React, { useState, useEffect, useMemo } from "react";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator
-} from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { Search, Package, Tag, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React, { useMemo } from "react";
+import { Package, Tag } from "lucide-react";
 import { Product, ProductVariant } from "@/types/product";
 import { useProducts } from "@/hooks/useProducts";
 import { formatCFA } from "@/utils/format";
-import { smartSearch, normalizeText, tokenize } from "@/utils/productSearch";
+import { smartSearch } from "@/utils/productSearch";
+import { SearchableDropdown, type DropdownItem } from "./SearchableDropdown";
 
-interface ProductSuggestionItem {
-  id: string;
-  name: string;
+// ──────────────────────────────────────────────
+// Types locaux enrichis
+// ──────────────────────────────────────────────
+
+interface ProductDropdownItem extends DropdownItem {
   price: number;
   isVariant: boolean;
   parentProduct?: string;
@@ -28,197 +18,103 @@ interface ProductSuggestionItem {
 }
 
 interface ProductSuggestionsProps {
-  onSelectProduct: (product: { description: string; prixUnitaire: number; image_url?: string | null }) => void;
+  onSelectProduct: (product: {
+    description: string;
+    prixUnitaire: number;
+    image_url?: string | null;
+  }) => void;
   currentValue?: string;
   disabled?: boolean;
   className?: string;
   placeholder?: string;
 }
 
+// ──────────────────────────────────────────────
+// Composant
+// ──────────────────────────────────────────────
+
 const ProductSuggestions: React.FC<ProductSuggestionsProps> = ({
   onSelectProduct,
   currentValue = "",
   disabled = false,
   className = "",
-  placeholder = "Rechercher un produit..."
+  placeholder = "Rechercher un produit...",
 }) => {
-  const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const { products, isLoading } = useProducts("", "ALL");
-  const [suggestions, setSuggestions] = useState<ProductSuggestionItem[]>([]);
 
-  // Process products data to include both products and variants
-  useEffect(() => {
-    const processProducts = () => {
-      try {
-        const items: ProductSuggestionItem[] = [];
-        
-        if (!Array.isArray(products)) {
-          setSuggestions([]);
-          return;
-        }
-        
-        products.forEach(product => {
-          if (!product) return;
-          // Add main product
+  // Aplatir produits + variantes en un seul useMemo
+  const dropdownItems: ProductDropdownItem[] = useMemo(() => {
+    const items: ProductDropdownItem[] = [];
+
+    for (const p of products) {
+      if (!p) continue;
+
+      // Produit principal
+      items.push({
+        id: p.id,
+        label: p.name || "Sans nom",
+        subtitle: formatCFA(p.variants?.[0]?.price || 0),
+        price: p.variants?.[0]?.price || 0,
+        isVariant: false,
+        imageUrl: p.main_image_url,
+        icon: React.createElement(Package, {
+          className: "h-4 w-4 text-gray-500",
+        }),
+      });
+
+      // Variantes
+      if (Array.isArray(p.variants)) {
+        for (const v of p.variants) {
+          if (!v) continue;
           items.push({
-            id: product.id,
-            name: product.name || "Sans nom",
-            price: (product.variants && Array.isArray(product.variants) && product.variants[0]?.price) || 0,
-            isVariant: false,
-            imageUrl: product.main_image_url
+            id: v.id || "",
+            label: v.name || "Variante",
+            subtitle: `${p.name} • ${formatCFA(v.price || 0)}`,
+            price: v.price || 0,
+            isVariant: true,
+            parentProduct: p.name,
+            imageUrl: (v as any).image_url || p.main_image_url,
+            icon: React.createElement(Tag, {
+              className: "h-4 w-4 text-gray-400",
+            }),
           });
-          
-          // Add variants if any
-          if (Array.isArray(product.variants)) {
-            product.variants.forEach(variant => {
-              if (!variant) return;
-              items.push({
-                id: variant.id || '',
-                name: variant.name || 'Variante',
-                price: variant.price || 0,
-                isVariant: true,
-                parentProduct: product.name,
-                imageUrl: variant.image_url || product.main_image_url
-              });
-            });
-          }
-        });
-        
-        setSuggestions(items);
-      } catch (err) {
-        console.error("ProductSuggestions error:", err);
-        setSuggestions([]);
+        }
       }
-    };
-    
-    processProducts();
+    }
+
+    // Si des produits ont été scorés par smartSearch (quand l'utilisateur tape),
+    // le filtre est fait par SearchableDropdown via le champ label/subtitle.
+    // smartSearch n'est plus utilisé ici — le filtrage est natif dans le dropdown.
+
+    return items;
   }, [products]);
 
-  // Filter suggestions using smart search (accent-insensitive, dimension-aware, price-aware)
-  const filteredSuggestions = useMemo(() => {
-    if (!searchTerm.trim()) return suggestions;
-    
-    // Use smart search on the raw products array
-    const scored = smartSearch(searchTerm, products);
-    const matchedProductIds = new Set(scored.map(s => s.product.id));
-    const matchedVariantIds = new Set(
-      scored.filter(s => s.matchedVariant).map(s => s.matchedVariant!.id)
-    );
-    
-    // Filter: include product if it matches, or if any of its variants match
-    return suggestions.filter(item => {
-      if (item.isVariant) {
-        return matchedVariantIds.has(item.id);
-      }
-      return matchedProductIds.has(item.id);
+  const handleSelect = (item: ProductDropdownItem) => {
+    onSelectProduct({
+      description:
+        item.isVariant && item.parentProduct
+          ? `${item.parentProduct} - ${item.label}`
+          : item.label,
+      prixUnitaire: item.price,
+      image_url: item.imageUrl || undefined,
     });
-  }, [searchTerm, suggestions, products]);
+  };
 
   return (
-    <Popover open={open && !disabled} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn(
-            "w-full justify-between text-left font-normal",
-            !currentValue && "text-muted-foreground",
-            className
-          )}
-          onClick={() => setOpen(!open)}
-          disabled={disabled}
-        >
-          {currentValue || placeholder}
-          <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[300px] max-w-[calc(100vw-2rem)] p-0" align="start">
-        <Command>
-          <CommandInput 
-            placeholder={placeholder} 
-            className="h-9" 
-            value={searchTerm}
-            onValueChange={setSearchTerm}
-          />
-          <CommandList className="max-h-[280px] sm:max-h-[350px] overflow-y-auto">
-            <CommandEmpty>
-              {isLoading ? "Chargement..." : "Aucun produit trouvé"}
-            </CommandEmpty>
-            <CommandGroup heading="Produits">
-              {filteredSuggestions.filter(item => !item.isVariant).map((item) => (
-                <CommandItem
-                  key={item.id}
-                  value={item.name}
-                  onSelect={() => {
-                    onSelectProduct({
-                      description: item.name,
-                      prixUnitaire: item.price,
-                      image_url: item.imageUrl || undefined
-                    });
-                    setOpen(false);
-                    setSearchTerm("");
-                  }}
-                  className="flex items-center justify-between"
-                >
-                  <div className="flex items-center">
-                    <Package className="mr-2 h-4 w-4 text-gray-500" />
-                    <div className="flex flex-col">
-                      <span className="font-medium">{item.name}</span>
-                      <span className="text-xs text-gray-500">
-                        {formatCFA(item.price)}
-                      </span>
-                    </div>
-                  </div>
-                  {currentValue === item.name && (
-                    <Check className="h-4 w-4 text-green-500" />
-                  )}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-            
-            {filteredSuggestions.some(item => item.isVariant) && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Variantes">
-                  {filteredSuggestions.filter(item => item.isVariant).map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      value={item.name}
-                      onSelect={() => {
-                        onSelectProduct({
-                          description: item.parentProduct ? `${item.parentProduct} - ${item.name}` : item.name,
-                          prixUnitaire: item.price,
-                          image_url: item.imageUrl || undefined
-                        });
-                        setOpen(false);
-                        setSearchTerm("");
-                      }}
-                      className="flex items-center justify-between"
-                    >
-                      <div className="flex items-center">
-                        <Tag className="mr-2 h-4 w-4 text-gray-500" />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{item.name}</span>
-                          <span className="text-xs text-gray-500">
-                            {item.parentProduct && `${item.parentProduct} • `}
-                            {formatCFA(item.price)}
-                          </span>
-                        </div>
-                      </div>
-                      {currentValue === item.name && (
-                        <Check className="h-4 w-4 text-green-500" />
-                      )}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <SearchableDropdown<ProductDropdownItem>
+      items={dropdownItems}
+      loading={isLoading}
+      placeholder={placeholder}
+      emptyMessage={
+        isLoading ? undefined : "Aucun produit dans le catalogue"
+      }
+      showCount
+      onSelect={handleSelect}
+      triggerValue={currentValue}
+      triggerPlaceholder={placeholder}
+      disabled={disabled}
+      className={className}
+    />
   );
 };
 

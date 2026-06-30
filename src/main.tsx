@@ -6,27 +6,25 @@ import "./index.css";
 import { initializeStorage } from "./services/storage";
 import { appLogger } from "@/utils/logger";
 
-// Initialize deferredPrompt property for PWA install banner
-if (typeof window !== 'undefined') {
-  // Use type assertion to avoid TypeScript errors
-  (window as any).deferredPrompt = null;
-}
+// PWA: Service Worker is auto-registered by vite-plugin-pwa (registerType: 'autoUpdate')
+// The plugin injects the SW registration code into the build output automatically.
+// No manual registration needed here.
 
-// Register the service worker for PWA functionality
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(registration => {
-        appLogger.info('✅ Service Worker registered successfully', {
-          scope: registration.scope
-        });
-      })
-      .catch(error => {
-        appLogger.error('❌ Service Worker registration failed', {
-          error: error,
-          errorMessage: error instanceof Error ? error.message : String(error)
-        });
-      });
+// PWA: Capture beforeinstallprompt for custom install button
+if (typeof window !== 'undefined') {
+  (window as any).deferredPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent the default mini-infobar from appearing
+    e.preventDefault();
+    // Stash the event so it can be triggered later by the InstallBanner
+    (window as any).deferredPrompt = e;
+    appLogger.info('📲 beforeinstallprompt capturé — app installable');
+  });
+
+  window.addEventListener('appinstalled', () => {
+    (window as any).deferredPrompt = null;
+    appLogger.info('✅ App installée avec succès');
   });
 }
 

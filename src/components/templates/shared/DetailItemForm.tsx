@@ -100,11 +100,11 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
         )}
       </div>
 
-      {/* Image upload */}
-      {image_url !== undefined && (
+      {/* Image upload — toujours visible en mode édition, même sans image */}
+      {(isEditable || image_url) && (
         <div className="mt-2">
           <ImageUpload
-            imageUrl={image_url}
+            imageUrl={image_url || ""}
             onChange={(url) => onChange({ image_url: url })}
             isEditable={isEditable}
           />

@@ -8,7 +8,7 @@ export const enableRealtimeForTable = async (tableName: string): Promise<void> =
   try {
     // On s'abonne aux changements de la table en Realtime
     supabase
-      .channel(`public:${tableName}`)
+      .channel(`realtime:${tableName}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: tableName },

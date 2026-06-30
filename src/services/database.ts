@@ -45,6 +45,16 @@ export const saveMessage = async (message: Message): Promise<string | null> => {
     
     const dbMessage = uiMessageToDbMessage(message);
     
+    // Ajouter project_id si présent
+    if ((message as any).projectId) {
+      (dbMessage as any).project_id = (message as any).projectId;
+    }
+
+    // Bug 7 : définir session_type automatiquement pour les sessions projet
+    if (message.sessionId?.startsWith('project-')) {
+      (dbMessage as any).session_type = 'project';
+    }
+    
     appLogger.info('🔄 saveMessage - dbMessage préparé', {
       id: dbMessage.id,
       sender: dbMessage.sender,

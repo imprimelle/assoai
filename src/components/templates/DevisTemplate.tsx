@@ -139,6 +139,7 @@ const DevisTemplate: React.FC<DevisTemplateProps> = ({
       <div className="flex justify-between items-center mb-4 sm:mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-brand-dark">DEVIS</h1>
         
+        {isEditable && (
         <div className="flex space-x-2">
           <Button 
             variant="outline" 
@@ -157,6 +158,7 @@ const DevisTemplate: React.FC<DevisTemplateProps> = ({
             </Button>
           )}
         </div>
+        )}
       </div>
 
       {/* Section Statut */}

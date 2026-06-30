@@ -22,7 +22,10 @@ CREATE INDEX IF NOT EXISTS idx_app_notifications_project ON app_notifications(pr
 ALTER TABLE app_notifications ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS app_notifications_user_policy ON app_notifications;
+-- RLS permissif : le filtrage utilisateur est fait au niveau applicatif
+-- (useNotifications.ts filtre par user_id). auth.uid() ne fonctionne pas
+-- avec le système d'authentification custom d'AssoAI.
 CREATE POLICY app_notifications_user_policy ON app_notifications
   FOR ALL
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+  USING (true)
+  WITH CHECK (true);

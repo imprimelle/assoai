@@ -22,6 +22,9 @@ export interface ProjectTask {
   labels: string[];
   priority: TaskPriority;
   created_by: TaskCreator;
+  active: boolean;
+  is_phase_validation: boolean;
+  depends_on?: string;
   created_at: string;
   updated_at: string;
 }

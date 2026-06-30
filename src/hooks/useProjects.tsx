@@ -5,24 +5,28 @@ import { Project, ProjectFormData, normalizeProject, normalizeTemplates, project
 import { useToast } from '@/hooks/use-toast';
 import { appLogger } from '@/utils/logger';
 
-export const useProjects = (sessionId?: string) => {
+const PRIVILEGED_ROLES: string[] = ['directeur', 'directrice_adjointe', 'commerciale'];
+
+export const useProjects = (userId?: string, userRole?: string) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   // Fetch all projects
   const { data: projects, isLoading, error } = useQuery({
-    queryKey: ['projects', sessionId],
+    queryKey: ['projects', userId, userRole],
     queryFn: async () => {
-      appLogger.info('useProjects - Chargement des projets', { sessionId });
+      appLogger.info('useProjects - Chargement des projets', { userId, userRole });
       
-      const query = supabase
+      const isPrivileged = userRole && PRIVILEGED_ROLES.includes(userRole);
+      
+      let query = supabase
         .from('projects')
         .select('*')
         .order('updated_at', { ascending: false });
       
-      // Filter by session_id if provided
-      if (sessionId) {
-        query.eq('session_id', sessionId);
+      // Filter by user (created_by) ONLY for non-privileged roles
+      if (userId && !isPrivileged) {
+        query = query.eq('created_by', userId);
       }
 
       const { data, error } = await query;
@@ -51,7 +55,7 @@ export const useProjects = (sessionId?: string) => {
       
       return normalizedProjects;
     },
-    enabled: !!sessionId, // Only run if sessionId is provided
+    enabled: !!userId, // Only run if userId is provided
   });
 
   // Create a new project
@@ -129,14 +133,36 @@ export const useProjects = (sessionId?: string) => {
     },
   });
 
-  // Delete a project
+  // Delete a project — nettoyage complet de toutes les tables liées
   const deleteProject = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', id);
+      // Ordre de suppression dicté par la chaîne FK (réf: project-cleanup-fk-chain.md)
+      // 1. Supprimer les checklists
+      const { error: errCl } = await supabase.from('checklists').delete().eq('project_id', id);
+      if (errCl) console.error('deleteProject: checklists error', errCl);
 
+      // 2. Supprimer la queue de communication
+      const { error: errCq } = await supabase.from('communicator_queue').delete().eq('project_id', id);
+      if (errCq) console.error('deleteProject: communicator_queue error', errCq);
+
+      // 3. Délier les messages (mettre project_id à NULL au lieu de supprimer)
+      const { error: errMsg } = await supabase.from('messages').update({ project_id: null }).eq('project_id', id);
+      if (errMsg) console.error('deleteProject: messages error', errMsg);
+
+      // 4. Supprimer les contacts projet
+      const { error: errPc } = await supabase.from('project_contacts').delete().eq('project_id', id);
+      if (errPc) console.error('deleteProject: project_contacts error', errPc);
+
+      // 5. Supprimer l'historique des phases
+      const { error: errPh } = await supabase.from('project_phase_history').delete().eq('project_id', id);
+      if (errPh) console.error('deleteProject: project_phase_history error', errPh);
+
+      // 6. Supprimer les tâches Kanban
+      const { error: errPt } = await supabase.from('project_tasks').delete().eq('project_id', id);
+      if (errPt) console.error('deleteProject: project_tasks error', errPt);
+
+      // 7. Enfin, supprimer le projet lui-même
+      const { error } = await supabase.from('projects').delete().eq('id', id);
       if (error) {
         console.error('Error deleting project:', error);
         throw new Error(error.message);
@@ -146,16 +172,20 @@ export const useProjects = (sessionId?: string) => {
     },
     onSuccess: (id) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['project-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['checklists'] });
+      queryClient.invalidateQueries({ queryKey: ['project-health'] });
+      queryClient.invalidateQueries({ queryKey: ['project-documents'] });
       toast({
-        title: "Projet supprimé",
-        description: `Le projet a été supprimé avec succès.`,
+        title: 'Projet supprimé',
+        description: 'Le projet et toutes ses données associées (tâches, checklists, communications) ont été nettoyés.',
       });
     },
     onError: (error) => {
       toast({
-        title: "Erreur",
-        description: `Erreur lors de la suppression du projet: ${error.message}`,
-        variant: "destructive",
+        title: 'Erreur',
+        description: `Erreur lors de la suppression du projet : ${error.message}`,
+        variant: 'destructive',
       });
     },
   });

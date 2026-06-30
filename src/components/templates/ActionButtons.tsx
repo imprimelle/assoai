@@ -42,7 +42,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
   };
 
   return (
-    <div className="flex justify-end gap-x-2 flex-wrap mt-2 mb-1">
+    <div className="flex justify-start gap-x-2 flex-wrap mt-2 mb-1 max-w-full">
       {/* Bouton "Demander à l'IA" pour les templates facture et commande */}
       {(templateType === "facture" || templateType === "commande" || templateType === "cahier_des_charges") && onAskAI && (
         <ActionButton 

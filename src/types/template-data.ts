@@ -137,6 +137,7 @@ export interface CommandeData {
   linked_facture_id?: string | null;
   recu_image_url?: string | null;
   deliveryAddress?: DeliveryAddress;
+  reduction?: number;  // Remise héritée de la facture source (montant CFA)
 }
 
 export interface CahierDesChargesData {

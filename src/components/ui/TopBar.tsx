@@ -12,7 +12,8 @@ import {
   Folder,
   Menu,
   X,
-  SlidersHorizontal
+  SlidersHorizontal,
+  TrendingUp
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -72,8 +73,12 @@ const TopBar: React.FC<TopBarProps> = ({ className }) => {
   // Menu secondaire (toujours dans le dropdown)
   const secondaryNavItems = [
     { to: "/products", icon: <Package className="h-4 w-4" />, label: "Produits" },
+    { to: "/procedures", icon: <Book className="h-4 w-4" />, label: "Procédures" },
+    { to: "/contacts", icon: <User className="h-4 w-4" />, label: "Contacts" },
     { to: "/logs", icon: <FileText className="h-4 w-4" />, label: "Logs" },
     { to: "/agent-config", icon: <SlidersHorizontal className="h-4 w-4" />, label: "Agents" },
+    { to: "/communicator", icon: <MessageSquare className="h-4 w-4" />, label: "Communicateur" },
+    { to: "/finances", icon: <TrendingUp className="h-4 w-4" />, label: "Finances" },
   ];
 
   return (

@@ -15,6 +15,7 @@ interface TemplateModalHeaderProps {
   isFromChatMessage: boolean;
   onClose: () => void;
   toggleMode: () => void;
+  forceReadOnly?: boolean;
   handleSave: () => void;
   handleQuickSave?: () => void;
   data: TemplateData;
@@ -32,6 +33,7 @@ const TemplateModalHeader: React.FC<TemplateModalHeaderProps> = ({
   toggleMode,
   handleSave,
   handleQuickSave,
+  forceReadOnly = false,
   data,
   onGeneratePDF,
   sessionId
@@ -86,7 +88,7 @@ const TemplateModalHeader: React.FC<TemplateModalHeaderProps> = ({
           
           <div className="flex items-center gap-2">
             {/* On vérifie si metadata?.mode !== 'readonly' */}
-            {metadata?.mode !== 'readonly' && (
+            {!forceReadOnly && metadata?.mode !== 'readonly' && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -174,7 +176,7 @@ const TemplateModalHeader: React.FC<TemplateModalHeaderProps> = ({
           
           <div className="flex items-center gap-2">
             {/* On vérifie si metadata?.mode !== 'readonly' */}
-            {metadata?.mode !== 'readonly' && (
+            {!forceReadOnly && metadata?.mode !== 'readonly' && (
               <Button
                 variant="outline"
                 size="sm"

@@ -19,11 +19,18 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="AssoAI" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- Cache-control: force le navigateur à toujours revalider -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
 
     <!-- PWA Icons -->
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512x512.png" />
-    <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512x512.png" />
 
     <!-- Manifest -->
     <link rel="manifest" href="/manifest.json" />
@@ -31,6 +38,17 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      // Force le Service Worker à se ré-enregistrer proprement (une seule fois)
+      if ('serviceWorker' in navigator && !sessionStorage.getItem('sw-reset-done')) {
+        sessionStorage.setItem('sw-reset-done', '1');
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          Promise.all(registrations.map(reg => reg.unregister()));
+        }).then(() => {
+          window.location.reload();
+        });
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

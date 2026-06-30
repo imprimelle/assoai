@@ -40,12 +40,20 @@ import { appLogger } from "@/utils/logger";
 import { getLastTemplateVersion } from "@/services/database";
 import { LoadingMessage, ScrollToBottomButton } from "@/components/chat";
 
+import { useChat } from "@/contexts/ChatContext";
 interface ChatContainerProps {
   user: User;
   persistentSessionId?: string;
+  activeAgent: AgentMode;
+  effectiveAgent: AgentMode;
+  onAgentChange: (agent: AgentMode) => void;
 }
 
-const ChatContainer: React.FC<ChatContainerProps> = ({ user, persistentSessionId }) => {
+const ChatContainer: React.FC<ChatContainerProps> = ({ user, persistentSessionId, activeAgent, effectiveAgent, onAgentChange }) => {
+  const { projectContext } = useChat();
+  const effectiveSessionId = projectContext?.projectId 
+    ? `project-${projectContext.projectId}` 
+    : (persistentSessionId || `session_${Date.now()}`);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
@@ -60,7 +68,6 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ user, persistentSessionId
     metadata?: TemplateMetadata;
   } | null>(null);
   const [pdfActions, setPdfActions] = useState<PDFAction[]>([]);
-  const [activeAgent, setActiveAgent] = useState<AgentMode>("wari");
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -68,11 +75,12 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ user, persistentSessionId
   const navigate = useNavigate();
   
   // Générer un ID de session unique ou utiliser celui fourni
-  const sessionId = useRef<string>(persistentSessionId?.trim() || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+  // Bug 2 : sessionId réactif — suit effectiveSessionId pour les projets
+  const sessionId = effectiveSessionId;
   
   // Utiliser le hook useMessages pour gérer les messages
   const { messages, isLoading: isLoadingMessages, addMessage, payloads, updatePayload, setMessages } = useMessages({
-    sessionId: sessionId.current
+    sessionId: sessionId
   });
 
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -93,7 +101,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ user, persistentSessionId
     if (!isLoadingMessages && messages.length === 0) {
       const welcomeMessage: Message = {
         id: `welcome_${Date.now()}`,
-        sessionId: sessionId.current,
+        sessionId: sessionId,
         userId: "SYSTEM",
         content: "Bonjour ! Comment puis-je vous aider aujourd'hui ?",
         timestamp: new Date().toISOString(),
@@ -293,7 +301,7 @@ const lastVersion = finalTemplate
       // Créer un objet message pour l'UI
       const newMessage: Message = {
         id: messageId,
-        sessionId: sessionId.current,
+        sessionId: sessionId,
         userId: user.id,
         content: messageContent,
         timestamp: new Date().toISOString(),
@@ -301,8 +309,9 @@ const lastVersion = finalTemplate
         attachments: attachmentUrls, // Utiliser les URLs des fichiers uploadés
         isUser: true,
         promptGuidelines: finalPromptGuidelines,
-        template: finalTemplate // Ajouter le template s'il existe
-      };
+        template: finalTemplate, // Ajouter le template s'il existe
+        projectId: projectContext?.projectId, // Bug 1 : lier le message au projet
+      } as Message & { projectId?: string };
       
       // Ajouter le message à la base de données via le hook (qui met aussi à jour l'état local)
       await addMessage(newMessage);
@@ -315,9 +324,10 @@ const lastVersion = finalTemplate
       const payloadType = determineMessagePayloadType(hasText, hasAttachments, hasTemplate);
       
       // Préparer le payload pour l'IA
-      const payload: MessagePayload = {
+      const payload: any = {
         userId: user.id,
-        sessionId: sessionId.current,
+        sessionId: effectiveSessionId,
+        projectId: projectContext?.projectId,
         timestamp: new Date().toISOString(),
         message: {
           type: payloadType as MessagePayloadType,
@@ -349,13 +359,15 @@ const lastVersion = finalTemplate
       const responseMessageId = crypto.randomUUID();
       
       // Utiliser le mode et le contenu appropriés selon le type de réponse
-      const responseContent = response.response.mode === 'text' 
-        ? response.response.textFallback
-        : response.response.textFallback;
+      const isTemplate = response.response.mode === 'template' && 'data' in response.response;
+      const responseContent = isTemplate
+        ? (response.response.metadata as any)?.description 
+          || `Document ${(response.response as any).templateType || ''} généré`
+        : (response.response.textFallback || '');
       
       const responseMessage: Message = {
         id: responseMessageId,
-        sessionId: sessionId.current,
+        sessionId: sessionId,
         userId: response.agentId,
         content: responseContent,
         timestamp: response.timestamp,
@@ -551,7 +563,7 @@ const handleGeneratePDF = async (templateType: TemplateType, data: TemplateData)
     templateType,
     status: 'ready', // Changé de 'pending' à 'ready' pour éviter l'appel webhook automatique
     timestamp: new Date().toISOString(),
-    sessionId: sessionId.current,
+    sessionId: sessionId,
     templateData: data, // Ajouter les données du template
     userId: user.id, // Ajouter l'ID utilisateur
     documentNumber: getDocumentNumber(templateType, data) // Extraire le numéro du document
@@ -669,10 +681,10 @@ const getDocumentNumber = (templateType: TemplateType, data: TemplateData): stri
       <div className="flex flex-1 overflow-hidden relative">
         <div className="flex-1 flex flex-col">
           <ScrollArea
-            className="flex-1 px-1 py-2 md:px-4 md:py-4 w-full bg-gradient-to-b from-white to-gray-100 pb-[0px]"
+            className="flex-1 px-3 py-2 md:px-4 md:py-4 w-full bg-gradient-to-b from-white to-gray-100 pb-[0px]"
             ref={scrollAreaRef}
           >
-            <div className="space-y-3 md:space-y-4 w-full">
+            <div className="space-y-3 md:space-y-4 w-full min-w-0">
               {isLoadingMessages && (
                 <div className="flex justify-center p-4">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
@@ -705,7 +717,7 @@ const getDocumentNumber = (templateType: TemplateType, data: TemplateData): stri
               {isLoading && <LoadingMessage />}
 
               {/* SENTINEL : espaceur dynamique pour laisser assez d'espace pour les nouveaux messages */}
-              <div className="h-[calc(env(safe-area-inset-bottom)+22rem)]" />
+              <div className="h-[calc(env(safe-area-inset-bottom)+4rem)]" />
             </div>
           </ScrollArea>
           
@@ -716,7 +728,8 @@ const getDocumentNumber = (templateType: TemplateType, data: TemplateData): stri
             onCancelTemplate={() => setActiveTemplate(null)}
             isLoading={isLoading || isUploading}
             activeAgent={activeAgent}
-            onAgentChange={setActiveAgent}
+            effectiveAgent={effectiveAgent}
+            onAgentChange={onAgentChange}
           />
         </div>
         

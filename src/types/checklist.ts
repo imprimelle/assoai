@@ -11,7 +11,8 @@ export interface ChecklistItem {
   done_by?: string;
   done_at?: string;
   required_image?: boolean;
-  image_url?: string;
+  image_url?: string; // déprécié — conservé pour rétrocompatibilité, privilégier gallery_images
+  gallery_images?: string[];
   notes?: string;
 }
 
@@ -43,5 +44,6 @@ export interface ChecklistItemUpdate {
   done?: boolean;
   done_by?: string;
   image_url?: string;
+  gallery_images?: string[];
   notes?: string;
 }
