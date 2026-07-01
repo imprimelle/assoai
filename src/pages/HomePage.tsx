@@ -11,6 +11,7 @@ import {
   FileText,
   BookOpen,
   Bot,
+  Zap,
 } from "lucide-react";
 import { useHomeCounters, type HomeCounters } from "@/hooks/useHomeCounters";
 import { usePageVisit } from "@/hooks/usePageVisit";
@@ -99,11 +100,19 @@ const cardDefs: Record<string, HomeCard> = {
     path: "/agent-config",
     color: "bg-violet-100 text-violet-700",
   },
+  testCycle: {
+    id: "testCycle",
+    title: "Test Cycle",
+    description: "Simulation complète du cycle projet",
+    icon: <Zap className="h-8 w-8" />,
+    path: "/test-cycle",
+    color: "bg-orange-100 text-orange-700",
+  },
 };
 
 // Rôles → cartes affichées
 const roleCards: Record<string, string[]> = {
-  directeur: ["finances", "projet", "wari", "monBara", "produit", "procedure", "agents"],
+  directeur: ["finances", "projet", "wari", "monBara", "produit", "procedure", "agents", "testCycle"],
   directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit"],
   commerciale: ["projet", "demande", "wari", "monBara", "produit"],
   chef_technique: ["demande", "monBara"],

@@ -15,6 +15,7 @@ import ProductCatalog from "./pages/ProductCatalog";
 import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
 import AgentConfig from "./pages/AgentConfig";
+import TestCycleRunner from "./pages/TestCycleRunner";
 import Finance from "./pages/Finance";
 import Procedures from "./pages/Procedures";
 import Contacts from "./pages/Contacts";
@@ -308,6 +309,20 @@ const AppContent = () => {
               element={
                 <RequireAuth persistentSessionId={persistentSessionId}>
                   <Procedures />
+                </RequireAuth>
+              }
+            />
+
+            {/* Test Cycle (Directeur uniquement) */}
+            <Route
+              path="/test-cycle"
+              element={
+                <RequireAuth persistentSessionId={persistentSessionId}>
+                  {currentUser && currentUser.role === "directeur" ? (
+                    <TestCycleRunner user={currentUser} />
+                  ) : (
+                    <Navigate to="/" replace />
+                  )}
                 </RequireAuth>
               }
             />
