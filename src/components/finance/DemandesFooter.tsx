@@ -118,7 +118,7 @@ export function DemandesFooter({ onSuccess, lockedApplicant, monnaieDisponible =
     const validLines = lines.filter(
       (l) => l.description.trim() && Number(l.amount) > 0
     );
-    if (!applicantName.trim() || validLines.length === 0) return;
+    if (validLines.length === 0) return;
 
     try {
       const items = validLines.map((l) => ({
@@ -191,64 +191,7 @@ export function DemandesFooter({ onSuccess, lockedApplicant, monnaieDisponible =
 
         {expanded && (
           <form onSubmit={handleSubmit} className="px-3 pb-3 space-y-2.5">
-            {/* 🆕 Ligne 1 : Demandeur + Projet côte à côte */}
-            <div className="flex gap-2">
-              {/* Demandeur */}
-              <div className="flex-1">
-                <label className="text-[10px] text-gray-400 block mb-1">
-                  {lockedApplicant ? (
-                    <span className="flex items-center gap-1">
-                      <Lock className="h-2.5 w-2.5" /> 👤 Demandeur
-                    </span>
-                  ) : (
-                    "👤 Demandeur"
-                  )}
-                </label>
-                {lockedApplicant ? (
-                  <div className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600 flex items-center gap-1.5">
-                    <Lock className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                    <span className="truncate">{applicantName}</span>
-                  </div>
-                ) : (
-                  <select
-                    value={applicantName}
-                    onChange={(e) => {
-                      const selectedName = e.target.value;
-                      setApplicantName(selectedName);
-                      const contact = contacts?.find((c: any) => c.name === selectedName);
-                      setApplicantId(contact?.id || null);
-                    }}
-                    className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-700"
-                  >
-                    <option value="">Sélectionner un contact...</option>
-                    {contacts?.map((c: any) => (
-                      <option key={c.id} value={c.name}>
-                        {c.name} — {c.role}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              {/* Projet */}
-              <div className="flex-1">
-                <label className="text-[10px] text-gray-400 block mb-1">📁 Projet (optionnel)</label>
-                <select
-                  value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-700"
-                >
-                  <option value="">Pas de projet</option>
-                  {projects?.map((p: any) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* 🆕 Motif : masqué si verrouillé, visible pour directeur/adjointe */}
+            {/* Motif : masqué si verrouillé, visible pour directeur/adjointe */}
             {!lockedApplicant && (
               <div>
                 <label className="text-[10px] text-gray-400 block mb-1">📝 Motif</label>
@@ -353,15 +296,10 @@ export function DemandesFooter({ onSuccess, lockedApplicant, monnaieDisponible =
               </div>
             )}
 
-            {/* 🆕 Aide contextuelle — montre pourquoi le bouton est grisé */}
-            {(validCount === 0 || !applicantName.trim()) && (
-              <div className="text-[10px] text-gray-400 space-y-0.5">
-                {!applicantName.trim() && (
-                  <p>👤 Sélectionne un demandeur</p>
-                )}
-                {validCount === 0 && (
-                  <p>📝 Remplis au moins un article avec un montant</p>
-                )}
+            {/* Aide contextuelle */}
+            {validCount === 0 && (
+              <div className="text-[10px] text-gray-400">
+                <p>📝 Remplis au moins un article avec un montant</p>
               </div>
             )}
 
@@ -375,7 +313,7 @@ export function DemandesFooter({ onSuccess, lockedApplicant, monnaieDisponible =
               </div>
               <button
                 type="submit"
-                disabled={createDemande.isPending || !applicantName.trim() || validCount === 0}
+                disabled={createDemande.isPending || validCount === 0}
                 className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {createDemande.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
