@@ -214,6 +214,12 @@ export function QuickTransactionForm({ onSuccess }: { onSuccess?: () => void }) 
   const surplusAmount = Math.max(0, decaissementAmount - linesTotal);
   const subTotal = decaissementAmount || linesTotal;
 
+  const formatDisplay = (raw: string): string => {
+    const digits = raw.replace(/\D/g, "");
+    if (!digits) return "";
+    return Number(digits).toLocaleString("fr-FR").replace(/\u202f/g, " ");
+  };
+
   const updateLine = (idx: number, field: "description" | "amount", value: string) => {
     setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, [field]: value } : l)));
   };
@@ -576,7 +582,7 @@ export function QuickTransactionForm({ onSuccess }: { onSuccess?: () => void }) 
                       value={line.description}
                       onChange={(e) => updateLine(idx, "description", e.target.value)}
                       onFocus={() => { setActiveLineIdx(idx); setSuggestionsOpen(true); }}
-                      placeholder={idx === 0 ? "Description de la dépense..." : "Ajouter une description..."}
+                      placeholder="Quoi ?"
                       className="w-full h-10 px-3 border-0 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none"
                     />
                     {suggestionsOpen && activeLineIdx === idx && mergedSuggestions.length > 0 && (
@@ -592,18 +598,18 @@ export function QuickTransactionForm({ onSuccess }: { onSuccess?: () => void }) 
                   <div className="w-px h-10 bg-gray-100 shrink-0" />
 
                   {/* Montant */}
-                  <div className="w-32 flex-shrink-0 relative">
+                  <div className="w-32 flex-shrink-0">
                     <input
-                      type="number"
-                      value={line.amount}
-                      onChange={(e) => updateLine(idx, "amount", e.target.value)}
-                      placeholder="0"
-                      className="w-full h-10 px-0 border-0 bg-transparent text-sm font-bold text-gray-900 placeholder:text-gray-300 text-right focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      min="0"
+                      type="text"
+                      inputMode="numeric"
+                      value={line.amount ? formatDisplay(line.amount) : ""}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\s/g, "").replace(/\D/g, "");
+                        updateLine(idx, "amount", raw);
+                      }}
+                      placeholder="Combien ?"
+                      className="w-full h-10 px-0 border-0 bg-transparent text-sm font-bold text-gray-900 placeholder:text-gray-300 text-right focus:outline-none"
                     />
-                    <span className="absolute right-0 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400 pointer-events-none pr-1">
-                      FCFA
-                    </span>
                   </div>
 
                   {/* Supprimer */}
