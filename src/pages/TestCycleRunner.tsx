@@ -244,9 +244,13 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
 
   const createChecklist = useCallback(async (
     projectId: string, taskId: string, title: string, section: string, itemLabels: string[],
-  ) => {
+  ): Promise<string> => {
     const items = itemLabels.map(label => ({ id: makeUUID(), label, done: false }));
-    await supabase.from("checklists").insert({ project_id: projectId, task_id: taskId, title, section, items });
+    const { data, error } = await supabase.from("checklists").insert({
+      project_id: projectId, task_id: taskId, title, section, items,
+    }).select("id").single();
+    if (error) throw error;
+    return data.id;
   }, []);
 
   const insertQueue = useCallback(async (projectId: string, action: string, payload: Record<string, any>) => {
@@ -440,7 +444,12 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
       project_id: pid, project_name: pname, phase: "facturation", previous_phase: null,
       enseigne_count: config.enseignes.length,
       tasks: factuTasks.filter(t => t.active).map(t => ({
-        title: t.title, assignee_name: ASSIGNEES[t.assignee] || t.assignee, due_date: dueDate(3),
+        title: t.title,
+        assignee_name: ASSIGNEES[t.assignee] || t.assignee,
+        assignee_jid: "",
+        checklist_url: `${window.location.origin}/public/checklist/${(t as any).checklistId}`,
+        active: true,
+        due_date: dueDate(3),
       })),
     });
     await supabase.from("project_phase_history").insert({ project_id: pid, phase: "facturation", action: "started", performed_by: "test_runner" });
@@ -538,79 +547,96 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
   // ── Create phase tasks (local, used in instant mode) ──
   const createPhaseTasksLocal = useCallback(async (pid: string, phase: PhaseName) => {
     await supabase.from("projects").update({ phase }).eq("id", pid);
-    const tasks: { id: string; title: string; assignee: string; active: boolean }[] = [];
+    const tasks: { id: string; title: string; assignee: string; active: boolean; checklistId: string }[] = [];
 
     if (phase === "facturation") {
       const t1 = await createTask(pid, "Vérifier le paiement client", "commerciale", "high", dueDate(3));
-      tasks.push({ ...t1, title: "Vérifier le paiement client", assignee: "commerciale", active: true });
-      await createChecklist(pid, t1.id, "Vérification paiement", "facturation", [
+      const cl1 = await createChecklist(pid, t1.id, "Vérification paiement", "facturation", [
         "Vérifier les coordonnées bancaires", "Confirmer réception acompte (50%)", "Noter référence virement", "Mettre à jour statut facture",
       ]);
+      tasks.push({ ...t1, title: "Vérifier le paiement client", assignee: "commerciale", active: true, checklistId: cl1 });
+
       const t2 = await createTask(pid, "Envoyer la facture au client", "commerciale", "medium", dueDate(1));
-      tasks.push({ ...t2, title: "Envoyer la facture au client", assignee: "commerciale", active: true });
-      await createChecklist(pid, t2.id, "Envoi facture", "facturation", [
+      const cl2 = await createChecklist(pid, t2.id, "Envoi facture", "facturation", [
         "Générer le PDF", "Envoyer par email", "Envoyer lien WhatsApp", "Confirmer réception",
       ]);
+      tasks.push({ ...t2, title: "Envoyer la facture au client", assignee: "commerciale", active: true, checklistId: cl2 });
+
       const tv = await createTask(pid, "Valider la phase facturation", "directrice_adjointe", "high", dueDate(5), true, false);
-      tasks.push({ ...tv, title: "Valider la phase facturation", assignee: "directrice_adjointe", active: false });
-      await createChecklist(pid, tv.id, "Validation — Facturation", "facturation", [
+      const clv = await createChecklist(pid, tv.id, "Validation — Facturation", "facturation", [
         "Vérifier paiement reçu", "Vérifier facture envoyée", "Valider passage en commande",
       ]);
+      tasks.push({ ...tv, title: "Valider la phase facturation", assignee: "directrice_adjointe", active: false, checklistId: clv });
     } else if (phase === "commande") {
       const t1 = await createTask(pid, "Créer bon de commande fournisseur", "chef_technique", "high", dueDate(3));
-      tasks.push({ ...t1, title: "Créer bon de commande fournisseur", assignee: "chef_technique", active: true });
-      await createChecklist(pid, t1.id, "Bon de commande fournisseur", "commande", [
+      const cl1 = await createChecklist(pid, t1.id, "Bon de commande fournisseur", "commande", [
         "Lister matériaux", "Contacter fournisseur", "Valider bon de commande", "Envoyer bon de commande",
       ]);
+      tasks.push({ ...t1, title: "Créer bon de commande fournisseur", assignee: "chef_technique", active: true, checklistId: cl1 });
+
       const t2 = await createTask(pid, "Vérifier les délais de livraison", "superviseur_logistique", "medium", dueDate(2));
-      tasks.push({ ...t2, title: "Vérifier les délais de livraison", assignee: "superviseur_logistique", active: true });
-      await createChecklist(pid, t2.id, "Délais livraison", "commande", [
+      const cl2 = await createChecklist(pid, t2.id, "Délais livraison", "commande", [
         "Vérifier stocks", "Confirmer délais", "Planifier réception",
       ]);
+      tasks.push({ ...t2, title: "Vérifier les délais de livraison", assignee: "superviseur_logistique", active: true, checklistId: cl2 });
+
       const tv = await createTask(pid, "Valider la phase commande", "directrice_adjointe", "high", dueDate(5), true, false);
-      tasks.push({ ...tv, title: "Valider la phase commande", assignee: "directrice_adjointe", active: false });
-      await createChecklist(pid, tv.id, "Validation — Commande", "commande", [
+      const clv = await createChecklist(pid, tv.id, "Validation — Commande", "commande", [
         "Vérifier BC envoyé", "Vérifier délais confirmés", "Valider passage fabrication",
       ]);
+      tasks.push({ ...tv, title: "Valider la phase commande", assignee: "directrice_adjointe", active: false, checklistId: clv });
     } else if (phase === "fabrication") {
       const t1 = await createTask(pid, "Découpe et assemblage — Enseigne 3D", "chef_technique", "critical", dueDate(7));
-      tasks.push({ ...t1, title: "Découpe et assemblage — Enseigne 3D", assignee: "chef_technique", active: true });
-      await createChecklist(pid, t1.id, "Fabrication Enseigne 3D", "fabrication", [
+      const cl1 = await createChecklist(pid, t1.id, "Fabrication Enseigne 3D", "fabrication", [
         "Découpe panneau Dibond", "Assemblage cadre aluminium", "Pose LEDs 5050 RGB", "Câblage et test", "Photo enseigne terminée",
       ]);
+      tasks.push({ ...t1, title: "Découpe et assemblage — Enseigne 3D", assignee: "chef_technique", active: true, checklistId: cl1 });
+
       const t2 = await createTask(pid, "Assemblage — Néon transparent", "technicien_adjoint", "high", dueDate(5));
-      tasks.push({ ...t2, title: "Assemblage — Néon transparent", assignee: "technicien_adjoint", active: true });
-      await createChecklist(pid, t2.id, "Fabrication Néon", "fabrication", [
+      const cl2 = await createChecklist(pid, t2.id, "Fabrication Néon", "fabrication", [
         "Découpe support", "Pose tube néon LED", "Câblage et test", "Photo néon terminé",
       ]);
+      tasks.push({ ...t2, title: "Assemblage — Néon transparent", assignee: "technicien_adjoint", active: true, checklistId: cl2 });
+
       const tv = await createTask(pid, "Valider la phase fabrication", "directeur", "high", dueDate(8), true, false);
-      tasks.push({ ...tv, title: "Valider la phase fabrication", assignee: "directeur", active: false });
-      await createChecklist(pid, tv.id, "Validation — Fabrication", "fabrication", [
+      const clv = await createChecklist(pid, tv.id, "Validation — Fabrication", "fabrication", [
         "Inspecter enseignes", "Vérifier conformité CDC", "Valider passage livraison",
       ]);
+      tasks.push({ ...tv, title: "Valider la phase fabrication", assignee: "directeur", active: false, checklistId: clv });
     } else if (phase === "livraison") {
       const t1 = await createTask(pid, "Préparer la livraison", "superviseur_logistique", "high", dueDate(2));
-      tasks.push({ ...t1, title: "Préparer la livraison", assignee: "superviseur_logistique", active: true });
-      await createChecklist(pid, t1.id, "Préparation livraison", "livraison", [
+      const cl1 = await createChecklist(pid, t1.id, "Préparation livraison", "livraison", [
         "Emballer enseignes", "Préparer kit installation", "Vérifier check-list", "Charger véhicule",
       ]);
+      tasks.push({ ...t1, title: "Préparer la livraison", assignee: "superviseur_logistique", active: true, checklistId: cl1 });
+
       const t2 = await createTask(pid, "Installation chez le client", "chef_technique", "critical", dueDate(3));
-      tasks.push({ ...t2, title: "Installation chez le client", assignee: "chef_technique", active: true });
-      await createChecklist(pid, t2.id, "Installation client", "livraison", [
+      const cl2 = await createChecklist(pid, t2.id, "Installation client", "livraison", [
         "Déballer enseignes", "Fixer enseigne 3D", "Installer néon", "Raccorder alimentation", "Test final — photo",
       ]);
+      tasks.push({ ...t2, title: "Installation chez le client", assignee: "chef_technique", active: true, checklistId: cl2 });
+
       const tv = await createTask(pid, "Valider la phase livraison", "directrice_adjointe", "high", dueDate(5), true, false);
-      tasks.push({ ...tv, title: "Valider la phase livraison", assignee: "directrice_adjointe", active: false });
-      await createChecklist(pid, tv.id, "Validation — Livraison", "livraison", [
+      const clv = await createChecklist(pid, tv.id, "Validation — Livraison", "livraison", [
         "Vérifier satisfaction client", "Récupérer bon signé", "Valider clôture projet",
       ]);
+      tasks.push({ ...tv, title: "Valider la phase livraison", assignee: "directrice_adjointe", active: false, checklistId: clv });
     }
 
+    const origin = window.location.origin;
     await insertQueue(pid, "phase_started", {
-      project_id: pid, project_name: projectName || "Projet test", phase, previous_phase: null,
+      project_id: pid,
+      project_name: projectName || "Projet test",
+      phase,
+      previous_phase: null,
       enseigne_count: config.enseignes.length,
       tasks: tasks.filter(t => t.active).map(t => ({
-        title: t.title, assignee_name: ASSIGNEES[t.assignee] || t.assignee, due_date: dueDate(3),
+        title: t.title,
+        assignee_name: ASSIGNEES[t.assignee] || t.assignee,
+        assignee_jid: "",
+        checklist_url: `${origin}/public/checklist/${t.checklistId}`,
+        active: true,
+        due_date: dueDate(3),
       })),
     });
     await supabase.from("project_phase_history").insert({ project_id: pid, phase, action: "started", performed_by: "test_runner" });
@@ -654,10 +680,22 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
         if (task.kanban_column === "a_faire") {
           await supabase.from("project_tasks").update({ kanban_column: "en_cours" }).eq("id", task.id);
         }
+
+        const doneCount = items.filter((it: any) => it.done).length;
         await insertQueue(pid, "checklist_progress", {
-          task_id: task.id, task_title: task.title, checklist_id: cl.id,
-          checklist_title: cl.title, done_by: name, progress: `1/${items.length}`,
-          timestamp: new Date().toISOString(),
+          pct: Math.round((doneCount / items.length) * 100),
+          done: doneCount,
+          total: items.length,
+          task_id: task.id,
+          task_title: task.title,
+          project_id: pid,
+          project_name: projectName || "",
+          checklist_id: cl.id,
+          checklist_title: cl.title,
+          checklist_url: `${window.location.origin}/public/checklist/${cl.id}`,
+          human_name: name,
+          saved_at: new Date().toISOString(),
+          newly_completed: 1,
         });
         addLog("step", `📊 Progress — ${cl.title}: ${Math.round(100 / items.length)}% (1/${items.length}) — ${name}${isVal ? " 🔒" : ""}`);
       }
@@ -668,21 +706,35 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
       for (const item of refreshed) {
         if (!item.done) { item.done = true; item.done_at = new Date().toISOString(); }
       }
+      const totalItems = refreshed.length;
       await supabase.from("checklists").update({ items: refreshed }).eq("id", cl.id);
+      const completedAt = new Date().toISOString();
       await supabase.from("project_tasks").update({
-        kanban_column: "termine", completed_at: new Date().toISOString(),
+        kanban_column: "termine", completed_at: completedAt,
       }).eq("id", task.id);
 
       await insertQueue(pid, "task_completed", {
-        task_id: task.id, task_title: task.title, checklist_id: cl.id,
-        done_by: name, confidence: "high", timestamp: new Date().toISOString(),
+        pct: 100,
+        done: totalItems,
+        total: totalItems,
+        task_id: task.id,
+        task_title: task.title,
+        is_phase_validation: isVal,
+        project_id: pid,
+        project_name: pname || "",
+        checklist_id: cl.id,
+        checklist_title: cl.title,
+        checklist_url: `${window.location.origin}/public/checklist/${cl.id}`,
+        human_name: name,
+        completed_at: completedAt,
+        newly_completed: totalItems - doneCount,
       });
       addLog("success", `✅ Completed — ${cl.title}: 100% (${refreshed.length}/${refreshed.length}) — ${name}${isVal ? " 🔒" : ""}`);
 
       setQueueEntries(prev => prev + 2);
       await sleep(200);
     }
-  }, [addLog, insertQueue]);
+  }, [addLog, insertQueue, projectName]);
 
   // ── Complete all phases (instant mode) ──
   const completeAllPhasesInstant = useCallback(async (pid: string, pname: string) => {
