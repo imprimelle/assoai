@@ -168,6 +168,7 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
 
   // ── Search existing projects (avec debounce + garde anti-rebouclage) ──
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   const searchProjects = useCallback(async (query: string) => {
     if (query.length < 2) { setSearchResults([]); return; }
@@ -175,10 +176,16 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
     // Debounce 300ms
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     searchTimerRef.current = setTimeout(async () => {
+      // Construire la clause or() — n'inclure id.eq que si la query ressemble à un UUID
+      const isUuid = uuidRegex.test(query);
+      const orClause = isUuid
+        ? `name.ilike.%${query}%,id.eq.${query}`
+        : `name.ilike.%${query}%`;
+
       const { data, error } = await supabase
         .from("projects")
         .select("id, name, phase")
-        .or(`name.ilike.%${query}%,id.eq.${query}`)
+        .or(orClause)
         .order("created_at", { ascending: false })
         .limit(5);
 
