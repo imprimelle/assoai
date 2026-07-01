@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCreateDemande } from "../../hooks/useDemandes";
 import { cn } from "@/lib/utils";
-import { Loader2, Check, ChevronUp, ChevronDown, Lock } from "lucide-react";
+import { Loader2, Check, ChevronUp, ChevronDown, Lock, X, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 /* ── Props ── */
@@ -82,6 +82,12 @@ export function DemandesFooter({ onSuccess, lockedApplicant, monnaieDisponible =
   const subTotal = lines.reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
   const monnaieUtilisee = Math.min(monnaieDisponible, subTotal);
   const caisseDebitee = subTotal - monnaieUtilisee;
+
+  const formatDisplay = (raw: string): string => {
+    const digits = raw.replace(/\D/g, "");
+    if (!digits) return "";
+    return Number(digits).toLocaleString("fr-FR").replace(/\u202f/g, " ");
+  };
 
   const updateLine = (idx: number, field: "description" | "amount", value: string) => {
     setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, [field]: value } : l)));
@@ -257,46 +263,58 @@ export function DemandesFooter({ onSuccess, lockedApplicant, monnaieDisponible =
             )}
 
             {/* Lignes (items de la demande) */}
-            <div className="space-y-1.5">
-              <p className="text-[10px] text-gray-400">
-                📋 Articles demandés <span className="text-gray-300">(catégorie: Matériel)</span>
-                {lockedApplicant && (
-                  <span className="text-gray-400 ml-1">— le motif sera la 1ʳᵉ ligne</span>
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                  📝 Lignes
+                </p>
+                {lines.length > 1 && (
+                  <span className="text-[10px] text-gray-400 bg-gray-200/50 px-2 py-0.5 rounded-full">
+                    {lines.length} lignes
+                  </span>
                 )}
-              </p>
+              </div>
               {lines.map((line, idx) => (
-                <div key={idx} className="flex items-start gap-1.5">
+                <div key={idx}
+                  className="flex items-start gap-2 bg-white rounded-xl border border-gray-200 shadow-sm hover:border-gray-300 hover:shadow transition-all p-2.5"
+                >
+                  {/* Description */}
                   <div className="flex-1">
                     <input
                       type="text"
                       value={line.description}
                       onChange={(e) => updateLine(idx, "description", e.target.value)}
-                      placeholder={idx === 0 ? "Ex: Panneaux 3×2" : "Ajouter un article..."}
-                      className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
+                      placeholder="Quoi ?"
+                      className="w-full h-10 px-3 border-0 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none"
                     />
                   </div>
-                  <div className="w-28 flex-shrink-0">
-                    <div className="relative">
-                      <input
-                        type="number"
-                        value={line.amount}
-                        onChange={(e) => updateLine(idx, "amount", e.target.value)}
-                        placeholder="0"
-                        className="w-full pl-2.5 pr-10 py-1.5 border border-gray-200 rounded-lg text-sm font-semibold text-gray-900 placeholder:text-gray-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        min="0"
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">
-                        FCFA
-                      </span>
-                    </div>
+
+                  {/* Divider */}
+                  <div className="w-px h-10 bg-gray-100 shrink-0" />
+
+                  {/* Montant */}
+                  <div className="w-32 flex-shrink-0">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={line.amount ? formatDisplay(line.amount) : ""}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\s/g, "").replace(/\D/g, "");
+                        updateLine(idx, "amount", raw);
+                      }}
+                      placeholder="Combien ?"
+                      className="w-full h-10 px-0 border-0 bg-transparent text-sm font-bold text-gray-900 placeholder:text-gray-300 text-right focus:outline-none"
+                    />
                   </div>
+
+                  {/* Supprimer */}
                   {lines.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeLine(idx)}
-                      className="p-1.5 text-gray-300 hover:text-red-400 transition-colors self-center"
+                      className="h-10 w-10 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
                     >
-                      ✕
+                      <X className="h-4 w-4" />
                     </button>
                   )}
                 </div>
@@ -305,9 +323,10 @@ export function DemandesFooter({ onSuccess, lockedApplicant, monnaieDisponible =
               <button
                 type="button"
                 onClick={addLine}
-                className="w-full flex items-center justify-center gap-1 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-400 hover:text-gray-600 hover:border-gray-400 transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition-all active:scale-[0.98]"
               >
-                <span className="text-base">+</span> Ajouter un article
+                <Plus className="h-4 w-4" />
+                Ajouter une ligne
               </button>
             </div>
 
