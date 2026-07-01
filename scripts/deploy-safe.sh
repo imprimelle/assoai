@@ -185,28 +185,83 @@ elif git merge-base --is-ancestor "${DEPLOYED_SHA}" "${LOCAL_SHA}" 2>/dev/null; 
     info "Dernier déploiement : ${DEPLOYED_TS:-inconnu}"
 else
     # Le SHA déployé n'est pas dans notre historique → déploiement concurrent divergent
+
+    # Récupérer les commits qui sont en production mais PAS dans HEAD
+    DEPLOYED_ONLY_COMMITS=$(git log --oneline --no-merges HEAD.."${DEPLOYED_SHA}" 2>/dev/null || echo "")
+    DEPLOYED_ONLY_COUNT=$(echo "${DEPLOYED_ONLY_COMMITS}" | grep -c . 2>/dev/null || echo "0")
+    HEAD_ONLY_COMMITS=$(git log --oneline --no-merges "${DEPLOYED_SHA}"..HEAD 2>/dev/null || echo "")
+    HEAD_ONLY_COUNT=$(echo "${HEAD_ONLY_COMMITS}" | grep -c . 2>/dev/null || echo "0")
+
+    # Auteur et date du déploiement concurrent
+    DEPLOYED_AUTHOR=$(git log -1 --format='%an' "${DEPLOYED_SHA}" 2>/dev/null || echo "?")
+    DEPLOYED_DATE=$(git log -1 --format='%ci' "${DEPLOYED_SHA}" 2>/dev/null || echo "?")
+    DEPLOYED_MSG=$(git log -1 --format='%s' "${DEPLOYED_SHA}" 2>/dev/null || echo "?")
+
+    # Fichiers modifiés par le déploiement concurrent (que HEAD n'a pas)
+    DEPLOYED_FILES=$(git diff --stat HEAD.."${DEPLOYED_SHA}" 2>/dev/null | tail -1 || echo "?")
+
+    # Ancêtre commun le plus récent (merge-base)
+    MERGE_BASE=$(git merge-base HEAD "${DEPLOYED_SHA}" 2>/dev/null || echo "")
+    MERGE_BASE_DATE=$(git log -1 --format='%ci' "${MERGE_BASE}" 2>/dev/null || echo "?")
+
     echo ""
-    echo -e "  ${RED}${BOLD}⚠️  ALERTE CONCURRENCE — DÉPLOIEMENT DIVERGENT${NC}"
+    echo -e "  ${RED}${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "  ${RED}${BOLD}║  ⚠️  ALERTE CONCURRENCE — DÉPLOIEMENT DIVERGENT             ║${NC}"
+    echo -e "  ${RED}${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "  SHA actuellement en production : ${YELLOW}${DEPLOYED_SHA:0:12}${NC}"
-    echo -e "  SHA que vous voulez déployer   : ${YELLOW}${LOCAL_SHA:0:12}${NC}"
+    echo -e "  ${BOLD}📦 CE QUI EST EN PRODUCTION (déployé par une autre session)${NC}"
+    echo -e "     Commit  : ${YELLOW}${DEPLOYED_SHA:0:12}${NC}  ${DEPLOYED_MSG}"
+    echo -e "     Auteur  : ${DEPLOYED_AUTHOR}"
+    echo -e "     Date    : ${DEPLOYED_DATE}"
+    echo -e "     Fichiers: ${DEPLOYED_FILES}"
     echo ""
-    echo -e "  ${RED}Ces deux historiques ne sont PAS linéaires.${NC}"
-    echo "  Une autre session a déployé un commit qui n'est pas dans votre historique."
+
+    if [ -n "${DEPLOYED_ONLY_COMMITS}" ] && [ "${DEPLOYED_ONLY_COUNT}" -gt 0 ]; then
+        echo -e "  ${BOLD}🔍 ${DEPLOYED_ONLY_COUNT} commit(s) en production qui NE sont PAS dans votre HEAD :${NC}"
+        echo "${DEPLOYED_ONLY_COMMITS}" | while IFS= read -r line; do
+            echo -e "     ${YELLOW}•${NC} ${line}"
+        done
+        echo ""
+    fi
+
+    echo -e "  ${BOLD}📝 VOTRE CÔTÉ (ce que vous voulez déployer)${NC}"
+    echo -e "     Commit  : ${CYAN}${LOCAL_SHA:0:12}${NC}  ${COMMIT_MSG:-?}"
+    if [ -n "${HEAD_ONLY_COMMITS}" ] && [ "${HEAD_ONLY_COUNT}" -gt 0 ]; then
+        echo -e "     ${HEAD_ONLY_COUNT} commit(s) dans votre HEAD qui NE sont PAS en production :"
+        echo "${HEAD_ONLY_COMMITS}" | while IFS= read -r line; do
+            echo -e "     ${CYAN}•${NC} ${line}"
+        done
+    fi
     echo ""
+
+    if [ -n "${MERGE_BASE}" ]; then
+        echo -e "  ${BOLD}🔗 Ancêtre commun :${NC} ${MERGE_BASE:0:12} (${MERGE_BASE_DATE})"
+        echo -e "     Les deux branches ont divergé depuis ce point."
+        echo ""
+    fi
 
     if [ "${FORCE}" = true ]; then
         warn "--force : déploiement forcé malgré la divergence"
-        warn "Le déploiement précédent (${DEPLOYED_SHA:0:12}) sera ÉCRASÉ."
+        warn "Le déploiement ${DEPLOYED_SHA:0:12} (${DEPLOYED_MSG}) sera ÉCRASÉ."
+        warn "Les ${DEPLOYED_ONLY_COUNT} commits listés ci-dessus disparaîtront de la production."
     else
-        echo "  Actions recommandées :"
-        echo "    1. git fetch && git log --oneline origin/main...HEAD"
-        echo "    2. Identifier ce qui a changé de l'autre côté"
-        echo "    3. git pull --rebase (peut causer des conflits)"
-        echo "    4. Relancer le déploiement après résolution"
+        echo -e "  ${BOLD}── ACTIONS POSSIBLES ──${NC}"
         echo ""
-        echo "  Ou utiliser --force pour écraser (vos modifications seront en production,"
-        echo "  mais celles du déploiement ${DEPLOYED_SHA:0:12} seront perdues)."
+        echo -e "  ${GREEN}Option A — Réconcilier (recommandé)${NC}"
+        echo "    git pull --rebase origin main"
+        echo "    → Fusionne les commits distants dans votre historique."
+        echo "    → Si conflit : résoudre, git add, git rebase --continue"
+        echo "    → Puis relancer : ./scripts/deploy-safe.sh"
+        echo ""
+        echo -e "  ${YELLOW}Option B — Écraser (⚠️ vos modifs passent, l'autre session perd tout)${NC}"
+        echo "    ./scripts/deploy-safe.sh --force"
+        echo "    → Le déploiement ${DEPLOYED_SHA:0:12} sera remplacé par le vôtre."
+        echo -e "    → ${RED}${DEPLOYED_ONLY_COUNT} commit(s) de l'autre session disparaissent de la production.${NC}"
+        echo ""
+        echo -e "  ${YELLOW}Option C — Abandonner (l'autre déploiement reste en place)${NC}"
+        echo "    git reset --hard origin/main"
+        echo "    → Votre HEAD revient à l'état de origin/main."
+        echo "    → Vos modifications locales sont perdues (sauf si vous les avez sur une autre branche)."
         echo ""
         exit 1
     fi
