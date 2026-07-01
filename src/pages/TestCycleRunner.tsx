@@ -115,10 +115,12 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
   // ── Mode & Options ──
   const [runMode, setRunMode] = useState<RunMode>("instant");
   const [existingProjectId, setExistingProjectId] = useState("");
+  const [selectedProjectDisplay, setSelectedProjectDisplay] = useState(""); // affichage après sélection
   const [skipDocs, setSkipDocs] = useState(false);
   const [onlyPhase, setOnlyPhase] = useState<PhaseName | "">("");
   const [searchProjectQuery, setSearchProjectQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ id: string; name: string; phase: string }[]>([]);
+  const selectingRef = useRef(false); // évite re-recherche après sélection
 
   // ── Config ──
   const [config, setConfig] = useState<TestConfig>({
@@ -164,16 +166,33 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
     }]);
   }, []);
 
-  // ── Search existing projects ──
+  // ── Search existing projects (avec debounce + garde anti-rebouclage) ──
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const searchProjects = useCallback(async (query: string) => {
     if (query.length < 2) { setSearchResults([]); return; }
-    const { data } = await supabase
-      .from("projects")
-      .select("id, name, phase")
-      .or(`name.ilike.%${query}%,id.eq.${query}`)
-      .order("created_at", { ascending: false })
-      .limit(5);
-    setSearchResults((data || []) as any[]);
+
+    // Debounce 300ms
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id, name, phase")
+        .or(`name.ilike.%${query}%,id.eq.${query}`)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (error) {
+        console.error("Search error:", error);
+        setSearchResults([]);
+        return;
+      }
+      // Ne pas écraser si on vient de sélectionner
+      if (!selectingRef.current) {
+        setSearchResults((data || []) as any[]);
+      }
+      selectingRef.current = false;
+    }, 300);
   }, []);
 
   useEffect(() => { searchProjects(searchProjectQuery); }, [searchProjectQuery, searchProjects]);
@@ -871,7 +890,7 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
             </h3>
             <div className="space-y-2">
               <label className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${runMode === "instant" ? "border-brand-orange bg-orange-50" : "border-gray-200 hover:border-gray-300"}`}>
-                <input type="radio" name="mode" checked={runMode === "instant"} onChange={() => { setRunMode("instant"); setExistingProjectId(""); setOnlyPhase(""); setSkipDocs(false); }} className="mt-0.5 accent-brand-orange" />
+                <input type="radio" name="mode" checked={runMode === "instant"} onChange={() => { setRunMode("instant"); setExistingProjectId(""); setSelectedProjectDisplay(""); setSearchProjectQuery(""); setSearchResults([]); setOnlyPhase(""); setSkipDocs(false); }} className="mt-0.5 accent-brand-orange" />
                 <div>
                   <span className="font-medium text-sm">⚡ Instantané</span>
                   <p className="text-xs text-gray-500 mt-0.5">Tout en un clic — ~10 secondes. Crée projet, documents, tâches et checklists.</p>
@@ -899,8 +918,15 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
                   <input
                     type="text"
                     placeholder="Nom du projet ou UUID..."
-                    value={searchProjectQuery}
-                    onChange={e => setSearchProjectQuery(e.target.value)}
+                    value={existingProjectId ? selectedProjectDisplay : searchProjectQuery}
+                    onChange={e => {
+                      if (existingProjectId) {
+                        // L'utilisateur retape → reset la sélection
+                        setExistingProjectId("");
+                        setSelectedProjectDisplay("");
+                      }
+                      setSearchProjectQuery(e.target.value);
+                    }}
                     className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange outline-none"
                     disabled={running}
                   />
@@ -909,7 +935,13 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
                       {searchResults.map(r => (
                         <button
                           key={r.id}
-                          onClick={() => { setExistingProjectId(r.id); setSearchProjectQuery(r.name); setSearchResults([]); }}
+                          onClick={() => {
+                            selectingRef.current = true;
+                            setExistingProjectId(r.id);
+                            setSelectedProjectDisplay(r.name);
+                            setSearchProjectQuery("");
+                            setSearchResults([]);
+                          }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
                         >
                           <span className="truncate">{r.name}</span>
