@@ -24,6 +24,8 @@ interface MessageInputProps {
   activeAgent?: AgentMode;
   effectiveAgent?: AgentMode;
   onAgentChange?: (agent: AgentMode) => void;
+  /** Si fourni, affiche les boutons "Nouvelle facture" / "Nouveau devis" (page Wari uniquement) */
+  onRequestTemplate?: () => void;
 }
 
 const MessageInput: React.FC<MessageInputProps> = ({ 
@@ -34,7 +36,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
   isLoading = false,
   activeAgent = "wari",
   effectiveAgent,
-  onAgentChange
+  onAgentChange,
+  onRequestTemplate,
 }) => {
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -176,6 +179,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
   // Action buttons à afficher sous la zone de saisie
   const suggestedActions = [
+    ...(onRequestTemplate ? [
+      { icon: <FileText className="h-5 w-5" />, label: "Créer une facture", onClick: onRequestTemplate },
+      { icon: <ListIcon className="h-5 w-5" />, label: "Créer un devis", onClick: onRequestTemplate },
+    ] : []),
     { icon: <Image className="h-5 w-5" />, label: "Créer une image", onClick: () => console.log("Créer une image") },
     { icon: <Sparkles className="h-5 w-5" />, label: "Surprends-moi", onClick: () => console.log("Surprends-moi") },
     { icon: <SunIcon className="h-5 w-5" />, label: "Élaborer un plan", onClick: () => console.log("Élaborer un plan") },

@@ -51,6 +51,7 @@ const Wari: React.FC<WariProps> = ({ user, persistentSessionId }) => {
           activeAgent={activeAgent}
           effectiveAgent={effectiveAgent}
           onAgentChange={setActiveAgent}
+          enableTemplateCreation
         />
       </div>
     </div>

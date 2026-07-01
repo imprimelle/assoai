@@ -47,9 +47,11 @@ interface ChatContainerProps {
   activeAgent: AgentMode;
   effectiveAgent: AgentMode;
   onAgentChange: (agent: AgentMode) => void;
+  /** Affiche le bouton "+ Nouveau document" pour créer une facture/devis (page Wari uniquement) */
+  enableTemplateCreation?: boolean;
 }
 
-const ChatContainer: React.FC<ChatContainerProps> = ({ user, persistentSessionId, activeAgent, effectiveAgent, onAgentChange }) => {
+const ChatContainer: React.FC<ChatContainerProps> = ({ user, persistentSessionId, activeAgent, effectiveAgent, onAgentChange, enableTemplateCreation }) => {
   const { projectContext } = useChat();
   const effectiveSessionId = projectContext?.projectId 
     ? `project-${projectContext.projectId}` 
@@ -730,6 +732,7 @@ const getDocumentNumber = (templateType: TemplateType, data: TemplateData): stri
             activeAgent={activeAgent}
             effectiveAgent={effectiveAgent}
             onAgentChange={onAgentChange}
+            onRequestTemplate={enableTemplateCreation ? () => setShowTemplateSelector(true) : undefined}
           />
         </div>
         
