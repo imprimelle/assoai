@@ -527,44 +527,39 @@ export function QuickTransactionForm({ onSuccess }: { onSuccess?: () => void }) 
 
         {expanded && (
           <form onSubmit={handleSubmit} className="px-3 pb-3 space-y-2.5">
-            {/* Projet + Catégorie */}
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-[10px] text-gray-400 block mb-1">📁 Projet(s)</label>
-                <MultiProjectSelector selectedIds={projectIds} onChange={setProjectIds} />
-              </div>
-              <div className="w-36 flex-shrink-0">
-                <label className="text-[10px] text-gray-400 block mb-1">
-                  📋 Catégorie
-                  {prefillDemande && <span className="text-orange-500 ml-1">(pré-réglée)</span>}
-                </label>
-                {prefillDemande ? (
-                  <div className="w-full px-2.5 py-1.5 border border-orange-200 rounded-lg text-sm bg-orange-50 text-orange-700 truncate">
-                    🏗️ Matériel
-                  </div>
-                ) : (
-                  <select
-                    value={categoryName}
-                    onChange={(e) => setCategoryName(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-700"
-                  >
-                    <option value="">—</option>
-                    {categories.map((cat) => (
-                      <option key={cat.name} value={cat.name}>
-                        {cat.icon} {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </div>
-
             {/* Lignes de dépenses */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                  📝 Lignes de dépense
-                </p>
+                <div className="flex items-center gap-3">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                    📝 Lignes
+                  </p>
+                  {/* Sélecteurs circulaires de catégorie */}
+                  {!prefillDemande ? (
+                    <div className="flex items-center gap-1">
+                      {categories.map((cat) => (
+                        <button
+                          key={cat.name}
+                          type="button"
+                          onClick={() => setCategoryName(cat.name)}
+                          className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center text-xs transition-all",
+                            categoryName === cat.name
+                              ? "bg-blue-600 text-white shadow-sm scale-110"
+                              : "bg-white border border-gray-200 text-gray-500 hover:border-gray-400"
+                          )}
+                          title={cat.name}
+                        >
+                          {cat.icon}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+                      🏗️ Matériel
+                    </span>
+                  )}
+                </div>
                 {lines.length > 1 && (
                   <span className="text-[10px] text-gray-400 bg-gray-200/50 px-2 py-0.5 rounded-full">
                     {lines.length} lignes
