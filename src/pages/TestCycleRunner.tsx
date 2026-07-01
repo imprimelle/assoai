@@ -266,6 +266,77 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
     });
   }, []);
 
+  // ── Appel routeur Hermes (agents réels) ──
+  const callHermesRouter = useCallback(async (
+    profile: string,
+    skills: string[],
+    message: string,
+    projectId: string,
+    attachedTemplate?: any,
+  ): Promise<{ success: boolean; error?: string }> => {
+    const payload: any = {
+      profile,
+      message,
+      userId: "test_runner",
+      sessionId: `e2e-${Date.now()}`,
+      projectId,
+      skills,
+    };
+    if (attachedTemplate) {
+      payload.attachedTemplate = attachedTemplate;
+    }
+    addLog("info", `🤖 Appel agent ${profile} + [${skills.join(", ")}]...`);
+    try {
+      const r = await fetch("/hermes/router", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        const txt = await r.text();
+        addLog("error", `❌ ${profile} HTTP ${r.status}: ${txt.slice(0, 150)}`);
+        return { success: false, error: txt };
+      }
+      const data = await r.json();
+      if (!data.success) {
+        addLog("error", `❌ ${profile}: ${data.error || "échec"}`);
+        return { success: false, error: data.error };
+      }
+      addLog("success", `✅ ${profile} a répondu`);
+      return { success: true };
+    } catch (err: any) {
+      addLog("error", `❌ ${profile} injoignable: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  }, [addLog]);
+
+  // ── Attendre qu'un document apparaisse dans messages ──
+  const waitForDocument = useCallback(async (projectId: string, templateType: string, timeout = 120): Promise<any> => {
+    addLog("poll", `⏳ Attente document '${templateType}' (max ${timeout}s)...`);
+    const start = Date.now();
+    while (Date.now() - start < timeout * 1000) {
+      if (abortRef.current) return null;
+      const { data } = await supabase
+        .from("messages")
+        .select("id, template_type, template_data")
+        .eq("project_id", projectId)
+        .eq("template_type", templateType)
+        .order("timestamp", { ascending: false })
+        .limit(1);
+      if (data && data.length > 0) {
+        const td = data[0].template_data as any;
+        const num = td?.data?.factureNumero || td?.data?.commandeNumero || td?.data?.cdcNumero || "?";
+        addLog("success", `✅ Document ${templateType} trouvé — ${num} (${data[0].id.slice(0, 8)}...)`);
+        return data[0];
+      }
+      const elapsed = Math.round((Date.now() - start) / 1000);
+      if (elapsed % 15 === 0) addLog("poll", `   ... ${elapsed}s — pas encore de ${templateType}`);
+      await sleep(10000);
+    }
+    addLog("warning", `⚠️ Timeout attente ${templateType}`);
+    return null;
+  }, [addLog]);
+
   // ── Queue polling (wait-pollers mode) ──
   const pollQueueStatus = useCallback(async (pid: string): Promise<QueuePollStatus> => {
     const { count: pending } = await supabase
@@ -471,15 +542,124 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
   }, [config, skipDocs, getNextNumber, createDocument, createTask, createChecklist, insertQueue, addLog]);
 
   // ===========================================================================
-  // MODE: Wait-Pollers — only user actions, wait for real pollers
+  // MODE: Wait-Pollers — full end-to-end with real agents
   // ===========================================================================
   const runWaitPollers = useCallback(async () => {
-    const pid = existingProjectId;
-    if (!pid) { addLog("error", "❌ Aucun projet sélectionné"); return; }
+    addLog("phase", "━━━ MODE END-TO-END (agents réels) — Démarrage ━━━");
+    addLog("info", `⏱️  Délai par agent: ~10-20s (LLM). Pollers: cycle 2 min.`);
 
-    addLog("phase", "━━━ MODE END-TO-END (attente pollers) — Démarrage ━━━");
-    addLog("info", `🆔 Projet: ${pid}`);
-    addLog("info", `⏱️  Pollers: Communicateur + PM (cycle 2 min)`);
+    let pid: string;
+    let pname: string;
+
+    if (skipDocs && existingProjectId) {
+      // Mode reprise : projet déjà initialisé
+      pid = existingProjectId;
+      const { data: proj } = await supabase.from("projects").select("name").eq("id", pid).single();
+      pname = proj?.name || "Projet existant";
+      addLog("info", `♻️ Reprise projet existant: ${pname} (${pid.slice(0, 8)}...)`);
+      setProjectId(pid); setProjectName(pname);
+    } else {
+      // ── Step 1: Create project ──
+    addLog("phase", "━━━ ÉTAPE 1/8 : Création du projet ━━━");
+    const pid = makeUUID();
+    const pname = `E2E AUTO — ${config.clientName} (${todayISO()})`;
+    const { error: projErr } = await supabase.from("projects").insert({
+      id: pid, name: pname,
+      description: `Projet end-to-end — ${config.clientName}`,
+      phase: null, status: "actif",
+      session_id: `e2e-${pid.slice(0, 8)}`,
+      created_by: "test_runner",
+      templates: { factures: [], commandes: [], cahiers_des_charges: [], devis: [] },
+    });
+    if (projErr) throw projErr;
+    addLog("success", `✅ Projet créé : ${pname}`);
+    addLog("info", `🆔 ${pid}`);
+    setProjectId(pid); setProjectName(pname);
+
+    // ── Step 2: Create facture with ALL guardrail fields ──
+    addLog("phase", "━━━ ÉTAPE 2/8 : Création facture complète ━━━");
+    const factureNumero = await getNextNumber("facture");
+    const details = config.enseignes.map(e => ({
+      id: makeUUID(), description: `${e.nom} — ${e.dimensions}`,
+      quantite: e.quantite, prix_unitaire: e.prixUnitaire,
+      sous_total: e.quantite * e.prixUnitaire,
+    }));
+    const totalBrut = details.reduce((s, d) => s + d.sous_total, 0);
+    const total = totalBrut - config.reduction;
+
+    // 🛡️ Garde-fous : échéancier, adresse complète, téléphone
+    const factureData = {
+      factureNumero, dateEmission: todayISO(),
+      client: { nom: config.clientName, adresse: config.clientAddress, telephone: config.clientPhone },
+      details,
+      reduction: config.reduction,
+      total,
+      echeancier: [
+        { label: "Acompte 50%", montant: Math.round(total * 0.5), date: todayISO() },
+        { label: "Solde 50%", montant: Math.round(total * 0.5), date: dueDate(30) },
+      ],
+      statut: "Brouillon",
+      version: 1, is_latest: true,
+    };
+
+    const fMsgId = await createDocument(pid, "facture", factureData, "factures");
+    addLog("success", `✅ Facture ${factureNumero} — ${total.toLocaleString()} FCFA`);
+    addLog("info", `🛡️ Échéancier: acompte ${Math.round(total * 0.5).toLocaleString()} + solde ${Math.round(total * 0.5).toLocaleString()}`);
+    addLog("info", `📄 ID: ${fMsgId.slice(0, 8)}...`);
+    setDocuments(prev => [...prev, { type: "Facture", numero: factureNumero, id: fMsgId, link: `/public/doc/${fMsgId}` }]);
+
+    // ── Step 3: Wari dérive Facture → Commande ──
+    addLog("phase", "━━━ ÉTAPE 3/8 : Wari dérive → Commande ━━━");
+    const factureTemplate = {
+      template_type: "facture",
+      template_data: { data: factureData },
+    };
+    await callHermesRouter("hermes-wari", ["document-derivation"],
+      "Dérive cette facture en commande. Ajoute une date de livraison estimée dans 15 jours.",
+      pid, factureTemplate);
+
+    const cmdDoc = await waitForDocument(pid, "commande", 120);
+    if (!cmdDoc) { addLog("error", "❌ Wari n'a pas créé la commande"); return; }
+    const cmdData = cmdDoc.template_data.data;
+    await attachDocument(pid, "commandes", cmdDoc.id);
+    addLog("success", `✅ Commande ${cmdData.commandeNumero} — prête`);
+    addLog("info", `📄 ID: ${cmdDoc.id.slice(0, 8)}...`);
+    setDocuments(prev => [...prev, { type: "Commande", numero: cmdData.commandeNumero, id: cmdDoc.id, link: `/public/doc/${cmdDoc.id}` }]);
+
+    // ── Step 4: Brico dérive Commande → CDC ──
+    addLog("phase", "━━━ ÉTAPE 4/8 : Brico dérive → CDC ━━━");
+    const commandeTemplate = {
+      template_type: "commande",
+      template_data: cmdDoc.template_data,
+    };
+    await callHermesRouter("hermes-brico", ["document-derivation", "manufacturing-rules"],
+      "Dérive cette commande en cahier des charges.",
+      pid, commandeTemplate);
+
+    const cdcDoc = await waitForDocument(pid, "cahier_des_charges", 120);
+    if (!cdcDoc) { addLog("error", "❌ Brico n'a pas créé le CDC"); return; }
+    const cdcData = cdcDoc.template_data.data;
+    await attachDocument(pid, "cahiers_des_charges", cdcDoc.id);
+    addLog("success", `✅ CDC ${cdcData.cdcNumero} — ${(cdcData.enseignes || []).length} enseigne(s)`);
+    addLog("info", `📄 ID: ${cdcDoc.id.slice(0, 8)}...`);
+    setDocuments(prev => [...prev, { type: "CDC", numero: cdcData.cdcNumero, id: cdcDoc.id, link: `/public/doc/${cdcDoc.id}` }]);
+
+    // ── Step 5: PM initialise le projet ──
+    addLog("phase", "━━━ ÉTAPE 5/8 : PM initialise le projet ━━━");
+    await callHermesRouter("hermes-pm", ["project-initializer", "procedure-manual"],
+      `Initialise le projet. CDC: ${cdcData.cdcNumero}. Phase: facturation.`,
+      pid);
+
+    // Attendre que les tâches apparaissent
+    addLog("poll", "⏳ Attente création des tâches par le PM...");
+    const hasTasks = await waitForPmTasks(pid, "facturation", 1, 180);
+    if (!hasTasks) { addLog("error", "❌ Le PM n'a pas créé les tâches"); return; }
+    addLog("success", "✅ Projet initialisé — tâches créées");
+
+    } // end else (skipDocs)
+    
+    // ── Step 6-8: Cycle des phases ──
+    addLog("phase", "━━━ ÉTAPE 6/8 : Cycle des phases (2-step) ━━━");
 
     const phasesToRun: PhaseName[] = onlyPhase
       ? [onlyPhase as PhaseName]
@@ -489,43 +669,52 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
       if (abortRef.current) break;
       const phase = phasesToRun[idx];
       addLog("phase", `─── Phase ${phase.toUpperCase()} ───`);
+      setCurrentPhase(phase);
 
-      // Check if tasks exist
+      // Vérifier que les tâches existent
       const { data: tasks } = await supabase
         .from("project_tasks")
         .select("id, kanban_column")
         .eq("project_id", pid)
         .eq("kanban_column", "a_faire");
-
       if (!tasks || tasks.length === 0) {
-        addLog("poll", `⏳ Aucune tâche 'a_faire' — attente du PM pour la phase ${phase}...`);
-        const ok = await waitForPmTasks(pid, phase);
-        if (!ok) { addLog("error", `❌ Timeout — le PM n'a pas créé les tâches`); break; }
+        addLog("poll", `⏳ Attente PM pour phase ${phase}...`);
+        const ok = await waitForPmTasks(pid, phase, 1, 300);
+        if (!ok) { addLog("error", "❌ Timeout PM"); break; }
       }
 
-      // Complete checklists (2-step)
+      // Cocher les checklists (2-step)
       await completePhaseChecklists(pid, phase);
 
-      // Wait for PM to process task_completed
+      // Attendre PM
       addLog("poll", "📤 Attente PM : traitement task_completed...");
       await waitForQueueCleared(pid, ["task_completed", "checklist_progress"], 180);
 
-      // Wait for PM to create next phase tasks
+      // Attendre prochaine phase
       if (idx < phasesToRun.length - 1) {
         const nextPhase = phasesToRun[idx + 1];
-        await waitForPmTasks(pid, nextPhase);
+        addLog("poll", `📋 Attente PM : création tâches phase '${nextPhase}'...`);
+        await waitForPmTasks(pid, nextPhase, 1, 300);
+      } else {
+        await supabase.from("projects").update({ status: "termine", phase: "termine" }).eq("id", pid);
+        addLog("success", "🏁 Projet marqué 'terminé'");
       }
 
-      // Wait for Communicator
-      addLog("poll", "📢 Attente Communicateur : traitement notifications...");
-      await waitForCommunicator(pid, "phase_started");
-      await waitForCommunicator(pid, "task_completed");
-
-      printPhaseStatus(pid, phase);
+      // Attendre Communicateur
+      addLog("poll", "📢 Attente Communicateur...");
+      await waitForCommunicator(pid, "phase_started", 180);
     }
 
-    addLog("success", "🎉 CYCLE END-TO-END TERMINÉ !");
-  }, [existingProjectId, onlyPhase, addLog, waitForPmTasks, waitForCommunicator]);
+    // ── Rapport final ──
+    const { count: qc } = await supabase
+      .from("communicator_queue")
+      .select("*", { count: "exact", head: true })
+      .eq("project_id", pid);
+    setQueueEntries(qc || 0);
+    addLog("success", `🎉 CYCLE END-TO-END TERMINÉ — ${pname}`);
+    addLog("success", `📊 ${phasesToRun.length} phases | ${qc || 0} entrées queue | ${documents.length + 3} documents`);
+
+  }, [config, getNextNumber, createDocument, attachDocument, callHermesRouter, waitForDocument, waitForPmTasks, waitForCommunicator, onlyPhase, skipDocs, existingProjectId, addLog, documents.length]);
 
   // ── Wait for queue entries to be processed ──
   const waitForQueueCleared = useCallback(async (pid: string, actions: string[], timeout = 180): Promise<boolean> => {
@@ -969,57 +1158,43 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
           {runMode === "wait-pollers" && (
             <div className="bg-white rounded-xl border-2 border-amber-200 bg-amber-50/30 shadow-sm p-4">
               <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                <Search className="h-4 w-4 text-amber-600" /> Projet existant
+                <Zap className="h-4 w-4 text-amber-600" /> Flux end-to-end
               </h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-gray-600">Rechercher un projet</label>
+              <div className="space-y-2 text-sm text-gray-600">
+                <p className="flex items-center gap-2">
+                  <span className="text-green-500 font-bold">1.</span> Création projet
+                </p>
+                <p className="flex items-center gap-2">
+                  <span className="text-green-500 font-bold">2.</span> Création facture (échéancier, adresse, etc.)
+                </p>
+                <p className="flex items-center gap-2">
+                  <span className="text-purple-500 font-bold">3.</span> 🤖 <strong>Wari</strong> dérive → commande
+                </p>
+                <p className="flex items-center gap-2">
+                  <span className="text-purple-500 font-bold">4.</span> 🤖 <strong>Brico</strong> dérive → CDC
+                </p>
+                <p className="flex items-center gap-2">
+                  <span className="text-purple-500 font-bold">5.</span> 🤖 <strong>PM</strong> initialise le projet
+                </p>
+                <p className="flex items-center gap-2">
+                  <span className="text-amber-500 font-bold">6.</span> 👆 Check phase par phase (2-step)
+                </p>
+              </div>
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="skip-docs-e2e" checked={skipDocs} onChange={e => setSkipDocs(e.target.checked)} className="accent-brand-orange" disabled={running} />
+                  <label htmlFor="skip-docs-e2e" className="text-sm text-gray-600">Démarrer avec un projet déjà initialisé (skip étapes 1-5)</label>
+                </div>
+                {skipDocs && (
                   <input
                     type="text"
-                    placeholder="Nom du projet ou UUID..."
-                    value={existingProjectId ? selectedProjectDisplay : searchProjectQuery}
-                    onChange={e => {
-                      if (existingProjectId) {
-                        // L'utilisateur retape → reset la sélection
-                        setExistingProjectId("");
-                        setSelectedProjectDisplay("");
-                      }
-                      setSearchProjectQuery(e.target.value);
-                    }}
-                    className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange outline-none"
+                    placeholder="UUID du projet existant..."
+                    value={existingProjectId}
+                    onChange={e => setExistingProjectId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange outline-none font-mono text-xs"
                     disabled={running}
                   />
-                  {searchResults.length > 0 && (
-                    <div className="mt-1 border border-gray-200 rounded-lg divide-y max-h-40 overflow-y-auto">
-                      {searchResults.map(r => (
-                        <button
-                          key={r.id}
-                          onClick={() => {
-                            selectingRef.current = true;
-                            setExistingProjectId(r.id);
-                            setSelectedProjectDisplay(r.name);
-                            setSearchProjectQuery("");
-                            setSearchResults([]);
-                          }}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
-                        >
-                          <span className="truncate">{r.name}</span>
-                          <span className="text-xs text-gray-400 ml-2 shrink-0">{r.phase || "—"}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {existingProjectId && (
-                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" />
-                      Projet sélectionné : <code className="text-[10px] bg-gray-100 px-1 rounded">{existingProjectId.slice(0, 8)}...</code>
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" id="skip-docs" checked={skipDocs} onChange={e => setSkipDocs(e.target.checked)} className="accent-brand-orange" disabled={running} />
-                  <label htmlFor="skip-docs" className="text-sm text-gray-600">Skip documents (étapes 2-4)</label>
-                </div>
+                )}
                 <div>
                   <label className="text-xs font-medium text-gray-600">Phase unique (optionnel)</label>
                   <select
@@ -1064,14 +1239,14 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
           {/* Run Button */}
           <button
             onClick={handleRun}
-            disabled={running || (runMode === "wait-pollers" && !existingProjectId)}
+            disabled={running || (runMode === "wait-pollers" && skipDocs && !existingProjectId)}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand-orange text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 font-semibold transition-colors"
           >
             {running ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
             {running
-              ? (runMode === "wait-pollers" ? "Cycle en cours (attente pollers)..." : "Exécution en cours...")
+              ? (runMode === "wait-pollers" ? "Cycle end-to-end en cours..." : "Exécution en cours...")
               : (runMode === "wait-pollers"
-                ? `🚀 Lancer cycle end-to-end${onlyPhase ? ` — ${onlyPhase}` : ""}`
+                ? (skipDocs ? "🚀 Reprendre cycle end-to-end" : "🚀 Lancer cycle end-to-end complet")
                 : "🚀 Lancer le cycle complet")}
           </button>
 
