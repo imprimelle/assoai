@@ -188,9 +188,9 @@ else
 
     # Récupérer les commits qui sont en production mais PAS dans HEAD
     DEPLOYED_ONLY_COMMITS=$(git log --oneline --no-merges HEAD.."${DEPLOYED_SHA}" 2>/dev/null || echo "")
-    DEPLOYED_ONLY_COUNT=$(echo "${DEPLOYED_ONLY_COMMITS}" | grep -c . 2>/dev/null || echo "0")
+    DEPLOYED_ONLY_COUNT=$(printf '%s' "${DEPLOYED_ONLY_COMMITS}" | grep -c . 2>/dev/null || printf '0')
     HEAD_ONLY_COMMITS=$(git log --oneline --no-merges "${DEPLOYED_SHA}"..HEAD 2>/dev/null || echo "")
-    HEAD_ONLY_COUNT=$(echo "${HEAD_ONLY_COMMITS}" | grep -c . 2>/dev/null || echo "0")
+    HEAD_ONLY_COUNT=$(printf '%s' "${HEAD_ONLY_COMMITS}" | grep -c . 2>/dev/null || printf '0')
 
     # Auteur et date du déploiement concurrent
     DEPLOYED_AUTHOR=$(git log -1 --format='%an' "${DEPLOYED_SHA}" 2>/dev/null || echo "?")
