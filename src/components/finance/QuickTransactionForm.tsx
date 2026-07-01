@@ -543,10 +543,10 @@ export function QuickTransactionForm({ onSuccess }: { onSuccess?: () => void }) 
                           type="button"
                           onClick={() => setCategoryName(cat.name)}
                           className={cn(
-                            "w-6 h-6 rounded-full flex items-center justify-center text-xs transition-all",
+                            "w-6 h-6 rounded-full flex items-center justify-center text-sm transition-all",
                             categoryName === cat.name
-                              ? "bg-blue-600 text-white shadow-sm scale-110"
-                              : "bg-white border border-gray-200 text-gray-500 hover:border-gray-400"
+                              ? "bg-white border-2 border-blue-500 shadow-sm"
+                              : "bg-white border border-gray-200 opacity-40 grayscale hover:opacity-70 hover:border-gray-400"
                           )}
                           title={cat.name}
                         >
