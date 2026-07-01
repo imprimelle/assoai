@@ -5,7 +5,7 @@ import {
   FileText, ArrowRight, RefreshCw, Zap, Clock, AlertCircle,
   ChevronDown, ChevronRight, ExternalLink, Copy, Trash2,
   Bot, User, Wrench, Truck, Package, BadgeCheck, Radio,
-  Search, SkipForward,
+  Search, SkipForward, Plus,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@/types";
@@ -32,6 +32,14 @@ interface EnseigneConfig {
   type: string;
   quantite: number;
   prixUnitaire: number;
+  productId?: string; // lien vers la table products
+}
+
+interface ProductItem {
+  id: string;
+  name: string;
+  description?: string;
+  variants?: { id: string; sku: string; name: string; price: number }[];
 }
 
 interface LogEntry {
@@ -121,6 +129,63 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
   const [searchProjectQuery, setSearchProjectQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ id: string; name: string; phase: string }[]>([]);
   const selectingRef = useRef(false); // évite re-recherche après sélection
+
+  // ── Recherche produits ──
+  const [productSearch, setProductSearch] = useState("");
+  const [productResults, setProductResults] = useState<ProductItem[]>([]);
+  const [showProductSearch, setShowProductSearch] = useState(false);
+  const productTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const searchProducts = useCallback(async (query: string) => {
+    if (query.length < 2) { setProductResults([]); return; }
+    if (productTimerRef.current) clearTimeout(productTimerRef.current);
+    productTimerRef.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("id, name, description, variants")
+        .ilike("name", `%${query}%`)
+        .limit(8);
+      setProductResults((data || []) as ProductItem[]);
+    }, 300);
+  }, []);
+
+  useEffect(() => { searchProducts(productSearch); }, [productSearch, searchProducts]);
+
+  // Ajouter un produit sélectionné aux enseignes
+  const addProductToEnseignes = (product: ProductItem, variantIdx: number = 0) => {
+    const variant = product.variants?.[variantIdx];
+    const prix = variant?.price || 0;
+    const suffix = variant ? ` — ${variant.name}` : "";
+    const newEnseigne: EnseigneConfig = {
+      nom: `${product.name}${suffix}`,
+      dimensions: "",
+      type: "enseigne_3d",
+      quantite: 1,
+      prixUnitaire: prix,
+      productId: product.id,
+    };
+    setConfig(prev => ({ ...prev, enseignes: [...prev.enseignes, newEnseigne] }));
+    setProductSearch("");
+    setProductResults([]);
+    setShowProductSearch(false);
+  };
+
+  // Supprimer une enseigne
+  const removeEnseigne = (idx: number) => {
+    setConfig(prev => ({
+      ...prev,
+      enseignes: prev.enseignes.filter((_, i) => i !== idx),
+    }));
+  };
+
+  // Modifier une enseigne
+  const updateEnseigne = (idx: number, field: keyof EnseigneConfig, value: any) => {
+    setConfig(prev => {
+      const updated = [...prev.enseignes];
+      updated[idx] = { ...updated[idx], [field]: value };
+      return { ...prev, enseignes: updated };
+    });
+  };
 
   // ── Config ──
   const [config, setConfig] = useState<TestConfig>({
@@ -1223,17 +1288,148 @@ const TestCycleRunner: React.FC<TestCycleRunnerProps> = ({ user }) => {
                 type="text" placeholder="Nom du client"
                 value={config.clientName} onChange={e => setConfig({ ...config, clientName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange outline-none"
-                disabled={running || runMode === "wait-pollers"}
+                disabled={running}
               />
-              {runMode !== "wait-pollers" && (
-                <input
-                  type="number" placeholder="Réduction (FCFA)"
-                  value={config.reduction} onChange={e => setConfig({ ...config, reduction: parseInt(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange outline-none"
-                  disabled={running}
-                />
+              {runMode === "wait-pollers" && (
+                <>
+                  <input
+                    type="text" placeholder="Adresse"
+                    value={config.clientAddress} onChange={e => setConfig({ ...config, clientAddress: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange outline-none"
+                    disabled={running}
+                  />
+                  <input
+                    type="text" placeholder="Téléphone"
+                    value={config.clientPhone} onChange={e => setConfig({ ...config, clientPhone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange outline-none"
+                    disabled={running}
+                  />
+                </>
+              )}
+              <input
+                type="number" placeholder="Réduction (FCFA)"
+                value={config.reduction} onChange={e => setConfig({ ...config, reduction: parseInt(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange outline-none"
+                disabled={running}
+              />
+            </div>
+          </div>
+
+          {/* Produits / Enseignes */}
+          <div className="bg-white rounded-xl border-2 border-gray-100 shadow-sm p-4">
+            <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+              <Package className="h-4 w-4 text-gray-500" /> Articles ({config.enseignes.length})
+            </h3>
+
+            {/* Produits sélectionnés */}
+            <div className="space-y-2 mb-3">
+              {config.enseignes.map((e, idx) => (
+                <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-lg p-2 text-sm">
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="text"
+                      value={e.nom}
+                      onChange={ev => updateEnseigne(idx, "nom", ev.target.value)}
+                      className="w-full bg-transparent text-sm font-medium outline-none border-b border-transparent hover:border-gray-300 focus:border-brand-orange px-1"
+                      disabled={running}
+                    />
+                    <div className="flex gap-2 mt-1">
+                      <input
+                        type="text" placeholder="Dimensions"
+                        value={e.dimensions}
+                        onChange={ev => updateEnseigne(idx, "dimensions", ev.target.value)}
+                        className="w-24 bg-white border border-gray-200 rounded px-1.5 py-0.5 text-xs outline-none focus:border-brand-orange"
+                        disabled={running}
+                      />
+                      <input
+                        type="number" placeholder="Qté"
+                        value={e.quantite}
+                        onChange={ev => updateEnseigne(idx, "quantite", parseInt(ev.target.value) || 1)}
+                        className="w-14 bg-white border border-gray-200 rounded px-1.5 py-0.5 text-xs outline-none focus:border-brand-orange"
+                        disabled={running}
+                      />
+                      <input
+                        type="number" placeholder="Prix U."
+                        value={e.prixUnitaire}
+                        onChange={ev => updateEnseigne(idx, "prixUnitaire", parseInt(ev.target.value) || 0)}
+                        className="w-24 bg-white border border-gray-200 rounded px-1.5 py-0.5 text-xs outline-none focus:border-brand-orange"
+                        disabled={running}
+                      />
+                      <span className="text-xs text-gray-500 whitespace-nowrap">
+                        = {(e.quantite * e.prixUnitaire).toLocaleString()} FCFA
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeEnseigne(idx)}
+                    disabled={running}
+                    className="shrink-0 p-1 text-gray-400 hover:text-red-500 disabled:opacity-30"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Recherche produit */}
+            <div className="relative">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Rechercher un produit..."
+                    value={productSearch}
+                    onChange={e => { setProductSearch(e.target.value); setShowProductSearch(true); }}
+                    onFocus={() => setShowProductSearch(true)}
+                    className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange outline-none"
+                    disabled={running}
+                  />
+                </div>
+              </div>
+              {showProductSearch && productResults.length > 0 && (
+                <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {productResults.map(p => (
+                    <div key={p.id}>
+                      <button
+                        onClick={() => addProductToEnseignes(p)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
+                      >
+                        <span className="font-medium truncate">{p.name}</span>
+                        {p.variants && p.variants.length > 0 && (
+                          <span className="text-xs text-gray-400 ml-2">
+                            {p.variants[0].price?.toLocaleString()} FCFA
+                          </span>
+                        )}
+                      </button>
+                      {p.variants && p.variants.length > 1 && (
+                        <div className="pl-6 pb-1 space-y-0.5">
+                          {p.variants.map((v, vi) => (
+                            <button
+                              key={v.id}
+                              onClick={() => addProductToEnseignes(p, vi)}
+                              className="w-full text-left px-2 py-0.5 text-xs text-gray-500 hover:bg-gray-50 rounded flex justify-between"
+                            >
+                              <span>↳ {v.name}</span>
+                              <span>{v.price?.toLocaleString()} FCFA</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
+            {!showProductSearch && (
+              <button
+                onClick={() => setShowProductSearch(true)}
+                disabled={running}
+                className="mt-2 w-full text-xs text-brand-orange hover:underline disabled:opacity-30"
+              >
+                + Ajouter un article depuis le catalogue
+              </button>
+            )}
           </div>
 
           {/* Run Button */}
