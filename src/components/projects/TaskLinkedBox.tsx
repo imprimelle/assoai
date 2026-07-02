@@ -240,8 +240,9 @@ export const TaskLinkedBox: React.FC<TaskLinkedBoxProps> = ({ tasks, onTaskClick
 
   // ── Dependencies ──────────────────────────────────────────────────────
 
-  const firstSelDepId = Array.isArray(selectedTask?.depends_on) ? selectedTask.depends_on[0] : selectedTask?.depends_on;
-  const dependsOn = selectedTask && firstSelDepId ? tasks.find(t => t.id === firstSelDepId) : null;
+  const dependsOnList = selectedTask?.depends_on?.length
+    ? tasks.filter(t => selectedTask.depends_on!.includes(t.id))
+    : [];
   const dependents = selectedTask ? tasks.filter(t => Array.isArray(t.depends_on) ? t.depends_on?.includes(selectedTask.id) : t.depends_on === selectedTask.id) : [];
 
   // ── SVG arrows ────────────────────────────────────────────────────────
@@ -478,10 +479,10 @@ export const TaskLinkedBox: React.FC<TaskLinkedBoxProps> = ({ tasks, onTaskClick
                   <p className="font-medium">#{selectedTask.position}</p>
                 </div>
               </div>
-              {dependsOn && (
+              {dependsOnList.length > 0 && (
                 <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs">
-                  <p className="font-medium text-amber-700 mb-1">🔗 Dépend de</p>
-                  <p className="text-amber-900">{dependsOn.title}</p>
+                  <p className="font-medium text-amber-700 mb-1">🔗 Dépend de ({dependsOnList.length})</p>
+                  {dependsOnList.map(d => <p key={d.id} className="text-amber-900">{d.title}</p>)}
                 </div>
               )}
               {dependents.length > 0 && (
