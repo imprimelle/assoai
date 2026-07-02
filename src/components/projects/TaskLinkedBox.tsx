@@ -88,7 +88,8 @@ export const TaskLinkedBox: React.FC<TaskLinkedBoxProps> = ({ tasks, onTaskClick
         if (depth.has(t.id)) return depth.get(t.id)!;
         if (path.has(t.id)) return 0;
         path.add(t.id);
-        const dep = activeTasks.find(x => x.id === t.depends_on);
+        const firstDepId = Array.isArray(t.depends_on) ? t.depends_on?.[0] : t.depends_on;
+        const dep = firstDepId ? activeTasks.find(x => x.id === firstDepId) : null;
         const d = dep ? getDepth(dep, path) + 1 : 0;
         depth.set(t.id, d);
         return d;
@@ -239,31 +240,35 @@ export const TaskLinkedBox: React.FC<TaskLinkedBoxProps> = ({ tasks, onTaskClick
 
   // ── Dependencies ──────────────────────────────────────────────────────
 
-  const dependsOn = selectedTask ? tasks.find(t => t.id === selectedTask.depends_on) : null;
-  const dependents = selectedTask ? tasks.filter(t => t.depends_on === selectedTask.id) : [];
+  const firstSelDepId = Array.isArray(selectedTask?.depends_on) ? selectedTask.depends_on[0] : selectedTask?.depends_on;
+  const dependsOn = selectedTask && firstSelDepId ? tasks.find(t => t.id === firstSelDepId) : null;
+  const dependents = selectedTask ? tasks.filter(t => Array.isArray(t.depends_on) ? t.depends_on?.includes(selectedTask.id) : t.depends_on === selectedTask.id) : [];
 
   // ── SVG arrows ────────────────────────────────────────────────────────
 
   const renderArrows = () => {
     const arrows: React.ReactNode[] = [];
-    tasks.filter(t => t.active && t.depends_on).forEach(t => {
-      const source = positions[t.depends_on!];
-      const target = positions[t.id];
-      if (!source || !target) return;
-      const sx = source.x + CARD_W, sy = source.y + CARD_H / 2;
-      const tx = target.x, ty = target.y + CARD_H / 2;
-      const midX = (sx + tx) / 2;
-      const isHovered = hoveredLink === t.id;
-      const isSelected = selectedCard === t.id || selectedCard === t.depends_on;
-      const arrowColor = isHovered ? '#f97316' : isSelected ? '#6366f1' : '#cbd5e1';
-      const arrowWidth = isHovered || isSelected ? 2.5 : 1.5;
-      arrows.push(
-        <g key={`arrow-${t.id}`} onMouseEnter={() => setHoveredLink(t.id)} onMouseLeave={() => setHoveredLink(null)} style={{ cursor: 'pointer' }}>
-          <path d={`M ${sx} ${sy} C ${midX} ${sy}, ${midX} ${ty}, ${tx} ${ty}`} fill="none" stroke="transparent" strokeWidth={14} />
-          <path d={`M ${sx} ${sy} C ${midX} ${sy}, ${midX} ${ty}, ${tx} ${ty}`} fill="none" stroke={arrowColor} strokeWidth={arrowWidth}
-            markerEnd={`url(#arrowhead-${isHovered ? 'hover' : 'normal'})`} className="transition-all duration-150" />
-        </g>
-      );
+    tasks.filter(t => t.active && t.depends_on?.length > 0).forEach(t => {
+      const depIds = Array.isArray(t.depends_on) ? t.depends_on : [t.depends_on];
+      depIds.forEach((depId, depIdx) => {
+        const source = positions[depId!];
+        const target = positions[t.id];
+        if (!source || !target) return;
+        const sx = source.x + CARD_W, sy = source.y + CARD_H / 2;
+        const tx = target.x, ty = target.y + CARD_H / 2;
+        const midX = (sx + tx) / 2;
+        const isHovered = hoveredLink === t.id;
+        const isSelected = selectedCard === t.id || selectedCard === depId;
+        const arrowColor = isHovered ? '#f97316' : isSelected ? '#6366f1' : '#cbd5e1';
+        const arrowWidth = isHovered || isSelected ? 2.5 : 1.5;
+        arrows.push(
+          <g key={`arrow-${t.id}-${depIdx}`} onMouseEnter={() => setHoveredLink(t.id)} onMouseLeave={() => setHoveredLink(null)} style={{ cursor: 'pointer' }}>
+            <path d={`M ${sx} ${sy} C ${midX} ${sy}, ${midX} ${ty}, ${tx} ${ty}`} fill="none" stroke="transparent" strokeWidth={14} />
+            <path d={`M ${sx} ${sy} C ${midX} ${sy}, ${midX} ${ty}, ${tx} ${ty}`} fill="none" stroke={arrowColor} strokeWidth={arrowWidth}
+              markerEnd={`url(#arrowhead-${isHovered ? 'hover' : 'normal'})`} className="transition-all duration-150" />
+          </g>
+        );
+      });
     });
     return arrows;
   };
@@ -367,7 +372,8 @@ export const TaskLinkedBox: React.FC<TaskLinkedBoxProps> = ({ tasks, onTaskClick
                 const isDragging = draggingRef.current === t.id;
                 const isHovered = hoveredCard === t.id;
                 const isSelected = selectedCard === t.id;
-                const dep = tasks.find(x => x.id === t.depends_on);
+                const firstCardDepId = Array.isArray(t.depends_on) ? t.depends_on?.[0] : t.depends_on;
+                const dep = firstCardDepId ? tasks.find(x => x.id === firstCardDepId) : null;
 
                 return (
                   <div

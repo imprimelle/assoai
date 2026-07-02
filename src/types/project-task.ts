@@ -24,7 +24,7 @@ export interface ProjectTask {
   created_by: TaskCreator;
   active: boolean;
   is_phase_validation: boolean;
-  depends_on?: string;
+  depends_on?: string[];
   created_at: string;
   updated_at: string;
 }
