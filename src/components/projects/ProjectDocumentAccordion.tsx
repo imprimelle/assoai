@@ -116,6 +116,10 @@ export const ProjectDocumentAccordion: React.FC<ProjectDocumentAccordionProps> =
   const handleDeriveCommandeRef = useRef<() => Promise<void>>(async () => {});
   const handleDeriveCDCRef = useRef<() => Promise<void>>(async () => {});
 
+  // 🔧 Garde-fous anti-concurrence : empêche deux dérivations simultanées
+  const isDerivingCmdRef = useRef(false);
+  const isDerivingCDCRef = useRef(false);
+
   // Ref pour éviter de clearDerivePending au montage initial (selectedFacture?.numero passe de undefined → valeur)
   const prevFactureNumeroRef = useRef<string | undefined>(undefined);
 
@@ -325,7 +329,11 @@ export const ProjectDocumentAccordion: React.FC<ProjectDocumentAccordionProps> =
 
   const handleDeriveCommande = async () => {
     if (!selectedFacture) return;
+    // 🔧 Garde-fou anti-concurrence
+    if (isDerivingCmdRef.current) return;
+    isDerivingCmdRef.current = true;
     setCmdError(null);
+    try {
     // 🔧 Persistance : sauver l'intention pour reprise après navigation
     saveDerivePending('commande', selectedFacture.numero);
 
@@ -460,13 +468,20 @@ export const ProjectDocumentAccordion: React.FC<ProjectDocumentAccordionProps> =
       setCmdError(result.error || 'Échec');
       clearDerivePending('commande');
     }
+    } finally {
+      isDerivingCmdRef.current = false;
+    }
   };
   handleDeriveCommandeRef.current = handleDeriveCommande;
 
   const handleDeriveCDC = async () => {
     const cmd = localCommande || chain?.commande;
     if (!cmd) return;
+    // 🔧 Garde-fou anti-concurrence
+    if (isDerivingCDCRef.current) return;
+    isDerivingCDCRef.current = true;
     setCdcError(null);
+    try {
     // 🔧 Persistance : sauver l'intention pour reprise après navigation
     saveDerivePending('cdc', selectedFacture?.numero || '', cmd.numero);
 
@@ -589,6 +604,9 @@ export const ProjectDocumentAccordion: React.FC<ProjectDocumentAccordionProps> =
     } else {
       setCdcError(result.error || 'Échec');
       clearDerivePending('cdc');
+    }
+    } finally {
+      isDerivingCDCRef.current = false;
     }
   };
   handleDeriveCDCRef.current = handleDeriveCDC;
@@ -714,6 +732,10 @@ export const ProjectDocumentAccordion: React.FC<ProjectDocumentAccordionProps> =
     const cmd = localCommande || chain?.commande;
     const cmdId = cmd?.id;
     const cmdNumero = cmd?.numero;
+    // 🔧 Garde-fou anti-concurrence
+    if (isDerivingCmdRef.current) return;
+    isDerivingCmdRef.current = true;
+    try {
 
     deriveCmd.reset();
     setLocalCommande(null);
@@ -741,16 +763,50 @@ export const ProjectDocumentAccordion: React.FC<ProjectDocumentAccordionProps> =
       await (supabase.from('messages') as any).delete().eq('id', cmdId);
     }
 
+    // 🔧 BUGFIX: Nettoyer projects.templates des IDs supprimés (commande + CDCs)
+    try {
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('templates')
+        .eq('id', projectId)
+        .single();
+      if (proj) {
+        const templates = (proj.templates as any) || {};
+        // Retirer l'ancienne commande
+        templates.commandes = (templates.commandes || []).filter((id: string) => id !== cmdId);
+        // Retirer les CDCs supprimés
+        const deletedCdcIds = linkedCDCs?.map((c: any) => c.id) || [];
+        templates.cahiers_des_charges = (templates.cahiers_des_charges || [])
+          .filter((id: string) => !deletedCdcIds.includes(id));
+        await supabase.from('projects').update({ templates }).eq('id', projectId);
+        console.log('[regen-cmd] projects.templates nettoyé:', { cmdId, deletedCdcIds });
+      }
+    } catch (err) {
+      console.error('[regen-cmd] Erreur nettoyage templates:', err);
+    }
+
     // Invalider les caches avant de régénérer
     await queryClient.invalidateQueries({ queryKey: ['project-documents', projectId] });
     await queryClient.invalidateQueries({ queryKey: ['document-chain', selectedFacture?.numero] });
 
+    // 🔧 Libérer le ref avant de relancer la dérivation (handleDeriveCommande a son propre guard)
+    isDerivingCmdRef.current = false;
     setTimeout(() => handleDeriveCommande(), 100);
+    } catch (err) {
+      console.error('[regen-cmd] Erreur:', err);
+      setCmdError('Erreur lors de la régénération');
+      clearDerivePending('commande');
+      isDerivingCmdRef.current = false;
+    }
   };
 
   const handleRegenerateCDC = async () => {
     const cdc = localCDC || chain?.cahierDesCharges;
     const cdcId = cdc?.id;
+    // 🔧 Garde-fou anti-concurrence
+    if (isDerivingCDCRef.current) return;
+    isDerivingCDCRef.current = true;
+    try {
 
     deriveCDC.reset();
     setLocalCDC(null);
@@ -761,11 +817,37 @@ export const ProjectDocumentAccordion: React.FC<ProjectDocumentAccordionProps> =
       await (supabase.from('messages') as any).delete().eq('id', cdcId);
     }
 
+    // 🔧 BUGFIX: Nettoyer projects.templates de l'ID CDC supprimé
+    try {
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('templates')
+        .eq('id', projectId)
+        .single();
+      if (proj) {
+        const templates = (proj.templates as any) || {};
+        templates.cahiers_des_charges = (templates.cahiers_des_charges || [])
+          .filter((id: string) => id !== cdcId);
+        await supabase.from('projects').update({ templates }).eq('id', projectId);
+        console.log('[regen-cdc] projects.templates nettoyé:', cdcId);
+      }
+    } catch (err) {
+      console.error('[regen-cdc] Erreur nettoyage templates:', err);
+    }
+
     // Invalider les caches avant de régénérer
     await queryClient.invalidateQueries({ queryKey: ['project-documents', projectId] });
     await queryClient.invalidateQueries({ queryKey: ['document-chain', selectedFacture?.numero] });
 
+    // 🔧 Libérer le ref avant de relancer la dérivation (handleDeriveCDC a son propre guard)
+    isDerivingCDCRef.current = false;
     setTimeout(() => handleDeriveCDC(), 100);
+    } catch (err) {
+      console.error('[regen-cdc] Erreur:', err);
+      setCdcError('Erreur lors de la régénération');
+      clearDerivePending('cdc');
+      isDerivingCDCRef.current = false;
+    }
   };
 
   // Calcul verrouillage (doit précéder handleOpenDocument)

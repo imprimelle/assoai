@@ -108,12 +108,11 @@ async function fetchDemandesCounter(user: User): Promise<number> {
  */
 async function fetchMonBaraCounter(user: User): Promise<number> {
   // Utiliser la même logique que PublicChecklists.tsx
+  // 🔴 PAS de head:true ici : PostgREST ignore les filtres sur colonnes
+  //    embarquées (!inner) quand head=true est utilisé → le count est global
   let query = supabase
     .from("checklists")
-    .select("id, project_tasks!inner(kanban_column,active,assignee)", {
-      count: "exact",
-      head: true,
-    })
+    .select("id, project_tasks!inner(kanban_column,active,assignee)")
     .not("task_id", "is", null)
     .eq("project_tasks.kanban_column", "a_faire")
     .eq("project_tasks.active", true);
@@ -123,12 +122,12 @@ async function fetchMonBaraCounter(user: User): Promise<number> {
     query = query.eq("project_tasks.assignee", user.role);
   }
 
-  const { count, error } = await query;
+  const { data, error } = await query;
   if (error) {
     console.warn("[useHomeCounters] monBara:", error.message);
     return 0;
   }
-  return count || 0;
+  return (data || []).length;
 }
 
 /**

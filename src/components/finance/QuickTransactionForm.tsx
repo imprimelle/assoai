@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFinancialCategories, useCreateTransaction } from "../../hooks/useFinancialTransactions";
-import { useUpdateDemandeStatus } from "../../hooks/useDemandes";
+import { useDeleteDemande, useUpdateDemandeStatus } from "../../hooks/useDemandes";
 import { MultiProjectSelector } from "./MultiProjectSelector";
 import { cn } from "@/lib/utils";
 import { Loader2, Check, ChevronUp, ChevronDown, X, Banknote, Plus } from "lucide-react";
@@ -186,6 +186,7 @@ export function QuickTransactionForm({ onSuccess }: { onSuccess?: () => void }) 
   const { data: allCategories } = useFinancialCategories();
   const createTx = useCreateTransaction();
   const updateDemandeStatus = useUpdateDemandeStatus();
+  const deleteDemande = useDeleteDemande();
 
   const [type, setType] = useState<"expense" | "income">("expense");
   const [expanded, setExpanded] = useState(false);
@@ -231,6 +232,28 @@ export function QuickTransactionForm({ onSuccess }: { onSuccess?: () => void }) 
   const removeLine = (idx: number) => {
     if (lines.length <= 1) return;
     setLines((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  /* ── Suppression d'un batch de demandes ── */
+  const handleDeleteBatch = async (batch: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const ids: string[] = batch.demandes.map((d: any) => d.id);
+    const name = batch.applicant_name;
+    const count = ids.length;
+    const label = count > 1
+      ? `les ${count} demandes de ${name}`
+      : `la demande de ${name}`;
+
+    if (!confirm(`Supprimer ${label} ?`)) return;
+
+    try {
+      for (const id of ids) {
+        await deleteDemande.mutateAsync(id);
+      }
+      qc.invalidateQueries({ queryKey: ["demandes-suggestions"] });
+    } catch (err) {
+      console.error("Erreur suppression batch:", err);
+    }
   };
 
   const resetForm = () => {
@@ -482,8 +505,17 @@ export function QuickTransactionForm({ onSuccess }: { onSuccess?: () => void }) 
                   key={batch.batch_id}
                   type="button"
                   onClick={() => populateFromBatch(batch)}
-                  className="flex-shrink-0 bg-white border border-amber-200 rounded-lg px-3 py-1.5 hover:border-orange-400 hover:shadow-sm transition-all text-left min-w-[140px]"
+                  className="relative flex-shrink-0 bg-white border border-amber-200 rounded-lg px-3 py-1.5 pr-6 hover:border-orange-400 hover:shadow-sm transition-all text-left min-w-[140px]"
                 >
+                  {/* Bouton suppression */}
+                  <span
+                    onClick={(e) => handleDeleteBatch(batch, e)}
+                    className="absolute top-0.5 right-0.5 w-5 h-5 flex items-center justify-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                    title="Supprimer la demande"
+                  >
+                    <X className="h-3 w-3" />
+                  </span>
+
                   <div className="flex items-center gap-1 text-[11px] font-medium text-gray-800">
                     <Banknote className="h-3 w-3 text-orange-500" />
                     <span className="truncate">{batch.applicant_name}</span>

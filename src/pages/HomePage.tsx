@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useHomeCounters, type HomeCounters } from "@/hooks/useHomeCounters";
 import { usePageVisit } from "@/hooks/usePageVisit";
+import HomeMiniKanban from "@/components/home/HomeMiniKanban";
 
 interface HomePageProps {
   user: User | null;
@@ -162,6 +163,9 @@ const HomePage: React.FC<HomePageProps> = ({ user }) => {
         </h1>
         <p className="text-gray-500 mt-1">Que veux-tu faire ?</p>
       </div>
+
+      {/* 🆕 Mini Kanban des projets en cours */}
+      <HomeMiniKanban user={user} />
 
       {/* Grille de cartes — 2 colonnes */}
       <div className="grid grid-cols-2 gap-4">
