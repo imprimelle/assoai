@@ -4,6 +4,7 @@ import { Camera, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 import { appLogger } from '@/utils/logger';
+import CameraCaptureUI from '@/components/shared/CameraCaptureUI';
 
 interface PhotoUploadButtonProps {
   projectId: string;
@@ -24,22 +25,22 @@ const PhotoUploadButton: React.FC<PhotoUploadButtonProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [showCameraUI, setShowCameraUI] = useState(false);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const uploadFile = async (fileOrBlob: File | Blob, filename = `photo-${Date.now()}.jpg`) => {
     try {
       setIsUploading(true);
 
-      const fileExt = file.name.split('.').pop() || 'jpg';
+      const fileExt = filename.split('.').pop() || 'jpg';
       const fileName = `${uuidv4()}.${fileExt}`;
       const filePath = `projects/${projectId}/checklists/${itemId}/${fileName}`;
+
+      // Convertir Blob en File si nécessaire
+      const file = fileOrBlob instanceof File ? fileOrBlob : new File([fileOrBlob], fileName, { type: 'image/jpeg' });
 
       appLogger.info('📤 Upload photo checklist', {
         fileName,
         fileSize: file.size,
-        fileType: file.type,
       });
 
       const { error: uploadErr } = await supabase.storage
@@ -75,9 +76,28 @@ const PhotoUploadButton: React.FC<PhotoUploadButtonProps> = ({
       appLogger.error('❌ Erreur upload photo', err);
     } finally {
       setIsUploading(false);
-      // Reset input pour permettre de ré-uploader la même photo
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await uploadFile(file, file.name);
+  };
+
+  const handleCameraCapture = (blob: Blob) => {
+    uploadFile(blob);
+    // On garde la caméra ouverte pour permettre plusieurs photos
+  };
+
+  const handleCameraFileSelect = (file: File) => {
+    uploadFile(file, file.name);
+    setShowCameraUI(false);
+  };
+
+  const handleCameraClick = () => {
+    // Priorité : ouvrir CameraCaptureUI (getUserMedia natif)
+    setShowCameraUI(true);
   };
 
   const dimensions = size === 'sm' ? 'h-8 w-8' : 'h-10 w-10';
@@ -90,7 +110,7 @@ const PhotoUploadButton: React.FC<PhotoUploadButtonProps> = ({
         variant="ghost"
         size="icon"
         className={`${dimensions} rounded-full hover:bg-brand-orange/10 text-muted-foreground hover:text-brand-orange transition-colors shrink-0`}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={handleCameraClick}
         disabled={disabled || isUploading}
         aria-label="Prendre une photo"
         title="Prendre une photo"
@@ -101,6 +121,16 @@ const PhotoUploadButton: React.FC<PhotoUploadButtonProps> = ({
           <Camera className={iconSize} />
         )}
       </Button>
+
+      {/* Caméra native getUserMedia (prioritaire) */}
+      <CameraCaptureUI
+        open={showCameraUI}
+        onCapture={handleCameraCapture}
+        onClose={() => setShowCameraUI(false)}
+        onFileSelect={handleCameraFileSelect}
+      />
+
+      {/* Fallback : input file classique (utilisé via CameraCaptureUI en mode fallback) */}
       <input
         ref={fileInputRef}
         type="file"

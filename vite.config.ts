@@ -15,11 +15,12 @@ export default defineConfig(({ mode }) => ({
     mode === 'development' &&
     componentTagger(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
       includeAssets: ["favicon.ico", "offline.html", "icons/icon-192x192.png", "icons/icon-512x512.png"],
       manifest: false, // on garde le manifest.json existant dans /public
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,mp3}"],
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           // Google Fonts — cache long terme
           {
@@ -38,14 +39,13 @@ export default defineConfig(({ mode }) => ({
               expiration: { maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },
-          // API Supabase — network first, cache court
+          // API Supabase — stale-while-revalidate, 30 secondes
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/.*/i,
-            handler: "NetworkFirst",
+            handler: "StaleWhileRevalidate",
             options: {
               cacheName: "supabase-api",
-              expiration: { maxAgeSeconds: 60 * 5 },
-              networkTimeoutSeconds: 10,
+              expiration: { maxAgeSeconds: 30 },
             },
           },
           // Images externes (placeholder, lovable uploads)

@@ -28,7 +28,7 @@ const InstallBanner: React.FC = () => {
       }
     }
 
-    // Check if the deferredPrompt is already available (captured in main.tsx)
+    // Check if the deferredPrompt is already available (captured in main.tsx — only one listener)
     const dp = (window as any).deferredPrompt;
     if (dp) {
       setIsInstallable(true);
@@ -41,24 +41,27 @@ const InstallBanner: React.FC = () => {
       return () => clearTimeout(timer);
     }
 
-    // Listen for the event (may arrive after mount)
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      (window as any).deferredPrompt = e;
-      setIsInstallable(true);
-    };
-
+    // Pour Android : si l'événement arrive après le montage, on écoute appinstalled seulement
+    // (beforeinstallprompt est déjà capturé par main.tsx, mais peut arriver après le montage
+    // dans certains cas — on le vérifie via une vérification périodique)
     const handleAppInstalled = () => {
       setIsInstallable(false);
       (window as any).deferredPrompt = null;
     };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
+    // Polling léger : vérifier si deferredPrompt est devenu disponible
+    const interval = setInterval(() => {
+      const dp = (window as any).deferredPrompt;
+      if (dp && !isInstallable) {
+        setIsInstallable(true);
+        clearInterval(interval);
+      }
+    }, 2000);
+    
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      clearInterval(interval);
     };
   }, []);
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Project, normalizeProject } from '@/types/project';
@@ -17,6 +17,17 @@ const PHASE_LABELS: Record<string, string> = {
   commande: 'Commande',
   fabrication: 'Fabrication',
   livraison: 'Livraison',
+};
+
+// ── Colonne par défaut selon le rôle ──────────────────────────────────
+
+const ROLE_DEFAULT_COLUMN: Record<string, number> = {
+  directeur: 0,              // Facturation
+  directrice_adjointe: 0,    // Facturation
+  commerciale: 0,            // Facturation
+  chef_technique: 3,         // Livraison
+  technicien_adjoint: 3,     // Livraison
+  superviseur_logistique: 1, // Commande
 };
 
 // ── Compteur visuel de pression ─────────────────────────────────────────
@@ -95,8 +106,29 @@ interface HomeMiniKanbanProps {
 }
 
 const HomeMiniKanban: React.FC<HomeMiniKanbanProps> = ({ user }) => {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false); // fermé par défaut
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+
+  // ── Refs pour l'auto-scroll vers la colonne du rôle ───────────────────
+
+  const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const prevExpanded = useRef(false);
+
+  useEffect(() => {
+    if (expanded && !prevExpanded.current) {
+      // Animation d'ouverture : scroller vers la colonne du rôle
+      const role = user?.role || '';
+      const targetIndex = ROLE_DEFAULT_COLUMN[role] ?? 0;
+      const targetPhase = KANBAN_PHASES[targetIndex];
+      const el = columnRefs.current[targetPhase];
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }, 100);
+      }
+    }
+    prevExpanded.current = expanded;
+  }, [expanded, user?.role]);
 
   // ── Tous les projets (sans filtre created_by) ────────────────────────
 
@@ -229,7 +261,8 @@ const HomeMiniKanban: React.FC<HomeMiniKanbanProps> = ({ user }) => {
               return (
                 <div
                   key={phase}
-                  className="flex-shrink-0 w-[210px] sm:w-[230px]"
+                  ref={(el) => { columnRefs.current[phase] = el; }}
+                  className="flex-shrink-0 w-[210px] sm:w-[230px] scroll-mx-4"
                 >
                   {/* En-tête colonne */}
                   <div className="flex items-center gap-1.5 mb-2 px-1">

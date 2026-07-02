@@ -24,6 +24,7 @@ import PublicChecklists from "./pages/PublicChecklists";
 import PublicDocument from "./pages/PublicDocument";
 import NotFound from "./pages/NotFound";
 import InstallBanner from "./components/pwa/InstallBanner";
+import UpdateNotification from "./components/pwa/UpdateNotification";
 import { initializeRealtime } from "./integrations/supabase/realtime";
 import Login from "./components/auth/Login";
 import MinimalHeader from "./components/ui/MinimalHeader";
@@ -398,6 +399,7 @@ const App = () => {
           <Toaster />
           <Sonner />
           <InstallBanner />
+          <UpdateNotification />
           <AppContent />
         </TooltipProvider>
       </BrowserRouter>
