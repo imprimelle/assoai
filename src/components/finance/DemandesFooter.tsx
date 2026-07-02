@@ -132,7 +132,7 @@ export function DemandesFooter({ onSuccess, lockedApplicant, monnaieDisponible =
         ? validLines[0].description.trim()
         : description.trim();
 
-      await createDemande.mutateAsync({
+      const result = await createDemande.mutateAsync({
         applicant_name: applicantName.trim(),
         applicant_id: applicantId || undefined,
         project_id: projectId || undefined,
@@ -141,6 +141,27 @@ export function DemandesFooter({ onSuccess, lockedApplicant, monnaieDisponible =
         total_amount: total,
         monnaie_disponible: monnaieDisponible,
       });
+
+      // ── Notification demande envoyée → Communicateur ──
+      supabase.from('communicator_queue').insert({
+        direction: 'pm_to_communicator',
+        action: 'demande_envoyee',
+        status: 'pending',
+        retry_count: 0,
+        payload: {
+          demandeur_name: applicantName.trim(),
+          demande_numbers: result.createdNumbers || [],
+          count: result.count,
+          total_amount: total,
+          monnaie_utilisee: result.monnaieUtilisee || 0,
+          caisse_debitee: caisseDebitee,
+          description: motif,
+          items: validLines.map(l => ({
+            description: l.description.trim(),
+            amount: Math.round(Number(l.amount)),
+          })),
+        }
+      }).then(() => {});
 
       setSubmitted(true);
       setTimeout(() => setSubmitted(false), 2000);

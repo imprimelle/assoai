@@ -137,6 +137,7 @@ export function useCreateDemande() {
 
       // ── Créer les demandes (sans toucher au surplus des sources) ──
       const createdIds: string[] = [];
+      const createdNumbers: string[] = [];
 
       for (let i = 0; i < validItems.length; i++) {
         const item = validItems[i];
@@ -168,9 +169,10 @@ export function useCreateDemande() {
 
         if (insertErr) throw insertErr;
         createdIds.push(newDemande.id);
+        createdNumbers.push(newDemande.number);
       }
 
-      return { createdIds, count: createdIds.length, batchId, monnaieUtilisee, monnaieSourceIds };
+      return { createdIds, createdNumbers, count: createdIds.length, batchId, monnaieUtilisee, monnaieSourceIds };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["demandes"] });

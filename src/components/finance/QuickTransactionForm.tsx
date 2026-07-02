@@ -250,6 +250,21 @@ export function QuickTransactionForm({ onSuccess }: { onSuccess?: () => void }) 
       for (const id of ids) {
         await deleteDemande.mutateAsync(id);
       }
+
+      // ── Notification demande refusée → Communicateur ──
+      supabase.from('communicator_queue').insert({
+        direction: 'pm_to_communicator',
+        action: 'demande_refusee',
+        status: 'pending',
+        retry_count: 0,
+        payload: {
+          demandeur_name: batch.applicant_name,
+          demande_number: batch.first_number,
+          count: count,
+          demande_ids: ids,
+        }
+      }).then(() => {});
+
       qc.invalidateQueries({ queryKey: ["demandes-suggestions"] });
     } catch (err) {
       console.error("Erreur suppression batch:", err);
@@ -446,6 +461,30 @@ export function QuickTransactionForm({ onSuccess }: { onSuccess?: () => void }) 
 
       setSubmitted(true);
       setTimeout(() => setSubmitted(false), 2000);
+
+      // ── Notification demande payée → Communicateur ──
+      if (prefillDemande) {
+        const demandeurName = prefillDemande.applicant_name;
+        const monnaieUtilisee = prefillDemande.monnaie_deja_couverte || 0;
+        const montantTotal = prefillDemande.total_amount || linesTotal;
+        const montantVerse = decaissementAmount || montantTotal;
+
+        supabase.from('communicator_queue').insert({
+          direction: 'pm_to_communicator',
+          action: 'demande_payee',
+          status: 'pending',
+          retry_count: 0,
+          payload: {
+            demandeur_name: demandeurName,
+            demande_number: prefillDemande.number,
+            montant_total: montantTotal,
+            montant_verse: montantVerse,
+            monnaie_utilisee: monnaieUtilisee,
+            surplus_amount: surplusAmount,
+          }
+        }).then(() => {});
+      }
+
       resetForm();
       onSuccess?.();
     } catch (err) {
