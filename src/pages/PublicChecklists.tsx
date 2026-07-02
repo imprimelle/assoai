@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { ChecklistSlide, ChecklistMeta } from '@/components/checklist/ChecklistSlide';
@@ -113,6 +113,27 @@ const PublicChecklists: React.FC = () => {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // ── Smart default tab selection (À faire → En cours → Terminé) ─────────
+
+  const hasInitializedTab = useRef(false);
+
+  useEffect(() => {
+    if (loading || checklists.length === 0 || hasInitializedTab.current) return;
+
+    const aFaire  = countTab(checklists, 'a_faire');
+    const enCours = countTab(checklists, 'en_cours');
+
+    if (aFaire > 0) {
+      setSelectedTab('a_faire');
+    } else if (enCours > 0) {
+      setSelectedTab('en_cours');
+    } else {
+      setSelectedTab('termine');
+    }
+
+    hasInitializedTab.current = true;
+  }, [loading, checklists]);
 
   // ── Derived ────────────────────────────────────────────────────────────
 
