@@ -328,11 +328,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ user, persistentSessionId
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-2">
-            {hasTasks && (
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-amber-600 hover:bg-amber-50" onClick={(e) => { e.stopPropagation(); setShowResetConfirm(true); }} title="Réinitialiser les tâches">
-                <RefreshCw className="h-3.5 w-3.5" />
-              </Button>
-            )}
             {dashboardExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           </div>
         </button>

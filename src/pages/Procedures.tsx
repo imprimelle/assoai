@@ -52,14 +52,14 @@ const DOC_VARIABLES: Record<string, string[]> = {
   facture: [
     '{facture.client.nom}', '{facture.client.adresse}', '{facture.client.telephone}',
     '{facture.total}', '{facture.reduction}', '{facture.factureNumero}', '{facture.dateEmission}',
-    '{facture.details.length}',
+    '{facture.echeancier}', '{facture.statut}', '{facture.details.length}',
   ],
   commande: [
     '{commande.client.nom}', '{commande.client.adresse}',
     '{commande.total}', '{commande.reduction}', '{commande.commandeNumero}',
     '{commande.dateCommande}', '{commande.dateLivraison}', '{commande.statut}',
     '{commande.deliveryAddress.label}', '{commande.items.length}',
-    '{commande.linked_facture_id}',
+    '{commande.linked_facture_id}', '{commande.montantAvance}',
   ],
   devis: [
     '{devis.client.nom}', '{devis.total}', '{devis.dateValidite}',
