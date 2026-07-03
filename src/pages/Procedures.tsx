@@ -414,6 +414,114 @@ const Procedures: React.FC = () => {
                         ))}
                       </div>
                     )}
+                    {/* Wildcard action mapping */}
+                    {genRules?.source?.sections && genRules.source.sections.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs w-20 shrink-0 text-muted-foreground">Autres →</span>
+                        <Input
+                          placeholder="ex: Achat:"
+                          className="h-7 text-xs font-mono"
+                          value={genRules?.source?.action_mapping?.['*'] || ''}
+                          onChange={e => {
+                            const am = { ...(genRules?.source?.action_mapping || {}) };
+                            if (e.target.value) am['*'] = e.target.value; else delete am['*'];
+                            setEditForm({...editForm, generation_rules: {...genRules!, source: {...genRules!.source!, action_mapping: am}}});
+                          }}
+                        />
+                      </div>
+                    )}
+                    {/* Exclude materials */}
+                    {genRules?.source?.sections && genRules.source.sections.length > 0 && (
+                      <div className="mt-2 p-2.5 bg-red-50 border border-red-200 rounded">
+                        <p className="text-xs font-medium text-red-700 mb-1.5">⛔ Matériaux exclus (optionnel)</p>
+                        <p className="text-xs text-red-600 mb-2">Matériaux à ignorer par section. « nom contient » filtre par nom partiel.</p>
+                        {(genRules?.source?.exclude || []).map((exc, i) => (
+                          <div key={i} className="flex items-center gap-1 mb-1">
+                            <Select value={exc.section} onValueChange={v => {
+                              const excl = [...(genRules?.source?.exclude || [])];
+                              excl[i] = {...exc, section: v};
+                              setEditForm({...editForm, generation_rules: {...genRules!, source: {...genRules!.source!, exclude: excl}}});
+                            }}>
+                              <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {genRules.source.sections.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <span className="text-xs text-muted-foreground">contient</span>
+                            <Input placeholder="nom partiel" className="h-7 text-xs flex-1" value={exc.nom_contains}
+                              onChange={e => {
+                                const excl = [...(genRules?.source?.exclude || [])];
+                                excl[i] = {...exc, nom_contains: e.target.value};
+                                setEditForm({...editForm, generation_rules: {...genRules!, source: {...genRules!.source!, exclude: excl}}});
+                              }} />
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-600"
+                              onClick={() => {
+                                const excl = [...(genRules?.source?.exclude || [])];
+                                excl.splice(i, 1);
+                                setEditForm({...editForm, generation_rules: {...genRules!, source: {...genRules!.source!, exclude: excl.length > 0 ? excl : undefined}}});
+                              }}><X className="h-3 w-3" /></Button>
+                          </div>
+                        ))}
+                        <Button variant="ghost" size="sm" className="text-xs h-6 text-red-600 mt-1"
+                          onClick={() => {
+                            const excl = [...(genRules?.source?.exclude || [])];
+                            excl.push({section: genRules.source.sections[0], nom_contains: ''});
+                            setEditForm({...editForm, generation_rules: {...genRules!, source: {...genRules!.source!, exclude: excl}}});
+                          }}>
+                          <Plus className="h-3 w-3 mr-1" /> Ajouter une exclusion
+                        </Button>
+                      </div>
+                    )}
+                    {/* Exceptions */}
+                    {genRules?.source?.sections && genRules.source.sections.length > 0 && (
+                      <div className="mt-2 p-2.5 bg-violet-50 border border-violet-200 rounded">
+                        <p className="text-xs font-medium text-violet-700 mb-1.5">🔄 Exceptions d'action (optionnel)</p>
+                        <p className="text-xs text-violet-600 mb-2">Remplacer l'action pour un matériau spécifique.</p>
+                        {(genRules?.source?.exceptions || []).map((exc, i) => (
+                          <div key={i} className="flex items-center gap-1 mb-1 flex-wrap">
+                            <Select value={exc.section} onValueChange={v => {
+                              const ex = [...(genRules?.source?.exceptions || [])];
+                              ex[i] = {...exc, section: v};
+                              setEditForm({...editForm, generation_rules: {...genRules!, source: {...genRules!.source!, exceptions: ex}}});
+                            }}>
+                              <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {genRules.source.sections.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <span className="text-xs text-muted-foreground">contient</span>
+                            <Input placeholder="nom partiel" className="h-7 text-xs w-28" value={exc.nom_contains}
+                              onChange={e => {
+                                const ex = [...(genRules?.source?.exceptions || [])];
+                                ex[i] = {...exc, nom_contains: e.target.value};
+                                setEditForm({...editForm, generation_rules: {...genRules!, source: {...genRules!.source!, exceptions: ex}}});
+                              }} />
+                            <span className="text-xs text-muted-foreground">→ action</span>
+                            <Input placeholder="ex: achat:" className="h-7 text-xs font-mono w-20" value={exc.override_action}
+                              onChange={e => {
+                                const ex = [...(genRules?.source?.exceptions || [])];
+                                ex[i] = {...exc, override_action: e.target.value};
+                                setEditForm({...editForm, generation_rules: {...genRules!, source: {...genRules!.source!, exceptions: ex}}});
+                              }} />
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-violet-400 hover:text-violet-600"
+                              onClick={() => {
+                                const ex = [...(genRules?.source?.exceptions || [])];
+                                ex.splice(i, 1);
+                                setEditForm({...editForm, generation_rules: {...genRules!, source: {...genRules!.source!, exceptions: ex.length > 0 ? ex : undefined}}});
+                              }}><X className="h-3 w-3" /></Button>
+                          </div>
+                        ))}
+                        <Button variant="ghost" size="sm" className="text-xs h-6 text-violet-600 mt-1"
+                          onClick={() => {
+                            const ex = [...(genRules?.source?.exceptions || [])];
+                            ex.push({section: genRules.source.sections[0], nom_contains: '', override_action: ''});
+                            setEditForm({...editForm, generation_rules: {...genRules!, source: {...genRules!.source!, exceptions: ex}}});
+                          }}>
+                          <Plus className="h-3 w-3 mr-1" /> Ajouter une exception
+                        </Button>
+                      </div>
+                    )}
+                    {/* Items fixes */}
                     <div className="mt-2">
                       <p className="text-xs text-muted-foreground">➕ Items fixes :</p>
                       <Textarea placeholder="Faire le devis général" rows={2}
@@ -481,7 +589,7 @@ const Procedures: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
-                {editForm.depends_on_order !== null && (
+                {(editForm.depends_on_procedure_id || editForm.depends_on_order !== null) && (
                   <Input className="mt-2" placeholder="Description (ex: 'Attendre que la découpe soit finie')"
                     value={editForm.depends_description}
                     onChange={e => setEditForm({...editForm, depends_description: e.target.value})} />
