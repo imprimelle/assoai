@@ -29,7 +29,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DocumentLinkFAB } from '@/components/projects/DocumentLinkFAB';
 import { DocumentSearchDialog } from '@/components/projects/DocumentSearchDialog';
-import { Rocket, Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import { Rocket, Loader2, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { ProjectDocumentAccordion } from '@/components/projects/ProjectDocumentAccordion';
 import { ProjectMediaGallery } from '@/components/projects/ProjectMediaGallery';
 import { TaskLinkedBox } from '@/components/projects/TaskLinkedBox';
@@ -132,6 +132,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ user, persistentSessionId
   const [showSearchDialog, setShowSearchDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [highlightedChecklistTaskId, setHighlightedChecklistTaskId] = useState<string | null>(null);
   const [selectedFacture, setSelectedFacture] = useState<DocumentSearchResult | null>(null);
   const [dashboardExpanded, setDashboardExpanded] = useState(false);
@@ -187,6 +189,24 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ user, persistentSessionId
     setSelectedFacture(doc);
     if (doc.id && project?.id) {
       await supabase.from('messages').update({ project_id: project.id }).eq('id', doc.id);
+    }
+  };
+
+  // Réinitialisation du projet (garde les documents)
+  const handleResetProject = async () => {
+    if (!project) return;
+    setResetting(true);
+    try {
+      await supabase.from('checklists').delete().eq('project_id', project.id);
+      await supabase.from('project_tasks').delete().eq('project_id', project.id);
+      queryClient.invalidateQueries({ queryKey: ['project-tasks', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['checklists', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['project-health', projectId] });
+      setShowResetConfirm(false);
+    } catch (err) {
+      console.error('Réinitialisation échouée:', err);
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -308,6 +328,11 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ user, persistentSessionId
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-2">
+            {hasTasks && (
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-amber-600 hover:bg-amber-50" onClick={(e) => { e.stopPropagation(); setShowResetConfirm(true); }} title="Réinitialiser les tâches">
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+            )}
             {dashboardExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           </div>
         </button>
@@ -428,8 +453,13 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ user, persistentSessionId
               </button>
             )}
 
-            {/* Suppression */}
-            <div className="flex justify-end pt-3">
+            {/* Réinitialisation + Suppression */}
+            <div className="flex justify-between pt-3">
+              {hasTasks ? (
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-amber-600 hover:bg-amber-50 gap-1" onClick={() => setShowResetConfirm(true)}>
+                  <RefreshCw className="h-3 w-3" /> Réinitialiser les tâches
+                </Button>
+              ) : <span />}
               <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-red-600 hover:bg-red-50 gap-1" onClick={() => setShowDeleteConfirm(true)}>
                 <Trash2 className="h-3 w-3" /> Supprimer le projet
               </Button>
@@ -531,6 +561,30 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ user, persistentSessionId
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Dialogue réinitialisation */}
+      <Dialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2 text-amber-600"><RefreshCw className="h-5 w-5" />Réinitialiser le projet</DialogTitle></DialogHeader>
+          <div className="py-2 space-y-3">
+            <p className="text-sm">Vous allez réinitialiser les tâches et checklists de <strong>« {project?.name} »</strong>.</p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 space-y-1">
+              <p className="font-medium">⚠️ Cette action supprimera :</p>
+              <ul className="list-disc list-inside text-xs space-y-0.5">
+                <li>Toutes les tâches Kanban ({totalTasks} tâche{totalTasks !== 1 ? 's' : ''})</li>
+                <li>Toutes les checklists ({(checklists || []).length} checklist{(checklists || []).length !== 1 ? 's' : ''})</li>
+              </ul>
+              <p className="text-xs font-medium mt-2">✅ Les documents (facture, commande, CDC) seront conservés.</p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowResetConfirm(false)} disabled={resetting}>Annuler</Button>
+            <Button onClick={handleResetProject} disabled={resetting} className="gap-2 bg-amber-600 hover:bg-amber-700 text-white">
+              {resetting ? <><Loader2 className="h-4 w-4 animate-spin" />Réinitialisation...</> : <><RefreshCw className="h-4 w-4" />Réinitialiser</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialogue suppression */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>

@@ -41,6 +41,31 @@ const DOC_LABELS: Record<string, string> = {
   devis: '💰 Devis',
 };
 
+// Variables disponibles par document de contexte (détectées depuis les structures réelles)
+const DOC_VARIABLES: Record<string, string[]> = {
+  cdc: [
+    '{cdc.client.nom}', '{cdc.client.adresse}', '{cdc.client.telephone}',
+    '{cdc.cdcNumero}', '{cdc.enseignes.length}',
+    '{cdc.equipe.chef_technique}', '{cdc.equipe.technicien_adjoint}', '{cdc.equipe.superviseur_logistique}',
+    '{cdc.deliveryAddress}',
+  ],
+  facture: [
+    '{facture.client.nom}', '{facture.client.adresse}', '{facture.client.telephone}',
+    '{facture.total}', '{facture.reduction}', '{facture.factureNumero}', '{facture.dateEmission}',
+    '{facture.details.length}',
+  ],
+  commande: [
+    '{commande.client.nom}', '{commande.client.adresse}',
+    '{commande.total}', '{commande.reduction}', '{commande.commandeNumero}',
+    '{commande.dateCommande}', '{commande.dateLivraison}', '{commande.statut}',
+    '{commande.deliveryAddress.label}', '{commande.items.length}',
+    '{commande.linked_facture_id}',
+  ],
+  devis: [
+    '{devis.client.nom}', '{devis.total}', '{devis.dateValidite}',
+  ],
+};
+
 interface EditForm {
   id?: string;
   phase: string;
@@ -316,6 +341,11 @@ const Procedures: React.FC = () => {
                 </SelectContent>
               </Select>
               <Input placeholder="Titre de la tâche" value={editForm.task_title} onChange={e => setEditForm({...editForm, task_title: e.target.value})} />
+              {((genRules?.contexte?.documents?.length ?? 0) > 0) && (
+                <p className="text-[10px] text-muted-foreground">
+                  💡 Variables : {genRules!.contexte!.documents!.flatMap(d => DOC_VARIABLES[d] || []).slice(0, 5).join('  ')}{genRules!.contexte!.documents!.flatMap(d => DOC_VARIABLES[d] || []).length > 5 ? ' …' : ''}
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <Select value={editForm.task_assignee} onValueChange={v => setEditForm({...editForm, task_assignee: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -328,6 +358,11 @@ const Procedures: React.FC = () => {
               </div>
               <Input type="number" placeholder="Délai (jours)" value={editForm.task_due_days} onChange={e => setEditForm({...editForm, task_due_days: Number(e.target.value)})} />
               <Input placeholder="Titre de la checklist" value={editForm.checklist_title} onChange={e => setEditForm({...editForm, checklist_title: e.target.value})} />
+              {((genRules?.contexte?.documents?.length ?? 0) > 0) && (
+                <p className="text-[10px] text-muted-foreground">
+                  💡 Variables : {genRules!.contexte!.documents!.flatMap(d => DOC_VARIABLES[d] || []).slice(0, 5).join('  ')}{genRules!.contexte!.documents!.flatMap(d => DOC_VARIABLES[d] || []).length > 5 ? ' …' : ''}
+                </p>
+              )}
 
               {/* Mode de génération */}
               <div className="border rounded-md p-3 bg-blue-50/50">
@@ -360,6 +395,25 @@ const Procedures: React.FC = () => {
                           );
                         })}
                       </div>
+                      {/* Variable suggestions for static mode */}
+                      {(genRules?.contexte?.documents?.length ?? 0) > 0 && (
+                        <div className="mt-2 flex flex-wrap items-center gap-1">
+                          <span className="text-[10px] text-amber-600 font-medium shrink-0">💡 Variables :</span>
+                          {genRules!.contexte!.documents!.flatMap(doc => DOC_VARIABLES[doc] || []).map(v => (
+                            <Badge key={v} variant="outline"
+                              className="text-[10px] cursor-pointer hover:bg-amber-100 border-amber-300 bg-amber-50/50 font-mono"
+                              onClick={() => {
+                                const t = document.querySelector('textarea[placeholder*="Items de la checklist"]') as HTMLTextAreaElement;
+                                if (t) {
+                                  const start = t.selectionStart ?? t.value.length;
+                                  t.value = t.value.slice(0, start) + v + t.value.slice(t.selectionEnd ?? start);
+                                  t.focus();
+                                  setEditForm({...editForm, checklist_items: t.value});
+                                }
+                              }}>{v}</Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -568,6 +622,34 @@ const Procedures: React.FC = () => {
                           );
                         })}
                       </div>
+                      {/* Variable suggestions for par_enseigne */}
+                      {(genRules?.contexte?.documents?.length ?? 0) > 0 && (
+                        <div className="mt-2 flex flex-wrap items-center gap-1">
+                          <span className="text-[10px] text-amber-600 font-medium shrink-0">💡 Variables :</span>
+                          {genRules!.contexte!.documents!.flatMap(doc => DOC_VARIABLES[doc] || []).map(v => (
+                            <Badge key={v} variant="outline"
+                              className="text-[10px] cursor-pointer hover:bg-amber-100 border-amber-300 bg-amber-50/50 font-mono"
+                              onClick={() => {
+                                // Insert into the focused field or the title_template input
+                                const active = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
+                                if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+                                  const start = active.selectionStart ?? active.value.length;
+                                  const end = active.selectionEnd ?? start;
+                                  const newVal = active.value.slice(0, start) + v + active.value.slice(end);
+                                  if (active instanceof HTMLTextAreaElement) {
+                                    if (active.placeholder?.includes('Items de base')) {
+                                      setEditForm({...editForm, generation_rules: {...genRules!, fixed_items: newVal.split('\n').filter(l => l.trim())}});
+                                    }
+                                  } else {
+                                    setEditForm({...editForm, generation_rules: {...genRules!, title_template: newVal}});
+                                  }
+                                  active.value = newVal;
+                                  active.focus();
+                                }
+                              }}>{v}</Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -575,6 +657,26 @@ const Procedures: React.FC = () => {
 
               <Textarea placeholder="Instructions pour l'agent (quand, comment, contexte : projet, CDC, facture, commande...)" rows={3}
                 value={editForm.instructions} onChange={e => setEditForm({...editForm, instructions: e.target.value})} />
+
+              {/* Variable suggestions for instructions (shared across all modes) */}
+              {((genRules?.contexte?.documents?.length ?? 0) > 0) && (
+                <div className="flex flex-wrap items-center gap-1 mt-1">
+                  <span className="text-[10px] text-amber-600 font-medium shrink-0">💡 Insérer :</span>
+                  {genRules!.contexte!.documents!.flatMap(doc => DOC_VARIABLES[doc] || []).map(v => (
+                    <Badge key={v} variant="outline"
+                      className="text-[10px] cursor-pointer hover:bg-amber-100 border-amber-300 bg-amber-50/50 font-mono"
+                      onClick={() => {
+                        const ta = document.querySelector('textarea[placeholder*="Instructions pour l\'agent"]') as HTMLTextAreaElement;
+                        if (ta) {
+                          const start = ta.selectionStart ?? ta.value.length;
+                          ta.value = ta.value.slice(0, start) + v + ta.value.slice(ta.selectionEnd ?? start);
+                          ta.focus();
+                          setEditForm({...editForm, instructions: ta.value});
+                        }
+                      }}>{v}</Badge>
+                  ))}
+                </div>
+              )}
 
               <div className="border rounded-md p-3 bg-gray-50/50">
                 <p className="text-xs font-medium text-muted-foreground mb-2">🔗 Dépendance (optionnel)</p>
