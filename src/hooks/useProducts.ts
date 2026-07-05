@@ -145,6 +145,14 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
       // Convert to Supabase format
       const supabaseProductData = convertProductToSupabase(productData);
       
+      console.log('[useProducts] createProduct — supabase payload:', {
+        name: supabaseProductData.name,
+        variantsType: typeof supabaseProductData.variants,
+        variantsIsArray: Array.isArray(supabaseProductData.variants),
+        variantsLength: Array.isArray(supabaseProductData.variants) ? supabaseProductData.variants.length : 'N/A',
+        variantsSample: JSON.stringify(Array.isArray(supabaseProductData.variants) ? supabaseProductData.variants.slice(0, 2) : 'N/A'),
+      });
+      
       const { data, error } = await supabase
         .from('products')
         .insert([supabaseProductData])

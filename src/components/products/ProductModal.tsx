@@ -72,6 +72,13 @@ const ProductModal: React.FC<ProductModalProps> = ({
 
   // Handle form field changes
   const handleFieldChange = (field: string, value: any) => {
+    if (field === 'variants') {
+      console.log('[ProductModal] handleFieldChange variants:', {
+        isArray: Array.isArray(value),
+        length: Array.isArray(value) ? value.length : 'N/A',
+        sample: JSON.stringify(Array.isArray(value) ? value.slice(0, 2) : value),
+      });
+    }
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -86,6 +93,14 @@ const ProductModal: React.FC<ProductModalProps> = ({
       });
       return;
     }
+
+    console.log('[ProductModal] handleSubmit — formData:', {
+      name: formData.name,
+      variantsCount: formData.variants?.length,
+      variants: JSON.stringify(formData.variants?.slice(0, 2)),
+      mode,
+      viewMode,
+    });
 
     try {
       setIsSubmitting(true);
