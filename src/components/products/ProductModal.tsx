@@ -20,6 +20,7 @@ interface ProductModalProps {
   onSave: (productData: ProductFormData) => Promise<void>;
   product?: Product | null;
   mode: 'create' | 'edit' | 'view';
+  viewMode: 'catalog' | 'fabrication';
 }
 
 const ProductModal: React.FC<ProductModalProps> = ({
@@ -28,6 +29,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
   onSave,
   product = null,
   mode,
+  viewMode,
 }) => {
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
@@ -36,6 +38,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
     gallery_images: [],
     variants: [],
     manufacturing_rules: { description_complete: '', exemples: '' },
+    billing_rules: { description_complete: '', exemples: '' },
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,6 +54,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
         gallery_images: product.gallery_images || [],
         variants: product.variants || [],
         manufacturing_rules: product.manufacturing_rules || { description_complete: '', exemples: '' },
+        billing_rules: product.billing_rules || { description_complete: '', exemples: '' },
       });
     } else {
       // Reset form if no product is provided
@@ -61,6 +65,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
         gallery_images: [],
         variants: [],
         manufacturing_rules: { description_complete: '', exemples: '' },
+        billing_rules: { description_complete: '', exemples: '' },
       });
     }
   }, [product, isOpen]);
@@ -101,12 +106,16 @@ const ProductModal: React.FC<ProductModalProps> = ({
   // Determine if form is editable
   const isEditable = mode === 'create' || mode === 'edit';
 
-  // Determine modal title
-  const modalTitle = {
-    'create': 'Créer un produit',
-    'edit': 'Modifier le produit',
-    'view': 'Détails du produit',
-  }[mode];
+  // Determine modal title based on mode and view context
+  const modalTitle = (() => {
+    const prefix = viewMode === 'catalog' ? '🛍️ ' : '🔧 ';
+    const titles = {
+      'create': `Nouveau produit`,
+      'edit': viewMode === 'catalog' ? 'Modifier le produit' : 'Modifier les règles',
+      'view': viewMode === 'catalog' ? 'Détails du produit' : 'Règles de fabrication',
+    };
+    return prefix + titles[mode];
+  })();
   
   // Icon corresponding to mode
   const ModeIcon = mode === 'view' ? Eye : FileEdit;
@@ -140,7 +149,8 @@ const ProductModal: React.FC<ProductModalProps> = ({
               product={formData}
               onChange={handleFieldChange}
               isEditable={isEditable}
-              variants={formData.variants} // Pass variants explicitly
+              variants={formData.variants}
+              viewMode={viewMode}
             />
           </div>
 

@@ -7,17 +7,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ImageGallery from './ImageGallery';
 import VariantEditor from './VariantEditor';
 import ManufacturingRules from './ManufacturingRules';
-import { Product, ProductVariant, FabricationRules } from '@/types/product';
+import BillingRules from './BillingRules';
+import { Product, ProductVariant, FabricationRules, BillingRules as BillingRulesType } from '@/types/product';
 import { motion } from 'framer-motion';
-import { Info, List, Settings } from 'lucide-react';
+import { Info, List, Settings, Receipt } from 'lucide-react';
 
 const EMPTY_FABRICATION_RULES: FabricationRules = { description_complete: '', exemples: '' };
+const EMPTY_BILLING_RULES: BillingRulesType = { description_complete: '', exemples: '' };
 
 interface ProductFormProps {
   product: Partial<Product>;
   onChange: (field: string, value: any) => void;
   isEditable?: boolean;
   variants?: ProductVariant[];
+  viewMode?: 'catalog' | 'fabrication';
 }
 
 const ProductForm: React.FC<ProductFormProps> = ({
@@ -25,8 +28,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
   onChange,
   isEditable = true,
   variants,
+  viewMode = 'catalog',
 }) => {
-  const [activeTab, setActiveTab] = useState("info");
+  const [activeTab, setActiveTab] = useState(viewMode === 'fabrication' ? "rules" : "info");
 
   const handleMainImageChange = (url: string) => {
     onChange('main_image_url', url);
@@ -51,6 +55,10 @@ const ProductForm: React.FC<ProductFormProps> = ({
     onChange('manufacturing_rules', rules);
   };
 
+  const handleBillingRulesChange = (rules: BillingRulesType) => {
+    onChange('billing_rules', rules);
+  };
+
   const tabContentAnimation = {
     hidden: { opacity: 0, x: -20 },
     visible: { opacity: 1, x: 0, transition: { duration: 0.3 } }
@@ -59,7 +67,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-3 mb-6 w-full">
+        <TabsList className="grid grid-cols-4 mb-6 w-full">
           <TabsTrigger value="info" className="flex items-center gap-2">
             <Info className="h-4 w-4" />
             <span className="hidden sm:inline">Informations</span>
@@ -72,7 +80,12 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
           <TabsTrigger value="rules" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">Règles de fabrication</span>
+            <span className="hidden sm:inline">Règles</span>
+          </TabsTrigger>
+
+          <TabsTrigger value="billing" className="flex items-center gap-2">
+            <Receipt className="h-4 w-4" />
+            <span className="hidden sm:inline">Facturation</span>
           </TabsTrigger>
         </TabsList>
 
@@ -150,6 +163,21 @@ const ProductForm: React.FC<ProductFormProps> = ({
             <ManufacturingRules
               rules={product.manufacturing_rules || EMPTY_FABRICATION_RULES}
               onChange={handleRulesChange}
+              isEditable={isEditable}
+            />
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="billing">
+          <motion.div 
+            initial="hidden"
+            animate="visible"
+            variants={tabContentAnimation}
+            className="bg-white rounded-lg p-4 shadow-sm"
+          >
+            <BillingRules
+              rules={product.billing_rules || EMPTY_BILLING_RULES}
+              onChange={handleBillingRulesChange}
               isEditable={isEditable}
             />
           </motion.div>

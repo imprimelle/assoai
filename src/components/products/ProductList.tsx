@@ -26,6 +26,8 @@ interface ProductListProps {
   setSearchTerm: (term: string) => void;
   userFilter: string;
   setUserFilter: (filter: string) => void;
+  viewMode: 'catalog' | 'fabrication';
+  setViewMode: (mode: 'catalog' | 'fabrication') => void;
 }
 
 const ProductList: React.FC<ProductListProps> = ({
@@ -39,10 +41,9 @@ const ProductList: React.FC<ProductListProps> = ({
   setSearchTerm,
   userFilter,
   setUserFilter,
+  viewMode,
+  setViewMode,
 }) => {
-  const [viewMode, setViewMode] = useState<'catalog' | 'fabrication'>(
-    'catalog'
-  );
   const [showFilters, setShowFilters] = useState(false);
 
   // Pagination

@@ -24,6 +24,12 @@ export interface FabricationRules {
   exemples: string;
 }
 
+/** Règles de facturation — structure miroir de FabricationRules */
+export interface BillingRules {
+  description_complete: string;  // Formule de prix, calculs, règles de marge
+  exemples: string;              // Exemples de factures pour scénarios types
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -33,6 +39,8 @@ export interface Product {
   variants: ProductVariant[];
   /** Nouveau format : { description_complete, exemples } */
   manufacturing_rules: FabricationRules;
+  /** Règles de facturation : formules de prix, marges, exemples */
+  billing_rules: BillingRules;
   created_at: string;
   updated_at: string;
   created_by?: string;
@@ -46,6 +54,7 @@ export interface ProductFormData {
   gallery_images: string[];
   variants: ProductVariant[];
   manufacturing_rules: FabricationRules;
+  billing_rules: BillingRules;
 }
 
 // For client suggestions

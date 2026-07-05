@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Product, ProductVariant, FabricationRules } from '@/types/product';
+import { Product, ProductVariant, FabricationRules, BillingRules } from '@/types/product';
 import { Json } from '@/integrations/supabase/types';
 import { appLogger } from '@/utils/logger';
 
@@ -28,6 +28,17 @@ const convertJsonToFabricationRules = (jsonData: any): FabricationRules => {
   };
 };
 
+// Helper to convert JSON to BillingRules
+const convertJsonToBillingRules = (jsonData: any): BillingRules => {
+  if (!jsonData || typeof jsonData !== 'object') {
+    return { description_complete: '', exemples: '' };
+  }
+  return {
+    description_complete: typeof jsonData.description_complete === 'string' ? jsonData.description_complete : '',
+    exemples: typeof jsonData.exemples === 'string' ? jsonData.exemples : '',
+  };
+};
+
 // Helper to convert Product to Supabase format
 const convertProductToSupabase = (product: Omit<Product, 'id' | 'created_at' | 'updated_at'>) => {
   return {
@@ -37,6 +48,8 @@ const convertProductToSupabase = (product: Omit<Product, 'id' | 'created_at' | '
     gallery_images: product.gallery_images as unknown as Json,
     variants: product.variants as unknown as Json,
     manufacturing_rules: product.manufacturing_rules as unknown as Json,
+    // TODO: Réactiver après migration 005_billing_rules.sql
+    // billing_rules: product.billing_rules as unknown as Json,
     created_by: product.created_by,
     session_id: product.session_id
   };
@@ -90,6 +103,9 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
         
         // Convert manufacturing_rules
         const fabricationRules = convertJsonToFabricationRules(item.manufacturing_rules);
+
+        // Convert billing_rules
+        const billingRules = convertJsonToBillingRules(item.billing_rules);
         
         // Build the product with correct types
         return {
@@ -100,6 +116,7 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
           gallery_images: galleryImages,
           variants,
           manufacturing_rules: fabricationRules,
+          billing_rules: billingRules,
           created_at: item.created_at,
           updated_at: item.updated_at,
           created_by: item.created_by || undefined,
@@ -162,6 +179,9 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
           manufacturing_rules: newProduct.manufacturing_rules 
             ? convertJsonToFabricationRules(newProduct.manufacturing_rules)
             : { description_complete: '', exemples: '' },
+          billing_rules: newProduct.billing_rules
+            ? convertJsonToBillingRules(newProduct.billing_rules)
+            : { description_complete: '', exemples: '' },
           created_at: newProduct.created_at,
           updated_at: newProduct.updated_at,
           created_by: newProduct.created_by || undefined,
@@ -193,6 +213,8 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
       if (productData.gallery_images !== undefined) supabaseProductData.gallery_images = productData.gallery_images as unknown as Json;
       if (productData.variants !== undefined) supabaseProductData.variants = productData.variants as unknown as Json;
       if (productData.manufacturing_rules !== undefined) supabaseProductData.manufacturing_rules = productData.manufacturing_rules as unknown as Json;
+      // TODO: Réactiver après migration 005_billing_rules.sql
+      // if (productData.billing_rules !== undefined) supabaseProductData.billing_rules = productData.billing_rules as unknown as Json;
       
       const { error } = await supabase
         .from('products')

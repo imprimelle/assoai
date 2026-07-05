@@ -20,6 +20,7 @@ const ProductCatalog = () => {
   // États pour gérer les filtres (local)
   const [localSearchTerm, setLocalSearchTerm] = useState('');
   const [userFilter, setUserFilter] = useState('ALL');
+  const [viewMode, setViewMode] = useState<'catalog' | 'fabrication'>('catalog');
   
   // Debounce le terme de recherche pour éviter les requêtes à chaque frappe
   const debouncedSearchTerm = useDebounce(localSearchTerm, 500);
@@ -155,15 +156,19 @@ const ProductCatalog = () => {
         setSearchTerm={setLocalSearchTerm}
         userFilter={userFilter}
         setUserFilter={setUserFilter}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
       />
       
       {/* Modal pour créer/éditer/voir un produit */}
       <ProductModal
+        key={`${modalMode}-${selectedProduct?.id || 'new'}`}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onSave={handleSaveProduct}
         product={selectedProduct}
         mode={modalMode}
+        viewMode={viewMode}
       />
       
       {/* Dialog de confirmation de suppression */}
