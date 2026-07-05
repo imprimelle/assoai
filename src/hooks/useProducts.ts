@@ -48,8 +48,7 @@ const convertProductToSupabase = (product: Omit<Product, 'id' | 'created_at' | '
     gallery_images: product.gallery_images as unknown as Json,
     variants: product.variants as unknown as Json,
     manufacturing_rules: product.manufacturing_rules as unknown as Json,
-    // TODO: Réactiver après migration 005_billing_rules.sql
-    // billing_rules: product.billing_rules as unknown as Json,
+    billing_rules: product.billing_rules as unknown as Json,
     created_by: product.created_by,
     session_id: product.session_id
   };
@@ -213,8 +212,7 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
       if (productData.gallery_images !== undefined) supabaseProductData.gallery_images = productData.gallery_images as unknown as Json;
       if (productData.variants !== undefined) supabaseProductData.variants = productData.variants as unknown as Json;
       if (productData.manufacturing_rules !== undefined) supabaseProductData.manufacturing_rules = productData.manufacturing_rules as unknown as Json;
-      // TODO: Réactiver après migration 005_billing_rules.sql
-      // if (productData.billing_rules !== undefined) supabaseProductData.billing_rules = productData.billing_rules as unknown as Json;
+      if (productData.billing_rules !== undefined) supabaseProductData.billing_rules = productData.billing_rules as unknown as Json;
       
       const { error } = await supabase
         .from('products')
