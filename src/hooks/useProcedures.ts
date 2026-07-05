@@ -47,7 +47,7 @@ export interface Procedure {
 
 export interface ProcedureFormData {
   phase: string;
-  order?: number;
+  order: number;
   task_title: string;
   task_assignee: string;
   task_priority?: string;
@@ -84,7 +84,7 @@ export const useProcedures = (phase?: string) => {
         .from('procedures')
         .insert({
           phase: form.phase,
-          order: form.order || 0,
+          order: form.order,
           task_title: form.task_title,
           task_assignee: form.task_assignee,
           task_priority: form.task_priority || 'medium',
@@ -139,8 +139,23 @@ export const useProcedures = (phase?: string) => {
       if (error) throw new Error(error.message);
       return id;
     },
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['procedures'] });
+      // Renumber remaining procedures to close the gap
+      const currentProcs = (procedures || []).filter(p => p.id !== id);
+      if (currentProcs.length > 0) {
+        const phase = currentProcs[0].phase;
+        const phaseProcs = currentProcs
+          .filter(p => p.phase === phase)
+          .sort((a, b) => a.order - b.order);
+        phaseProcs.forEach((p, idx) => {
+          if (p.order !== idx) {
+            supabase.from('procedures').update({ order: idx }).eq('id', p.id).then(() => {
+              queryClient.invalidateQueries({ queryKey: ['procedures'] });
+            });
+          }
+        });
+      }
       toast({ title: 'Procédure supprimée' });
     },
     onError: (error: Error) => {
@@ -148,5 +163,21 @@ export const useProcedures = (phase?: string) => {
     },
   });
 
-  return { procedures, isLoading, error, createProcedure, updateProcedure, deleteProcedure };
+  const reorderProcedures = useMutation({
+    mutationFn: async (orderedIds: string[]) => {
+      const updates = orderedIds.map((id, idx) =>
+        supabase.from('procedures').update({ order: idx }).eq('id', id)
+      );
+      await Promise.all(updates);
+      return orderedIds;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['procedures'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erreur réordonnancement', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  return { procedures, isLoading, error, createProcedure, updateProcedure, deleteProcedure, reorderProcedures };
 };

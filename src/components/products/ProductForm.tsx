@@ -108,19 +108,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               />
             </div>
 
-            <div>
-              <Label htmlFor="exemple" className="text-base font-medium">Exemple de cahier des charges</Label>
-              <Textarea
-                id="exemple"
-                value={(product as any).exemple || ''}
-                onChange={(e) => onChange('exemple', e.target.value)}
-                placeholder="Collez ici un exemple complet de cahier des charges pour ce type d'enseigne..."
-                rows={6}
-                disabled={!isEditable}
-                className="mt-1 resize-none rounded-lg font-mono text-sm"
-              />
-              <p className="text-xs text-gray-400 mt-1">Utilisé par Brico comme référence. Modifiable librement.</p>
-            </div>
+
 
             <div className="pt-4">
               <h3 className="text-lg font-medium mb-4">Images du produit</h3>
@@ -131,6 +119,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 onAddGalleryImage={handleAddGalleryImage}
                 onRemoveGalleryImage={handleRemoveGalleryImage}
                 isEditable={isEditable}
+                variants={product.variants || []}
               />
             </div>
           </motion.div>

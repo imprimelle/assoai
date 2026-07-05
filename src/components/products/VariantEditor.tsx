@@ -6,7 +6,6 @@ import { X, Plus } from 'lucide-react';
 import { ProductVariant } from '@/types/product';
 import { v4 as uuidv4 } from 'uuid';
 import ImageUpload from '@/components/templates/shared/ImageUpload';
-import { Textarea } from "@/components/ui/textarea";
 
 interface VariantEditorProps {
   variants: ProductVariant[];
@@ -77,12 +76,11 @@ const VariantEditor: React.FC<VariantEditorProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-grow">
                 <div>
                    <Label className="text-xs font-medium">Nom</Label>
-                   <Textarea
+                   <Input
                       value={variant.name}
                       onChange={e => updateVariant(variant.id, 'name', e.target.value)}
                       disabled={!isEditable}
-                      className="h-20 resize-none"
-                      rows={2}
+                      className="h-10"
                    />
                 </div>
                 <div>
@@ -138,8 +136,8 @@ const VariantEditor: React.FC<VariantEditorProps> = ({
               type="number"
               placeholder="Prix"
               value={newVariant.price?.toString() || ''}
-              onChange={e => setNewVariant({ ...newVariant, price: parseFloat(e.target.value) })}
-              className="h-10"
+              onChange={e => setNewVariant({ ...newVariant, price: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+                    className="h-10"
             />
           </div>
           <div>

@@ -31,18 +31,9 @@ const ProductCard: React.FC<ProductCardProps> = ({
     ? `${formatCFA(lowestPrice)}${product.variants.length > 1 ? ' et plus' : ''}`
     : 'Prix non disponible';
 
-  // Deletion confirmation
-  const [confirmDelete, setConfirmDelete] = React.useState(false);
-
+  // Deletion — single click, confirmation handled by parent AlertDialog
   const handleDeleteClick = () => {
-    if (confirmDelete) {
-      onDelete(product.id);
-      setConfirmDelete(false);
-    } else {
-      setConfirmDelete(true);
-      // Reset after 3 seconds
-      setTimeout(() => setConfirmDelete(false), 3000);
-    }
+    onDelete(product.id);
   };
 
   // List view display - optimized for compact display
@@ -97,10 +88,10 @@ const ProductCard: React.FC<ProductCardProps> = ({
               </Button>
               
               <Button
-                variant={confirmDelete ? "destructive" : "ghost"}
+                variant="ghost"
                 size="icon"
                 onClick={handleDeleteClick}
-                className={`h-7 w-7 ${confirmDelete ? "animate-pulse" : "hover:bg-red-50 hover:text-red-500"}`}
+                className="h-7 w-7 hover:bg-red-50 hover:text-red-500"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -165,10 +156,10 @@ const ProductCard: React.FC<ProductCardProps> = ({
           </Button>
           
           <Button
-            variant={confirmDelete ? "destructive" : "ghost"}
+            variant="ghost"
             size="icon"
             onClick={handleDeleteClick}
-            className={`h-8 w-8 ${confirmDelete ? "animate-pulse" : "hover:bg-red-50 hover:text-red-500"}`}
+            className="h-8 w-8 hover:bg-red-50 hover:text-red-500"
           >
             <Trash2 className="h-4 w-4" />
           </Button>

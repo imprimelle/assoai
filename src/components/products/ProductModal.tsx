@@ -60,7 +60,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
         main_image_url: null,
         gallery_images: [],
         variants: [],
-        manufacturing_rules: [],
+        manufacturing_rules: { description_complete: '', exemples: '' },
       });
     }
   }, [product, isOpen]);
@@ -85,7 +85,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
     try {
       setIsSubmitting(true);
       await onSave(formData);
-      onClose();
+      // onClose() est déjà appelé par handleSaveProduct dans ProductCatalog
     } catch (error) {
       console.error("Error saving product:", error);
       toast({

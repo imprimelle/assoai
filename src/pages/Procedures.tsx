@@ -69,6 +69,7 @@ const DOC_VARIABLES: Record<string, string[]> = {
 interface EditForm {
   id?: string;
   phase: string;
+  order: number;
   task_title: string;
   task_assignee: string;
   task_priority: string;
@@ -93,6 +94,7 @@ const emptyRules = (mode: GenerationRules['mode'] = 'statique'): GenerationRules
 
 const emptyForm: EditForm = {
   phase: 'facturation',
+  order: -1, // will be auto-assigned on create
   task_title: '',
   task_assignee: 'chef_technique',
   task_priority: 'medium',
@@ -110,7 +112,7 @@ const emptyForm: EditForm = {
 
 const Procedures: React.FC = () => {
   const [activePhase, setActivePhase] = useState('facturation');
-  const { procedures, isLoading, createProcedure, updateProcedure, deleteProcedure } = useProcedures();
+  const { procedures, isLoading, createProcedure, updateProcedure, deleteProcedure, reorderProcedures } = useProcedures();
   const { rules: phaseRules, updateRule } = usePhaseRules(activePhase);
   const [editForm, setEditForm] = useState<EditForm>(emptyForm);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -147,8 +149,17 @@ const Procedures: React.FC = () => {
           .map(text => ({ text: text.trim() }))
       : [];
 
+    // Auto-assign next order on create; preserve on edit
+    let order = editForm.order;
+    if (!editingId || editForm.order < 0) {
+      const phaseProcs = (procedures || []).filter(p => p.phase === editForm.phase);
+      const maxOrder = phaseProcs.reduce((max, p) => Math.max(max, p.order ?? 0), -1);
+      order = maxOrder + 1;
+    }
+
     const data = {
       phase: editForm.phase,
+      order,
       task_title: editForm.task_title,
       task_assignee: editForm.task_assignee,
       task_priority: editForm.task_priority,
@@ -178,6 +189,7 @@ const Procedures: React.FC = () => {
     setEditForm({
       id: p.id,
       phase: p.phase,
+      order: p.order ?? 0,
       task_title: p.task_title,
       task_assignee: p.task_assignee,
       task_priority: p.task_priority,
@@ -856,6 +868,7 @@ const Procedures: React.FC = () => {
             setDialogOpen(true);
           }}
           onViewDetails={renderProcedureDetail}
+          onReorder={(orderedIds: string[]) => reorderProcedures.mutate(orderedIds)}
         />
       ) : (
         <div className="space-y-3">

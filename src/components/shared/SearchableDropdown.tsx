@@ -68,6 +68,8 @@ export interface SearchableDropdownProps<T extends DropdownItem> {
   triggerPlaceholder?: string;
   disabled?: boolean;
   className?: string;
+  /** Fonction de filtrage personnalisée — remplace le filtrage natif label/subtitle */
+  filterFn?: (items: T[], query: string) => T[];
 }
 
 // ──────────────────────────────────────────────
@@ -89,6 +91,7 @@ export function SearchableDropdown<T extends DropdownItem>({
   className,
   /** Appelé quand le dropdown s'ouvre (pour lazy-load) */
   onOpen,
+  filterFn,
 }: SearchableDropdownProps<T>) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -144,13 +147,14 @@ export function SearchableDropdown<T extends DropdownItem>({
   // ── Filtrage ──
   const filtered = useMemo(() => {
     if (!debouncedSearch.trim()) return items;
+    if (filterFn) return filterFn(items, debouncedSearch);
     const q = debouncedSearch.toLowerCase();
     return items.filter(
       (item) =>
         item.label.toLowerCase().includes(q) ||
         (item.subtitle || "").toLowerCase().includes(q)
     );
-  }, [items, debouncedSearch]);
+  }, [items, debouncedSearch, filterFn]);
 
   // Reset activeIndex quand la liste filtrée change
   useEffect(() => {

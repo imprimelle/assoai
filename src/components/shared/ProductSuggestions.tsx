@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useCallback } from "react";
 import { Package, Tag } from "lucide-react";
 import { Product, ProductVariant } from "@/types/product";
 import { useProducts } from "@/hooks/useProducts";
@@ -82,12 +82,53 @@ const ProductSuggestions: React.FC<ProductSuggestionsProps> = ({
       }
     }
 
-    // Si des produits ont été scorés par smartSearch (quand l'utilisateur tape),
-    // le filtre est fait par SearchableDropdown via le champ label/subtitle.
-    // smartSearch n'est plus utilisé ici — le filtrage est natif dans le dropdown.
-
     return items;
   }, [products]);
+
+  // Filtrage intelligent via smartSearch
+  const filterFn = useCallback(
+    (items: ProductDropdownItem[], query: string): ProductDropdownItem[] => {
+      const scored = smartSearch(query, products);
+
+      // Construire un map productId → score pour le tri
+      const productScoreMap = new Map<string, number>();
+      const matchedVariantIds = new Set<string>();
+
+      for (const s of scored) {
+        productScoreMap.set(s.product.id, s.score);
+        for (const v of s.allMatchedVariants) {
+          matchedVariantIds.add(v.id);
+        }
+      }
+
+      // Filtrer et scorer les items
+      const result = items
+        .filter((item) => {
+          if (item.isVariant) return matchedVariantIds.has(item.id);
+          return productScoreMap.has(item.id);
+        })
+        .map((item) => {
+          if (item.isVariant) {
+            // Trouver le score le plus élevé parmi les matchedVariants
+            let bestScore = 0;
+            for (const s of scored) {
+              for (const v of s.allMatchedVariants) {
+                if (v.id === item.id) {
+                  bestScore = Math.max(bestScore, s.score);
+                }
+              }
+            }
+            return { item, score: bestScore };
+          }
+          return { item, score: productScoreMap.get(item.id) || 0 };
+        })
+        .sort((a, b) => b.score - a.score)
+        .map((x) => x.item);
+
+      return result;
+    },
+    [products]
+  );
 
   const handleSelect = (item: ProductDropdownItem) => {
     onSelectProduct({
@@ -114,6 +155,7 @@ const ProductSuggestions: React.FC<ProductSuggestionsProps> = ({
       triggerPlaceholder={placeholder}
       disabled={disabled}
       className={className}
+      filterFn={filterFn as any}
     />
   );
 };

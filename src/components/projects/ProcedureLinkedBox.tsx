@@ -21,6 +21,7 @@ interface ProcedureLinkedBoxProps {
   onUnlink: (sourceId: string) => void;
   onCreate: () => void;
   onViewDetails: (p: Procedure) => React.ReactNode;
+  onReorder?: (orderedIds: string[]) => void;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -97,7 +98,7 @@ const GEN_MODE_SHORT: Record<string, string> = {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export const ProcedureLinkedBox: React.FC<ProcedureLinkedBoxProps> = ({
-  procedures, onEdit, onDelete, onLink, onUnlink, onCreate, onViewDetails,
+  procedures, onEdit, onDelete, onLink, onUnlink, onCreate, onViewDetails, onReorder,
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [positions, setPositions] = useState<Record<string, Position>>(() => loadPositions());
@@ -263,11 +264,63 @@ export const ProcedureLinkedBox: React.FC<ProcedureLinkedBoxProps> = ({
 
   const handleDragEnd = useCallback(() => {
     if (draggingRef.current) {
+      const draggedId = draggingRef.current;
       savePositions({ ...positions });
       draggingRef.current = null;
       setDragTick(n => n + 1);
+
+      // ── Detect vertical reorder within depth columns ──────────────────
+      if (onReorder && dragMoved.current) {
+        const depth = new Map<string, number>();
+        const getDepth = (p: Procedure, path: Set<string> = new Set()): number => {
+          if (depth.has(p.id)) return depth.get(p.id)!;
+          if (path.has(p.id)) return 0;
+          path.add(p.id);
+          const dep = procedures.find(x => x.id === p.depends_on_procedure_id);
+          const d = dep ? getDepth(dep, path) + 1 : 0;
+          depth.set(p.id, d);
+          return d;
+        };
+        procedures.forEach(p => getDepth(p));
+
+        const byDepth = new Map<number, Procedure[]>();
+        procedures.forEach(p => {
+          const d = depth.get(p.id) || 0;
+          if (!byDepth.has(d)) byDepth.set(d, []);
+          byDepth.get(d)!.push(p);
+        });
+
+        let reordered = false;
+        Array.from(byDepth.keys()).sort((a, b) => a - b).forEach(d => {
+          const col = byDepth.get(d)!;
+          const oldOrder = col.map(p => p.id);
+          const newOrder = [...col].sort((a, b) => {
+            const posA = positions[a.id] || { y: 0 };
+            const posB = positions[b.id] || { y: 0 };
+            return posA.y - posB.y;
+          }).map(p => p.id);
+
+          if (oldOrder.join(',') !== newOrder.join(',')) {
+            reordered = true;
+          }
+        });
+
+        if (reordered) {
+          // Collect all IDs across all depths in order
+          const allIds: string[] = [];
+          Array.from(byDepth.keys()).sort((a, b) => a - b).forEach(d => {
+            const col = byDepth.get(d)!;
+            [...col].sort((a, b) => {
+              const posA = positions[a.id] || { y: 0 };
+              const posB = positions[b.id] || { y: 0 };
+              return posA.y - posB.y;
+            }).forEach(p => allIds.push(p.id));
+          });
+          onReorder(allIds);
+        }
+      }
     }
-  }, [positions]);
+  }, [positions, procedures, onReorder]);
 
   dragEndRef.current = handleDragEnd;
 
