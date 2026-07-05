@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -41,13 +41,17 @@ const ProductModal: React.FC<ProductModalProps> = ({
     billing_rules: { description_complete: '', exemples: '' },
   });
   
+  // Ref to always have latest formData (avoids stale closures)
+  const formDataRef = useRef<ProductFormData>(formData);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   // Initialize form with product data when available
   useEffect(() => {
+    let next: ProductFormData;
     if (product) {
-      setFormData({
+      next = {
         name: product.name || '',
         description: product.description || '',
         main_image_url: product.main_image_url,
@@ -55,10 +59,9 @@ const ProductModal: React.FC<ProductModalProps> = ({
         variants: product.variants || [],
         manufacturing_rules: product.manufacturing_rules || { description_complete: '', exemples: '' },
         billing_rules: product.billing_rules || { description_complete: '', exemples: '' },
-      });
+      };
     } else {
-      // Reset form if no product is provided
-      setFormData({
+      next = {
         name: '',
         description: '',
         main_image_url: null,
@@ -66,11 +69,13 @@ const ProductModal: React.FC<ProductModalProps> = ({
         variants: [],
         manufacturing_rules: { description_complete: '', exemples: '' },
         billing_rules: { description_complete: '', exemples: '' },
-      });
+      };
     }
+    setFormData(next);
+    formDataRef.current = next;
   }, [product, isOpen]);
 
-  // Handle form field changes
+  // Handle form field changes — syncs state + ref
   const handleFieldChange = (field: string, value: any) => {
     if (field === 'variants') {
       console.log('[ProductModal] handleFieldChange variants:', {
@@ -79,13 +84,19 @@ const ProductModal: React.FC<ProductModalProps> = ({
         sample: JSON.stringify(Array.isArray(value) ? value.slice(0, 2) : value),
       });
     }
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [field]: value };
+      formDataRef.current = next; // keep ref in sync
+      return next;
+    });
   };
 
-  // Handle form submission
-  const handleSubmit = async () => {
+  // Handle form submission — reads from ref to avoid stale closures
+  const handleSubmit = useCallback(async () => {
+    const data = formDataRef.current;
+    
     // Basic validation
-    if (!formData.name.trim()) {
+    if (!data.name.trim()) {
       toast({
         title: "Champ requis",
         description: "Le nom du produit est obligatoire",
@@ -95,16 +106,16 @@ const ProductModal: React.FC<ProductModalProps> = ({
     }
 
     console.log('[ProductModal] handleSubmit — formData:', {
-      name: formData.name,
-      variantsCount: formData.variants?.length,
-      variants: JSON.stringify(formData.variants?.slice(0, 2)),
+      name: data.name,
+      variantsCount: data.variants?.length,
+      variants: JSON.stringify(data.variants?.slice(0, 2)),
       mode,
       viewMode,
     });
 
     try {
       setIsSubmitting(true);
-      await onSave(formData);
+      await onSave(data);
       // onClose() est déjà appelé par handleSaveProduct dans ProductCatalog
     } catch (error) {
       console.error("Error saving product:", error);
@@ -116,7 +127,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [onSave, mode, viewMode, toast]);
 
   // Determine if form is editable
   const isEditable = mode === 'create' || mode === 'edit';
