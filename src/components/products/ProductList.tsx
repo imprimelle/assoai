@@ -1,19 +1,18 @@
-
 import React, { useState } from 'react';
 import ProductCard from './ProductCard';
 import { Product } from '@/types/product';
 import { Button } from '@/components/ui/button';
-import { Plus, Filter, SlidersHorizontal, Grid, List } from 'lucide-react';
+import { Plus, Filter, ShoppingBag, Wrench } from 'lucide-react';
 import SearchInput from '@/components/SearchInput';
 import UserFilter from '@/components/UserFilter';
 import { usePagination } from '@/hooks/use-pagination';
-import { 
-  Pagination, 
-  PaginationContent, 
-  PaginationItem, 
-  PaginationLink, 
-  PaginationNext, 
-  PaginationPrevious 
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
 } from '@/components/ui/pagination';
 
 interface ProductListProps {
@@ -41,12 +40,13 @@ const ProductList: React.FC<ProductListProps> = ({
   userFilter,
   setUserFilter,
 }) => {
-  // États pour la mise en page et les filtres
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'catalog' | 'fabrication'>(
+    'catalog'
+  );
   const [showFilters, setShowFilters] = useState(false);
-  
+
   // Pagination
-  const { 
+  const {
     paginatedItems,
     currentPage,
     totalPages,
@@ -54,43 +54,50 @@ const ProductList: React.FC<ProductListProps> = ({
     canGoToNextPage,
     canGoToPreviousPage,
     goToNextPage,
-    goToPreviousPage
+    goToPreviousPage,
   } = usePagination({
     itemsPerPage: 8,
-    totalItems: products.length
+    totalItems: products.length,
   });
-  
-  // Liste de produits paginée
-  const displayedProducts = paginatedItems(products);
 
-  // Récupérer l'utilisateur courant du localStorage
-  const currentUser = React.useMemo(() => {
-    const storedUser = localStorage.getItem('currentUser');
-    return storedUser ? JSON.parse(storedUser) : { id: 'unknown', role: 'user' };
-  }, []);
+  const displayedProducts = paginatedItems(products);
 
   if (isLoading) {
     return (
-      <div className="py-12 flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-t-brand-orange border-opacity-50 rounded-full animate-spin"></div>
-        <p className="mt-4 text-gray-600">Chargement des produits...</p>
+      <div className="py-16 flex flex-col items-center justify-center">
+        <div className="w-10 h-10 border-[3px] border-t-brand-orange border-gray-200 rounded-full animate-spin" />
+        <p className="mt-4 text-sm text-gray-500">Chargement du catalogue...</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h2 className="text-2xl font-bold text-gray-800">Catalogue de produits</h2>
-        <Button onClick={onAddNew} className="flex items-center gap-2 bg-brand-orange hover:bg-orange-600">
+      {/* ─── HEADER ─── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">
+            Catalogue de produits
+          </h2>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {products.length} produit{products.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+
+        <Button
+          onClick={onAddNew}
+          className="flex items-center gap-2 bg-brand-orange hover:bg-orange-600 rounded-xl h-10 px-4 shadow-sm shadow-orange-200/50 transition-all hover:shadow-orange-300/60"
+        >
           <Plus className="h-4 w-4" />
-          <span>Nouveau produit</span>
+          <span className="font-medium">Nouveau produit</span>
         </Button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border p-4">
-        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-          <div className="w-full md:w-64 relative">
+      {/* ─── TOOLBAR ─── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          {/* Search */}
+          <div className="flex-1 min-w-0">
             <SearchInput
               value={searchTerm}
               onChange={setSearchTerm}
@@ -99,78 +106,86 @@ const ProductList: React.FC<ProductListProps> = ({
               className="w-full"
             />
           </div>
-          
-          <div className="flex items-center gap-2 ml-auto">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setShowFilters(!showFilters)} 
-              className="flex items-center gap-1"
+
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-1.5 rounded-xl h-9 border-gray-200"
             >
               <Filter className="h-4 w-4" />
-              <span className="hidden md:inline">Filtres</span>
+              <span className="hidden sm:inline text-sm">Filtres</span>
             </Button>
-            
-            <div className="flex border rounded-md overflow-hidden">
-              <Button 
-                variant={viewMode === 'grid' ? "default" : "ghost"}
-                size="sm" 
-                onClick={() => setViewMode('grid')} 
-                className="rounded-none border-0"
+
+            {/* Toggle Catalogue / Fabrication */}
+            <div className="flex rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
+              <button
+                onClick={() => setViewMode('catalog')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all ${
+                  viewMode === 'catalog'
+                    ? 'bg-white text-brand-orange shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
               >
-                <Grid className="h-4 w-4" />
-              </Button>
-              <Button 
-                variant={viewMode === 'list' ? "default" : "ghost"}
-                size="sm" 
-                onClick={() => setViewMode('list')} 
-                className="rounded-none border-0"
+                <ShoppingBag className="h-4 w-4" />
+                <span className="hidden sm:inline">Catalogue</span>
+              </button>
+              <button
+                onClick={() => setViewMode('fabrication')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all ${
+                  viewMode === 'fabrication'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
               >
-                <List className="h-4 w-4" />
-              </Button>
+                <Wrench className="h-4 w-4" />
+                <span className="hidden sm:inline">Fabrication</span>
+              </button>
             </div>
           </div>
         </div>
-        
+
         {/* Filtres additionnels */}
         {showFilters && (
-          <div className="mt-4 p-4 border rounded-md bg-gray-50 animate-fadeIn">
-            <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
-              <div className="w-full md:w-auto">
+          <div className="mt-3 p-4 rounded-xl border border-gray-100 bg-gray-50/50 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+              <div className="w-full sm:w-auto">
                 <UserFilter
-                  currentUser={currentUser}
+                  currentUser={
+                    JSON.parse(localStorage.getItem('currentUser') || '{}') || {
+                      id: 'unknown',
+                      role: 'user',
+                    }
+                  }
                   onSelect={setUserFilter}
                   selectedValue={userFilter}
                 />
               </div>
-              
-              {/* Autres filtres peuvent être ajoutés ici */}
             </div>
           </div>
         )}
       </div>
 
-      {/* Affichage des résultats avec compteur */}
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-500">
-          {products.length} produit{products.length !== 1 ? 's' : ''} trouvé{products.length !== 1 ? 's' : ''}
-        </p>
-      </div>
-
+      {/* ─── EMPTY STATE ─── */}
       {products.length === 0 ? (
-        <div className="py-16 text-center bg-white rounded-lg shadow-sm border">
-          <p className="text-gray-500 mb-4">Aucun produit trouvé.</p>
-          <Button onClick={onAddNew} variant="outline" className="mt-4">
+        <div className="py-20 text-center bg-white rounded-2xl shadow-sm border border-gray-100">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center">
+            <ShoppingBag className="h-8 w-8 text-gray-300" />
+          </div>
+          <p className="text-gray-500 font-medium mb-1">Aucun produit trouvé</p>
+          <p className="text-sm text-gray-400 mb-6">
+            Commencez par ajouter votre premier produit au catalogue.
+          </p>
+          <Button onClick={onAddNew} variant="outline" className="rounded-xl">
             Créer un produit
           </Button>
         </div>
       ) : (
         <>
-          {/* Grid ou Liste selon le mode d'affichage */}
-          <div className={viewMode === 'grid' 
-            ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" 
-            : "flex flex-col gap-4"
-          }>
+          {/* ─── GRID ─── */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {displayedProducts.map((product) => (
               <ProductCard
                 key={product.id}
@@ -182,18 +197,22 @@ const ProductList: React.FC<ProductListProps> = ({
               />
             ))}
           </div>
-          
-          {/* Pagination */}
+
+          {/* ─── PAGINATION ─── */}
           {totalPages > 1 && (
             <Pagination className="mt-8">
               <PaginationContent>
                 <PaginationItem>
-                  <PaginationPrevious 
+                  <PaginationPrevious
                     onClick={goToPreviousPage}
-                    className={!canGoToPreviousPage ? "pointer-events-none opacity-50" : ""}
+                    className={
+                      !canGoToPreviousPage
+                        ? 'pointer-events-none opacity-50'
+                        : ''
+                    }
                   />
                 </PaginationItem>
-                
+
                 {Array.from({ length: totalPages }).map((_, index) => (
                   <PaginationItem key={index}>
                     <PaginationLink
@@ -204,11 +223,13 @@ const ProductList: React.FC<ProductListProps> = ({
                     </PaginationLink>
                   </PaginationItem>
                 ))}
-                
+
                 <PaginationItem>
-                  <PaginationNext 
-                    onClick={goToNextPage} 
-                    className={!canGoToNextPage ? "pointer-events-none opacity-50" : ""}
+                  <PaginationNext
+                    onClick={goToNextPage}
+                    className={
+                      !canGoToNextPage ? 'pointer-events-none opacity-50' : ''
+                    }
                   />
                 </PaginationItem>
               </PaginationContent>
