@@ -144,8 +144,9 @@ const ProductCatalog = () => {
   };
 
   return (
-    <div className="container mx-auto py-8 px-4 bg-white rounded-lg shadow-sm">
-      <ProductList
+    <div className="min-h-screen bg-gradient-to-br from-orange-50/40 via-white to-amber-50/30">
+      <div className="container mx-auto py-8 px-4">
+        <ProductList
         products={products}
         isLoading={isLoading}
         onAddNew={handleAddNew}
@@ -188,6 +189,7 @@ const ProductCatalog = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 };

@@ -8,11 +8,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
-import { Save, X, FileEdit, Eye } from 'lucide-react';
+import { Save, X, FileEdit, Eye, ShoppingBag, Wrench } from 'lucide-react';
 import ProductForm from './ProductForm';
 import { Product, ProductFormData } from '@/types/product';
 import { useToast } from '@/hooks/use-toast';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -41,13 +41,10 @@ const ProductModal: React.FC<ProductModalProps> = ({
     billing_rules: { description_complete: '', exemples: '' },
   });
   
-  // Ref to always have latest formData (avoids stale closures)
   const formDataRef = useRef<ProductFormData>(formData);
-  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  // Initialize form with product data when available
   useEffect(() => {
     let next: ProductFormData;
     if (product) {
@@ -75,135 +72,130 @@ const ProductModal: React.FC<ProductModalProps> = ({
     formDataRef.current = next;
   }, [product, isOpen]);
 
-  // Handle form field changes — syncs state + ref
   const handleFieldChange = (field: string, value: any) => {
     if (field === 'variants') {
       console.log('[ProductModal] handleFieldChange variants:', {
         isArray: Array.isArray(value),
         length: Array.isArray(value) ? value.length : 'N/A',
-        sample: JSON.stringify(Array.isArray(value) ? value.slice(0, 2) : value),
       });
     }
     setFormData(prev => {
       const next = { ...prev, [field]: value };
-      formDataRef.current = next; // keep ref in sync
+      formDataRef.current = next;
       return next;
     });
   };
 
-  // Handle form submission — reads from ref to avoid stale closures
   const handleSubmit = useCallback(async () => {
     const data = formDataRef.current;
-    
-    // Basic validation
     if (!data.name.trim()) {
-      toast({
-        title: "Champ requis",
-        description: "Le nom du produit est obligatoire",
-        variant: "destructive",
-      });
+      toast({ title: "Champ requis", description: "Le nom du produit est obligatoire", variant: "destructive" });
       return;
     }
-
     console.log('[ProductModal] handleSubmit — formData:', {
-      name: data.name,
-      variantsCount: data.variants?.length,
-      variants: JSON.stringify(data.variants?.slice(0, 2)),
-      mode,
-      viewMode,
+      name: data.name, variantsCount: data.variants?.length, mode, viewMode,
     });
-
     try {
       setIsSubmitting(true);
       await onSave(data);
-      // onClose() est déjà appelé par handleSaveProduct dans ProductCatalog
     } catch (error) {
       console.error("Error saving product:", error);
-      toast({
-        title: "Erreur",
-        description: "Une erreur est survenue lors de l'enregistrement du produit",
-        variant: "destructive",
-      });
+      toast({ title: "Erreur", description: "Une erreur est survenue lors de l'enregistrement du produit", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
   }, [onSave, mode, viewMode, toast]);
 
-  // Determine if form is editable
   const isEditable = mode === 'create' || mode === 'edit';
 
-  // Determine modal title based on mode and view context
   const modalTitle = (() => {
-    const prefix = viewMode === 'catalog' ? '🛍️ ' : '🔧 ';
     const titles = {
-      'create': `Nouveau produit`,
+      'create': 'Nouveau produit',
       'edit': viewMode === 'catalog' ? 'Modifier le produit' : 'Modifier les règles',
       'view': viewMode === 'catalog' ? 'Détails du produit' : 'Règles de fabrication',
     };
-    return prefix + titles[mode];
+    return titles[mode];
   })();
   
-  // Icon corresponding to mode
+  const ViewIcon = viewMode === 'catalog' ? ShoppingBag : Wrench;
   const ModeIcon = mode === 'view' ? Eye : FileEdit;
-  
-  // Animation for dialog content
-  const contentAnimation = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
-    exit: { opacity: 0, y: 20, transition: { duration: 0.2 } }
-  };
+  const accentColor = viewMode === 'catalog' ? 'orange' : 'blue';
 
   return (
     <Dialog open={isOpen} onOpenChange={() => !isSubmitting && onClose()}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0 bg-white rounded-lg shadow-lg">
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          variants={contentAnimation}
-          className="flex flex-col h-full"
-        >
-          <DialogHeader className="sticky top-0 z-10 bg-white px-6 py-4 border-b border-gray-100 shadow-sm rounded-t-lg">
-            <div className="flex items-center">
-              <ModeIcon className="mr-2 h-4 w-4 text-brand-orange" />
-              <DialogTitle className="text-xl font-semibold text-gray-800">{modalTitle}</DialogTitle>
+      <DialogContent className="sm:max-w-4xl max-h-[92vh] overflow-hidden p-0 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border-0">
+        {/* Header */}
+        <div className={`sticky top-0 z-10 px-6 py-5 border-b ${
+          viewMode === 'catalog' 
+            ? 'bg-gradient-to-r from-orange-50/80 to-amber-50/80 border-orange-100'
+            : 'bg-gradient-to-r from-blue-50/80 to-indigo-50/80 border-blue-100'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`flex items-center justify-center w-10 h-10 rounded-2xl shadow-sm ${
+                viewMode === 'catalog' 
+                  ? 'bg-orange-100 text-orange-600'
+                  : 'bg-blue-100 text-blue-600'
+              }`}>
+                <ViewIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-bold text-gray-800">{modalTitle}</DialogTitle>
+                <p className="text-xs text-gray-400 font-medium mt-0.5">
+                  {mode === 'view' ? 'Lecture seule' : isEditable ? 'Édition' : ''}
+                </p>
+              </div>
             </div>
-          </DialogHeader>
-
-          <div className="flex-1 px-6 py-4 overflow-y-auto bg-white">
-            <ProductForm
-              product={formData}
-              onChange={handleFieldChange}
-              isEditable={isEditable}
-              variants={formData.variants}
-              viewMode={viewMode}
-            />
           </div>
+        </div>
 
-          <DialogFooter className="sticky bottom-0 z-10 bg-white px-6 py-4 border-t border-gray-100 flex items-center justify-between shadow-[0_-1px_2px_rgba(0,0,0,0.05)] rounded-b-lg">
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto bg-white/50">
+          <ProductForm
+            product={formData}
+            onChange={handleFieldChange}
+            isEditable={isEditable}
+            variants={formData.variants}
+            viewMode={viewMode}
+          />
+        </div>
+
+        {/* Footer */}
+        <div className={`sticky bottom-0 z-10 px-6 py-4 border-t flex items-center justify-between ${
+          viewMode === 'catalog' ? 'border-orange-100' : 'border-blue-100'
+        } bg-white/80 backdrop-blur-xl`}>
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="gap-2 rounded-2xl h-10 px-4 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+          >
+            <X className="h-4 w-4" />
+            Annuler
+          </Button>
+          
+          {isEditable && (
             <Button
-              variant="outline"
-              onClick={onClose}
+              variant="brand"
+              onClick={handleSubmit}
               disabled={isSubmitting}
-              className="gap-1 rounded-lg h-8 px-2.5"
+              className={`gap-2 rounded-2xl h-10 px-6 font-semibold shadow-lg transition-all duration-300 ${
+                isSubmitting ? 'opacity-70' : 'hover:scale-[1.02] hover:shadow-xl'
+              } ${
+                viewMode === 'catalog'
+                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-orange-200/40'
+                  : 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 shadow-blue-200/40'
+              }`}
             >
-              <X className="h-3.5 w-3.5" />
-              Annuler
+              {isSubmitting ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {isSubmitting ? 'Enregistrement...' : 'Enregistrer'}
             </Button>
-            
-            {isEditable && (
-              <Button
-                variant="brand"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="gap-1 rounded-lg h-8 px-2.5"
-              >
-                <Save className="h-3.5 w-3.5" />
-                Enregistrer
-              </Button>
-            )}
-          </DialogFooter>
-        </motion.div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -9,8 +9,8 @@ import VariantEditor from './VariantEditor';
 import ManufacturingRules from './ManufacturingRules';
 import BillingRules from './BillingRules';
 import { Product, ProductVariant, FabricationRules, BillingRules as BillingRulesType } from '@/types/product';
-import { motion } from 'framer-motion';
-import { Info, List, Settings, Receipt } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Info, List, Settings, Receipt, ShoppingBag, Wrench } from 'lucide-react';
 
 const EMPTY_FABRICATION_RULES: FabricationRules = { description_complete: '', exemples: '' };
 const EMPTY_BILLING_RULES: BillingRulesType = { description_complete: '', exemples: '' };
@@ -23,6 +23,22 @@ interface ProductFormProps {
   viewMode?: 'catalog' | 'fabrication';
 }
 
+const tabItem = (value: string, icon: React.ReactNode, label: string, active: boolean, accent: string) => (
+  <TabsTrigger
+    value={value}
+    className={`relative flex items-center gap-2 px-5 py-3 text-sm font-semibold rounded-none border-b-2 transition-all duration-300 ${
+      active
+        ? accent === 'orange'
+          ? 'border-orange-500 text-orange-600 bg-orange-50/30'
+          : 'border-blue-500 text-blue-600 bg-blue-50/30'
+        : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
+    }`}
+  >
+    {icon}
+    <span className="hidden sm:inline">{label}</span>
+  </TabsTrigger>
+);
+
 const ProductForm: React.FC<ProductFormProps> = ({
   product,
   onChange,
@@ -31,157 +47,98 @@ const ProductForm: React.FC<ProductFormProps> = ({
   viewMode = 'catalog',
 }) => {
   const [activeTab, setActiveTab] = useState(viewMode === 'fabrication' ? "rules" : "info");
+  const accent = viewMode === 'catalog' ? 'orange' : 'blue';
 
-  const handleMainImageChange = (url: string) => {
-    onChange('main_image_url', url);
-  };
-
-  const handleAddGalleryImage = (url: string) => {
-    const newGallery = [...(product.gallery_images || []), url];
-    onChange('gallery_images', newGallery);
-  };
-
+  const handleMainImageChange = (url: string) => onChange('main_image_url', url);
+  const handleAddGalleryImage = (url: string) => onChange('gallery_images', [...(product.gallery_images || []), url]);
   const handleRemoveGalleryImage = (index: number) => {
-    const newGallery = [...(product.gallery_images || [])];
-    newGallery.splice(index, 1);
-    onChange('gallery_images', newGallery);
+    const g = [...(product.gallery_images || [])]; g.splice(index, 1); onChange('gallery_images', g);
   };
+  const handleVariantsChange = (v: ProductVariant[]) => onChange('variants', v);
+  const handleRulesChange = (r: FabricationRules) => onChange('manufacturing_rules', r);
+  const handleBillingRulesChange = (r: BillingRulesType) => onChange('billing_rules', r);
 
-  const handleVariantsChange = (variants: ProductVariant[]) => {
-    onChange('variants', variants);
-  };
-
-  const handleRulesChange = (rules: FabricationRules) => {
-    onChange('manufacturing_rules', rules);
-  };
-
-  const handleBillingRulesChange = (rules: BillingRulesType) => {
-    onChange('billing_rules', rules);
-  };
-
-  const tabContentAnimation = {
-    hidden: { opacity: 0, x: -20 },
-    visible: { opacity: 1, x: 0, transition: { duration: 0.3 } }
+  const tabContentVariants = {
+    hidden: { opacity: 0, y: 8 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.25 } },
+    exit: { opacity: 0, y: -8, transition: { duration: 0.15 } },
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-4 mb-6 w-full">
-          <TabsTrigger value="info" className="flex items-center gap-2">
-            <Info className="h-4 w-4" />
-            <span className="hidden sm:inline">Informations</span>
-          </TabsTrigger>
-
-          <TabsTrigger value="variants" className="flex items-center gap-2">
-            <List className="h-4 w-4" />
-            <span className="hidden sm:inline">Variantes</span>
-          </TabsTrigger>
-
-          <TabsTrigger value="rules" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">Règles</span>
-          </TabsTrigger>
-
-          <TabsTrigger value="billing" className="flex items-center gap-2">
-            <Receipt className="h-4 w-4" />
-            <span className="hidden sm:inline">Facturation</span>
-          </TabsTrigger>
+        <TabsList className="flex w-full border-b border-gray-200 bg-transparent p-0 h-auto gap-0 rounded-none mb-6">
+          {tabItem("info", <Info className="h-4 w-4" />, "Informations", activeTab === "info", accent)}
+          {tabItem("variants", <List className="h-4 w-4" />, "Variantes", activeTab === "variants", accent)}
+          {tabItem("rules", <Settings className="h-4 w-4" />, "Règles", activeTab === "rules", accent)}
+          {tabItem("billing", <Receipt className="h-4 w-4" />, "Facturation", activeTab === "billing", accent)}
         </TabsList>
 
-        <TabsContent value="info" className="space-y-6">
-          <motion.div 
-            initial="hidden"
-            animate="visible"
-            variants={tabContentAnimation}
-            className="space-y-4 bg-white rounded-lg p-4 shadow-sm"
-          >
-            <div>
-              <Label htmlFor="name" className="text-base font-medium">Nom du produit</Label>
-              <Input
-                id="name"
-                value={product.name || ''}
-                onChange={(e) => onChange('name', e.target.value)}
-                placeholder="Nom du produit"
-                disabled={!isEditable}
-                className="mt-1 rounded-lg"
-              />
-            </div>
+        <AnimatePresence mode="wait">
+          {/* Info Tab */}
+          {activeTab === "info" && (
+            <motion.div key="info" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
+              <TabsContent value="info" forceMount className="space-y-6 mt-0">
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
+                  <div>
+                    <Label htmlFor="name" className="text-sm font-semibold text-gray-700">Nom du produit</Label>
+                    <Input id="name" value={product.name || ''} onChange={(e) => onChange('name', e.target.value)}
+                      placeholder="Ex: Caisson Lumineux rectangle" disabled={!isEditable}
+                      className="mt-1.5 rounded-xl h-11 border-gray-200 focus:border-orange-400 focus:ring-orange-100" />
+                  </div>
+                  <div>
+                    <Label htmlFor="description" className="text-sm font-semibold text-gray-700">Description</Label>
+                    <Textarea id="description" value={product.description || ''} onChange={(e) => onChange('description', e.target.value)}
+                      placeholder="Description détaillée..." rows={3} disabled={!isEditable}
+                      className="mt-1.5 resize-none rounded-xl border-gray-200 focus:border-orange-400" />
+                  </div>
+                  <div className="pt-3">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-4">Images du produit</h3>
+                    <ImageGallery mainImage={product.main_image_url || null} galleryImages={product.gallery_images || []}
+                      onMainImageChange={handleMainImageChange} onAddGalleryImage={handleAddGalleryImage}
+                      onRemoveGalleryImage={handleRemoveGalleryImage} isEditable={isEditable}
+                      variants={product.variants || []} />
+                  </div>
+                </div>
+              </TabsContent>
+            </motion.div>
+          )}
 
-            <div>
-              <Label htmlFor="description" className="text-base font-medium">Description</Label>
-              <Textarea
-                id="description"
-                value={product.description || ''}
-                onChange={(e) => onChange('description', e.target.value)}
-                placeholder="Description détaillée du produit"
-                rows={4}
-                disabled={!isEditable}
-                className="mt-1 resize-none rounded-lg"
-              />
-            </div>
+          {/* Variants Tab */}
+          {activeTab === "variants" && (
+            <motion.div key="variants" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
+              <TabsContent value="variants" forceMount className="mt-0">
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                  <VariantEditor variants={product.variants || []} onChange={handleVariantsChange} isEditable={isEditable} />
+                </div>
+              </TabsContent>
+            </motion.div>
+          )}
 
+          {/* Rules Tab */}
+          {activeTab === "rules" && (
+            <motion.div key="rules" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
+              <TabsContent value="rules" forceMount className="mt-0">
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                  <ManufacturingRules rules={product.manufacturing_rules || EMPTY_FABRICATION_RULES}
+                    onChange={handleRulesChange} isEditable={isEditable} />
+                </div>
+              </TabsContent>
+            </motion.div>
+          )}
 
-
-            <div className="pt-4">
-              <h3 className="text-lg font-medium mb-4">Images du produit</h3>
-              <ImageGallery
-                mainImage={product.main_image_url || null}
-                galleryImages={product.gallery_images || []}
-                onMainImageChange={handleMainImageChange}
-                onAddGalleryImage={handleAddGalleryImage}
-                onRemoveGalleryImage={handleRemoveGalleryImage}
-                isEditable={isEditable}
-                variants={product.variants || []}
-              />
-            </div>
-          </motion.div>
-        </TabsContent>
-
-        <TabsContent value="variants">
-          <motion.div 
-            initial="hidden"
-            animate="visible"
-            variants={tabContentAnimation}
-            className="bg-white rounded-lg p-4 shadow-sm"
-          >
-            <VariantEditor
-              variants={product.variants || []}
-              onChange={handleVariantsChange}
-              isEditable={isEditable}
-            />
-          </motion.div>
-        </TabsContent>
-
-        <TabsContent value="rules">
-          <motion.div 
-            initial="hidden"
-            animate="visible"
-            variants={tabContentAnimation}
-            className="bg-white rounded-lg p-4 shadow-sm"
-          >
-            <ManufacturingRules
-              rules={product.manufacturing_rules || EMPTY_FABRICATION_RULES}
-              onChange={handleRulesChange}
-              isEditable={isEditable}
-            />
-          </motion.div>
-        </TabsContent>
-
-        <TabsContent value="billing">
-          <motion.div 
-            initial="hidden"
-            animate="visible"
-            variants={tabContentAnimation}
-            className="bg-white rounded-lg p-4 shadow-sm"
-          >
-            <BillingRules
-              rules={product.billing_rules || EMPTY_BILLING_RULES}
-              onChange={handleBillingRulesChange}
-              isEditable={isEditable}
-            />
-          </motion.div>
-        </TabsContent>
+          {/* Billing Tab */}
+          {activeTab === "billing" && (
+            <motion.div key="billing" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
+              <TabsContent value="billing" forceMount className="mt-0">
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                  <BillingRules rules={product.billing_rules || EMPTY_BILLING_RULES}
+                    onChange={handleBillingRulesChange} isEditable={isEditable} />
+                </div>
+              </TabsContent>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Tabs>
     </div>
   );
