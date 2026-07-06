@@ -123,7 +123,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={() => !isSubmitting && onClose()}>
-      <DialogContent className="sm:max-w-4xl max-h-[92vh] overflow-hidden p-0 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border-0">
+      <DialogContent className="sm:max-w-4xl max-h-[92vh] flex flex-col p-0 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border-0">
         {/* Header */}
         <div className={`sticky top-0 z-10 px-6 py-5 border-b ${
           viewMode === 'catalog' 
