@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Product, ProductVariant, FabricationRules, BillingRules } from '@/types/product';
-import { Json } from '@/integrations/supabase/types';
 import { appLogger } from '@/utils/logger';
 
 // Helper functions to convert JSON data to typed objects
@@ -45,10 +44,10 @@ const convertProductToSupabase = (product: Omit<Product, 'id' | 'created_at' | '
     name: product.name,
     description: product.description,
     main_image_url: product.main_image_url,
-    gallery_images: product.gallery_images as unknown as Json,
-    variants: product.variants as unknown as Json,
-    manufacturing_rules: product.manufacturing_rules as unknown as Json,
-    billing_rules: product.billing_rules as unknown as Json,
+    gallery_images: product.gallery_images,
+    variants: product.variants,
+    manufacturing_rules: product.manufacturing_rules,
+    billing_rules: product.billing_rules,
     created_by: product.created_by,
     session_id: product.session_id
   };
@@ -231,24 +230,48 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
   // Function to update a product
   const updateProduct = async (id: string, productData: Partial<Product>) => {
     try {
-      // Convert to Supabase format
       const supabaseProductData: Record<string, any> = {};
       
       if (productData.name !== undefined) supabaseProductData.name = productData.name;
       if (productData.description !== undefined) supabaseProductData.description = productData.description;
       if (productData.main_image_url !== undefined) supabaseProductData.main_image_url = productData.main_image_url;
-      if (productData.gallery_images !== undefined) supabaseProductData.gallery_images = productData.gallery_images as unknown as Json;
-      if (productData.variants !== undefined) supabaseProductData.variants = productData.variants as unknown as Json;
-      if (productData.manufacturing_rules !== undefined) supabaseProductData.manufacturing_rules = productData.manufacturing_rules as unknown as Json;
-      if (productData.billing_rules !== undefined) supabaseProductData.billing_rules = productData.billing_rules as unknown as Json;
+      if (productData.gallery_images !== undefined) supabaseProductData.gallery_images = productData.gallery_images;
+      if (productData.variants !== undefined) supabaseProductData.variants = productData.variants;
+      if (productData.manufacturing_rules !== undefined) supabaseProductData.manufacturing_rules = productData.manufacturing_rules;
+      if (productData.billing_rules !== undefined) supabaseProductData.billing_rules = productData.billing_rules;
       
-      const { error } = await supabase
-        .from('products')
-        .update(supabaseProductData)
-        .eq('id', id);
-
-      if (error) throw error;
+      const SUPABASE_URL = 'https://yqioyfuxviiximembver.supabase.co';
+      const ANON_KEY = 'sb_publishable_KZfNfiGqqAu2sKShjOys9Q_QtJyCKF7';
+      const body = JSON.stringify(supabaseProductData);
       
+      console.log('[useProducts] updateProduct PATCH body:', {
+        id,
+        keys: Object.keys(supabaseProductData),
+        hasVariants: 'variants' in supabaseProductData,
+        variantsLen: supabaseProductData.variants?.length,
+        variantsSample: JSON.stringify(supabaseProductData.variants?.slice(0, 2)),
+        rawBody: body.substring(0, 400),
+      });
+      
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/products?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': ANON_KEY,
+          'Authorization': `Bearer ${ANON_KEY}`,
+          'Prefer': 'return=representation',
+        },
+        body,
+      });
+      
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('[useProducts] PATCH error:', response.status, errText);
+        throw new Error(`HTTP ${response.status}: ${errText}`);
+      }
+      
+      const resultData = await response.json();
+      console.log('[useProducts] PATCH response variants:', resultData?.[0]?.variants?.length);
       toast({
         title: "Produit mis à jour",
         description: "Les modifications ont été enregistrées avec succès.",
