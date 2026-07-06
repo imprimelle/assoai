@@ -153,12 +153,32 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
         variantsSample: JSON.stringify(Array.isArray(supabaseProductData.variants) ? supabaseProductData.variants.slice(0, 2) : 'N/A'),
       });
       
-      const { data, error } = await supabase
-        .from('products')
-        .insert([supabaseProductData])
-        .select();
-
-      if (error) throw error;
+      // Use direct fetch to PostgREST to log exact HTTP request
+      const SUPABASE_URL = 'https://yqioyfuxviiximembver.supabase.co';
+      const ANON_KEY = 'sb_publishable_KZfNfiGqqAu2sKShjOys9Q_QtJyCKF7';
+      const body = JSON.stringify(supabaseProductData);
+      
+      console.log('[useProducts] fetch POST body:', body.substring(0, 500));
+      
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/products`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': ANON_KEY,
+          'Authorization': `Bearer ${ANON_KEY}`,
+          'Prefer': 'return=representation',
+        },
+        body,
+      });
+      
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('[useProducts] HTTP error:', response.status, errText);
+        throw new Error(`HTTP ${response.status}: ${errText}`);
+      }
+      
+      const resultData = await response.json();
+      console.log('[useProducts] response:', JSON.stringify(resultData).substring(0, 300));
       
       toast({
         title: "Produit créé avec succès",
@@ -170,8 +190,8 @@ export function useProducts(searchTerm: string = '', sessionFilter: string = 'AL
       fetchProducts();
       
       // Convert returned data to Product type
-      if (data && data[0]) {
-        const newProduct = data[0];
+      if (resultData && resultData[0]) {
+        const newProduct = resultData[0];
         return {
           id: newProduct.id,
           name: newProduct.name,
