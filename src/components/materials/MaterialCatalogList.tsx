@@ -2,11 +2,15 @@
 import React from "react";
 import { Loader2, Package } from "lucide-react";
 import MaterialCatalogCard from "./MaterialCatalogCard";
+import MaterialCatalogTable from "./MaterialCatalogTable";
 import { MaterialCatalogEntry } from "@/types/materialCatalog";
+
+export type MaterialViewMode = "grid" | "list";
 
 interface Props {
   materials: MaterialCatalogEntry[];
   isLoading: boolean;
+  viewMode?: MaterialViewMode;
   onView: (m: MaterialCatalogEntry) => void;
   onEdit: (m: MaterialCatalogEntry) => void;
   onDelete: (id: string) => void;
@@ -15,6 +19,7 @@ interface Props {
 const MaterialCatalogList: React.FC<Props> = ({
   materials,
   isLoading,
+  viewMode = "grid",
   onView,
   onEdit,
   onDelete,
@@ -31,8 +36,19 @@ const MaterialCatalogList: React.FC<Props> = ({
     return (
       <div className="flex flex-col items-center justify-center py-16 text-gray-400">
         <Package className="h-10 w-10 mb-2" />
-        <p className="text-sm">Aucun matériau dans le catalogue.</p>
+        <p className="text-sm">Aucun matériau trouvé.</p>
       </div>
+    );
+  }
+
+  if (viewMode === "list") {
+    return (
+      <MaterialCatalogTable
+        materials={materials}
+        onView={onView}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
     );
   }
 

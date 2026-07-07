@@ -11,12 +11,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Boxes, PlusCircle, Search } from "lucide-react";
+import { Boxes, PlusCircle, Search, Grid3X3, List } from "lucide-react";
 import { useMaterials } from "@/hooks/useMaterials";
 import { MaterialCatalogList, MaterialCatalogModal } from "@/components/materials";
 import { MaterialModalMode } from "@/components/materials/MaterialCatalogModal";
 import { styleFor } from "@/components/materials/materialFields";
 import { normalizeText } from "@/utils/productSearch";
+import type { MaterialViewMode } from "@/components/materials/MaterialCatalogList";
 import {
   MaterialCatalogEntry,
   MaterialCatalogFormData,
@@ -26,6 +27,7 @@ import {
 const MaterialCatalog: React.FC = () => {
   const [search, setSearch] = useState("");
   const [categorie, setCategorie] = useState<string>("ALL");
+  const [viewMode, setViewMode] = useState<MaterialViewMode>("grid");
 
   // On charge tout une fois et on filtre côté client (52 lignes → instantané + compteurs pilules)
   const { materials, isLoading, createMaterial, updateMaterial, deleteMaterial } =
@@ -75,7 +77,7 @@ const MaterialCatalog: React.FC = () => {
       <button
         key={key}
         onClick={() => setCategorie(key)}
-        className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-all border ${
+        className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-all border whitespace-nowrap ${
           active
             ? "bg-gray-900 text-white border-gray-900 shadow-sm"
             : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
@@ -125,15 +127,41 @@ const MaterialCatalog: React.FC = () => {
           />
         </div>
 
-        {/* Filtres pilules */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          {pill("ALL", "Tout", materials.length)}
-          {MATERIAL_CATEGORIES.map((c) => pill(c, c, counts[c] || 0))}
+        {/* Filtres pilules — scroll horizontal sur mobile */}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex-1 min-w-0 overflow-x-auto pb-2 -mb-2 overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex flex-nowrap gap-2 min-w-max">
+              {pill("ALL", "Tout", materials.length)}
+              {MATERIAL_CATEGORIES.map((c) => pill(c, c, counts[c] || 0))}
+            </div>
+          </div>
+          {/* Bascule grille/liste */}
+          <div className="flex shrink-0 bg-gray-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`h-8 w-8 rounded-md flex items-center justify-center transition-colors ${
+                viewMode === "grid" ? "bg-white text-gray-800 shadow-sm" : "text-gray-400 hover:text-gray-600"
+              }`}
+              aria-label="Vue grille"
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`h-8 w-8 rounded-md flex items-center justify-center transition-colors ${
+                viewMode === "list" ? "bg-white text-gray-800 shadow-sm" : "text-gray-400 hover:text-gray-600"
+              }`}
+              aria-label="Vue liste"
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <MaterialCatalogList
           materials={filtered}
           isLoading={isLoading}
+          viewMode={viewMode}
           onView={openView}
           onEdit={openEdit}
           onDelete={(id) => setDeleteId(id)}
