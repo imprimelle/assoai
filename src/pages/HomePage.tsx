@@ -124,10 +124,10 @@ const cardDefs: Record<string, HomeCard> = {
 const roleCards: Record<string, string[]> = {
   directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle"],
   directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux"],
-  commerciale: ["projet", "demande", "wari", "monBara", "produit", "materiaux"],
-  chef_technique: ["demande", "monBara", "materiaux"],
+  commerciale: ["projet", "demande", "wari", "monBara", "produit"],
+  chef_technique: ["demande", "monBara"],
   technicien_adjoint: ["demande", "monBara"],
-  superviseur_logistique: ["demande", "monBara"],
+  superviseur_logistique: ["demande", "monBara", "materiaux"],
 };
 
 /**
