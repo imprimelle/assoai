@@ -8,6 +8,7 @@ import {
   Home, 
   User, 
   Package, 
+  Boxes,
   MessageSquare, 
   Folder,
   Menu,
@@ -73,6 +74,7 @@ const TopBar: React.FC<TopBarProps> = ({ className }) => {
   // Menu secondaire (toujours dans le dropdown)
   const secondaryNavItems = [
     { to: "/products", icon: <Package className="h-4 w-4" />, label: "Produits" },
+    { to: "/materials", icon: <Boxes className="h-4 w-4" />, label: "Matériaux" },
     { to: "/procedures", icon: <Book className="h-4 w-4" />, label: "Procédures" },
     { to: "/contacts", icon: <User className="h-4 w-4" />, label: "Contacts" },
     { to: "/logs", icon: <FileText className="h-4 w-4" />, label: "Logs" },

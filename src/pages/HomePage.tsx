@@ -8,6 +8,7 @@ import {
   MessageSquare,
   ClipboardCheck,
   Package,
+  Boxes,
   FileText,
   BookOpen,
   Bot,
@@ -76,6 +77,14 @@ const cardDefs: Record<string, HomeCard> = {
     path: "/products",
     color: "bg-rose-100 text-rose-700",
   },
+  materiaux: {
+    id: "materiaux",
+    title: "Matériaux",
+    description: "Catalogue des matières premières",
+    icon: <Boxes className="h-8 w-8" />,
+    path: "/materials",
+    color: "bg-amber-100 text-amber-700",
+  },
   demande: {
     id: "demande",
     title: "Demande",
@@ -113,10 +122,10 @@ const cardDefs: Record<string, HomeCard> = {
 
 // Rôles → cartes affichées
 const roleCards: Record<string, string[]> = {
-  directeur: ["finances", "projet", "wari", "monBara", "produit", "procedure", "agents", "testCycle"],
-  directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit"],
-  commerciale: ["projet", "demande", "wari", "monBara", "produit"],
-  chef_technique: ["demande", "monBara"],
+  directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle"],
+  directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux"],
+  commerciale: ["projet", "demande", "wari", "monBara", "produit", "materiaux"],
+  chef_technique: ["demande", "monBara", "materiaux"],
   technicien_adjoint: ["demande", "monBara"],
   superviseur_logistique: ["demande", "monBara"],
 };

@@ -12,6 +12,7 @@ import Logs from "./pages/Logs";
 import Profile from "./pages/Profile";
 import CrmTemplates from "./pages/CrmTemplates";
 import ProductCatalog from "./pages/ProductCatalog";
+import MaterialCatalog from "./pages/MaterialCatalog";
 import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
 import AgentConfig from "./pages/AgentConfig";
@@ -344,6 +345,16 @@ const AppContent = () => {
               element={
                 <RequireAuth persistentSessionId={persistentSessionId}>
                   <ProductCatalog />
+                </RequireAuth>
+              }
+            />
+
+            {/* Matériaux */}
+            <Route
+              path="/materials"
+              element={
+                <RequireAuth persistentSessionId={persistentSessionId}>
+                  <MaterialCatalog />
                 </RequireAuth>
               }
             />
