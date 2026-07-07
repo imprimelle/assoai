@@ -157,7 +157,16 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
   };
 
   const filteredMaterials = getFilteredMaterials();
-  const nonVides = DEFAULT_SECTIONS.filter(name => (filteredMaterials[name] || []).length > 0);
+
+  // Affichage dynamique : ne PAS restreindre aux sections de DEFAULT_SECTIONS,
+  // sinon toute section générée avec un nom non standard est masquée (régression cdc-sections).
+  // DEFAULT_SECTIONS sert uniquement à ORDONNER : sections connues d'abord, inconnues ensuite.
+  const existingSections = Object.keys(filteredMaterials).filter(
+    k => (filteredMaterials[k] || []).length > 0
+  );
+  const orderedKnown = DEFAULT_SECTIONS.filter(s => existingSections.includes(s));
+  const orderedUnknown = existingSections.filter(s => !DEFAULT_SECTIONS.includes(s));
+  const nonVides = [...orderedKnown, ...orderedUnknown];
 
   return (
     <div className="w-full py-4 sm:py-6">
@@ -174,7 +183,7 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
               </p>
             )}
             <p className="font-medium mt-1 text-md text-gray-600">
-              N° {data.titre}
+              {data.titre}
             </p>
           </div>
         </div>

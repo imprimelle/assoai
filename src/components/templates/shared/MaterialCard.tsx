@@ -7,6 +7,7 @@ import { AmountInput } from "./AmountInput";
 import ImageUpload from "./ImageUpload";
 import { Trash2, Plus, Minus, ChevronDown, ChevronUp, FileText } from "lucide-react";
 import type { MaterialItem } from "@/types";
+import { UNITES, COULEURS, EPAISSEURS, withCurrent } from "@/constants/materials";
 
 interface MaterialCardProps {
   item: MaterialItem;
@@ -254,12 +255,20 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                 Unité
               </Label>
               {isEditable ? (
-                <Input
-                  value={item.unite}
-                  onChange={(e) => onChange({ unite: e.target.value })}
-                  className="h-10 w-full"
-                  placeholder="ex: kg, m²"
-                />
+                <>
+                  <Input
+                    list={`unite-options-${item.id}`}
+                    value={item.unite || ""}
+                    onChange={(e) => onChange({ unite: e.target.value })}
+                    className="h-10 w-full"
+                    placeholder="ex: plaque, m²"
+                  />
+                  <datalist id={`unite-options-${item.id}`}>
+                    {withCurrent(UNITES, item.unite).map((u) => (
+                      <option key={u} value={u} />
+                    ))}
+                  </datalist>
+                </>
               ) : (
                 <div className="text-sm text-gray-900">{item.unite}</div>
               )}
@@ -368,15 +377,9 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                   className="w-full h-8 text-sm"
                 >
                   <option value="">--</option>
-                  <option value="Rouge">Rouge</option>
-                  <option value="Bleu">Bleu</option>
-                  <option value="Vert">Vert</option>
-                  <option value="Blue ice">Blue_ice</option>
-                  <option value="Blanc">Blanc</option>
-                  <option value="Blanc chaud">Blanc_chaud</option>
-                  <option value="orange">Orange</option>
-                  <option value="Doré">Doré</option>
-                  <option value="violet">violet</option>
+                  {withCurrent(COULEURS, item.couleur).map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
                 </select>
               </div>
             )}
@@ -391,9 +394,9 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                   className="w-full h-8 text-sm"
                 >
                   <option value="">--</option>
-                  <option value="1mm">3 mm</option>
-                  <option value="2mm">5 mm</option>
-                  <option value="5mm">8 mm</option>
+                  {withCurrent(EPAISSEURS, item.epaisseur).map(ep => (
+                    <option key={ep} value={ep}>{ep}</option>
+                  ))}
                 </select>
               </div>
             )}
