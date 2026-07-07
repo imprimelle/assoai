@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronUp, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import MaterialCard from "./MaterialCard";
+import MaterialSuggestions from "@/components/materials/MaterialSuggestions";
 import type { MaterialItem } from "@/types";
+import type { MaterialCatalogEntry } from "@/types/materialCatalog";
 
 interface MaterialSectionProps {
   name: string;
@@ -13,6 +15,8 @@ interface MaterialSectionProps {
   onAddItem: (section: string) => void;
   onDeleteItem: (section: string, idx: number) => void;
   onChangeItem: (section: string, idx: number, changes: Partial<MaterialItem>) => void;
+  /** Ajout prérempli depuis le catalogue matériaux (Phase 4). */
+  onAddFromCatalog?: (section: string, preset: Partial<MaterialItem>) => void;
 }
 
 const sectionGradients: Record<string, string> = {
@@ -30,9 +34,27 @@ const MaterialSection: React.FC<MaterialSectionProps> = ({
   onAddItem,
   onDeleteItem,
   onChangeItem,
+  onAddFromCatalog,
 }) => {
   const [open, setOpen] = useState(true);
   const gradient = sectionGradients[name] || "from-blue-100 to-blue-50";
+
+  const handleCatalogSelect = (entry: MaterialCatalogEntry) => {
+    if (!onAddFromCatalog) return;
+    onAddFromCatalog(name, {
+      nom: `${entry.materiau}${entry.epaisseur ? ` ${entry.epaisseur}` : ""}`,
+      unite: entry.unite,
+      epaisseur: entry.epaisseur || undefined,
+      largeur: entry.largeur_std ?? undefined,
+      hauteur: entry.hauteur_std ?? undefined,
+      reference: entry.external_id != null ? String(entry.external_id) : undefined,
+      image_url: entry.image_url || undefined,
+      material_id: entry.id,
+      format_standard: entry.format_standard || undefined,
+      cout_unitaire: entry.cout_min ?? undefined,
+      couleurs_dispo: entry.couleurs.length ? entry.couleurs : undefined,
+    });
+  };
 
   return (
     <div className="rounded-2xl shadow-lg overflow-hidden mb-6">
@@ -83,6 +105,16 @@ const MaterialSection: React.FC<MaterialSectionProps> = ({
             className="bg-white"
           >
             <div className="p-5 space-y-4">
+              {isEditable && onAddFromCatalog && (
+                <div className="pb-1">
+                  <MaterialSuggestions
+                    categorie={name}
+                    onSelect={handleCatalogSelect}
+                    placeholder={`Choisir un matériau ${name} du catalogue…`}
+                  />
+                </div>
+              )}
+
               {items.length === 0 && (
                 <p className="text-sm text-gray-500 italic">
                   Aucun matériau dans cette section.

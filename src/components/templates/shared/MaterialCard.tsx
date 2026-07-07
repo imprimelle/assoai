@@ -132,6 +132,11 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-medium text-gray-900 break-words whitespace-normal">
               {item.nom || "Sans nom"}
+              {item.material_id && (
+                <span className="ml-2 inline-flex items-center text-[10px] bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 align-middle">
+                  📦 catalogue
+                </span>
+              )}
             </h3>
             {!isCollapsed && (
               <p className="text-xs text-gray-500">
@@ -368,7 +373,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
           {/* Champs conditionnels selon la section */}
           <div className="grid grid-cols-2 gap-3 mt-4">
             {/* Couleur: seulement pour Éclairage ou Vinyl */}
-            {isEditable && ["Éclairage", "Vinyl", "Découpe"].includes(section) && (
+            {isEditable && (["Éclairage", "Vinyl", "Découpe"].includes(section) || (item.couleurs_dispo && item.couleurs_dispo.length > 0)) && (
               <div>
                 <Label className="text-xs">Couleur</Label>
                 <select
@@ -377,7 +382,10 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                   className="w-full h-8 text-sm"
                 >
                   <option value="">--</option>
-                  {withCurrent(COULEURS, item.couleur).map(c => (
+                  {withCurrent(
+                    item.couleurs_dispo && item.couleurs_dispo.length > 0 ? item.couleurs_dispo : COULEURS,
+                    item.couleur,
+                  ).map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>

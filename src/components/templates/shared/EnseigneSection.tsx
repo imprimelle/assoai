@@ -84,6 +84,20 @@ const EnseigneSection: React.FC<EnseigneSectionProps> = ({
     onChange({ materiauxSections: updated });
   };
 
+  const addItemFromCatalog = (section: string, preset: Partial<MaterialItem>) => {
+    // Créer la section si absente, puis ajouter un item prérempli depuis le catalogue.
+    const newItem: MaterialItem = {
+      id: crypto.randomUUID?.() || `mat-${Date.now()}-${Math.random()}`,
+      nom: "",
+      quantite: 1,
+      unite: "",
+      section,
+      ...preset,
+    };
+    const updated = { ...sections, [section]: [...(sections[section] || []), newItem] };
+    onChange({ materiauxSections: updated });
+  };
+
   const deleteItem = (section: string, idx: number) => {
     const arr = [...(sections[section] || [])];
     arr.splice(idx, 1);
@@ -331,6 +345,7 @@ const EnseigneSection: React.FC<EnseigneSectionProps> = ({
                       onAddItem={addItem}
                       onDeleteItem={deleteItem}
                       onChangeItem={changeItem}
+                      onAddFromCatalog={addItemFromCatalog}
                     />
                   ))}
 
