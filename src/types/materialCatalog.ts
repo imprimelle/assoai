@@ -26,6 +26,10 @@ export interface MaterialCatalogEntry {
   unite: string;
   couleurs: string[];
   image_url: string | null;
+  // Champs spécifiques à certaines catégories (Éclairage / Outillage)
+  puissance_volt?: string | null;
+  etancheite?: string | null;
+  indications?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -49,4 +53,7 @@ export const EMPTY_MATERIAL: MaterialCatalogFormData = {
   unite: "plaque",
   couleurs: [],
   image_url: null,
+  puissance_volt: null,
+  etancheite: null,
+  indications: null,
 };

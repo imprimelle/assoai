@@ -31,7 +31,11 @@ const MaterialCatalogCard: React.FC<Props> = ({ material, onView, onEdit, onDele
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold text-gray-900 truncate">
               {material.materiau}
-              {material.epaisseur ? ` — ${material.epaisseur}` : ""}
+              {material.epaisseur
+                ? ` — ${material.epaisseur}`
+                : material.puissance_volt
+                  ? ` — ${material.puissance_volt}`
+                  : ""}
             </h3>
             <p className="text-xs text-gray-500">
               <span className="inline-block bg-gray-100 rounded px-1.5 py-0.5 mr-1">
@@ -49,6 +53,20 @@ const MaterialCatalogCard: React.FC<Props> = ({ material, onView, onEdit, onDele
                 <span className="text-[10px] text-gray-400">+{material.couleurs.length - 4}</span>
               )}
             </div>
+            {(material.etancheite || material.indications) && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {material.etancheite && (
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 rounded px-1.5 py-0.5">
+                    {material.etancheite}
+                  </span>
+                )}
+                {material.indications && (
+                  <span className="text-[10px] bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">
+                    {material.indications}
+                  </span>
+                )}
+              </div>
+            )}
             {(material.cout_min != null || material.cout_max != null) && (
               <p className="mt-1 text-xs font-medium text-gray-700">
                 {formatCFA(material.cout_min ?? 0)}

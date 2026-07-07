@@ -29,6 +29,9 @@ const toEntry = (item: any): MaterialCatalogEntry => ({
   unite: item.unite || "plaque",
   couleurs: Array.isArray(item.couleurs) ? item.couleurs.map(String) : [],
   image_url: item.image_url ?? null,
+  puissance_volt: item.puissance_volt ?? null,
+  etancheite: item.etancheite ?? null,
+  indications: item.indications ?? null,
   created_at: item.created_at,
   updated_at: item.updated_at,
 });

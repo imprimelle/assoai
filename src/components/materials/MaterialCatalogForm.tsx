@@ -115,6 +115,12 @@ const MaterialCatalogForm: React.FC<Props> = ({ data, onChange, readOnly = false
         />
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {field("Puissance / Volt", data.puissance_volt ?? null, (v) => set({ puissance_volt: v || null }), "ex: 12V - 200 W")}
+        {field("Étanchéité", data.etancheite ?? null, (v) => set({ etancheite: v || null }), "ex: Etanche")}
+        {field("Indications", data.indications ?? null, (v) => set({ indications: v || null }), "ex: 25mm")}
+      </div>
+
       <div>
         <Label className="text-xs font-medium text-gray-500">Image</Label>
         <ImageUpload
