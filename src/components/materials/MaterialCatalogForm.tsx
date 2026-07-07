@@ -1,5 +1,5 @@
 // src/components/materials/MaterialCatalogForm.tsx
-import React from "react";
+import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -9,11 +9,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { X, Plus } from "lucide-react";
 import ImageUpload from "@/components/templates/shared/ImageUpload";
 import {
   MaterialCatalogFormData,
   MATERIAL_CATEGORIES,
 } from "@/types/materialCatalog";
+import {
+  fieldsForCategory,
+  FIELD_META,
+  styleFor,
+  type MaterialField,
+} from "./materialFields";
 
 interface Props {
   data: MaterialCatalogFormData;
@@ -27,108 +34,192 @@ const numOrNull = (v: string): number | null => {
   return isNaN(n) ? null : n;
 };
 
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <div className="space-y-3">
+    <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{title}</h4>
+    {children}
+  </div>
+);
+
 const MaterialCatalogForm: React.FC<Props> = ({ data, onChange, readOnly = false }) => {
-  const set = (patch: Partial<MaterialCatalogFormData>) =>
-    onChange({ ...data, ...patch });
+  const set = (patch: Partial<MaterialCatalogFormData>) => onChange({ ...data, ...patch });
+  const style = styleFor(data.categorie);
+  const [colorDraft, setColorDraft] = useState("");
 
-  const field = (
-    label: string,
-    value: string | number | null,
-    onVal: (v: string) => void,
-    placeholder = "",
-    type: "text" | "number" = "text",
-  ) => (
-    <div>
-      <Label className="text-xs font-medium text-gray-500">{label}</Label>
-      <Input
-        type={type}
-        value={value ?? ""}
-        onChange={(e) => onVal(e.target.value)}
-        placeholder={placeholder}
-        disabled={readOnly}
-        className="h-10"
-      />
-    </div>
+  const fields = fieldsForCategory(data.categorie);
+  const specFields = fields.filter(
+    (f) => !["cout_min", "cout_max", "cout_usinage", "couleurs"].includes(f),
   );
+  const priceFields = fields.filter((f) => ["cout_min", "cout_max", "cout_usinage"].includes(f));
+  const showColors = fields.includes("couleurs");
 
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {field("Matériau", data.materiau, (v) => set({ materiau: v }), "ex: Plexiglass")}
-        <div>
-          <Label className="text-xs font-medium text-gray-500">Catégorie</Label>
-          <Select
-            value={data.categorie}
-            onValueChange={(v) => set({ categorie: v })}
-            disabled={readOnly}
-          >
-            <SelectTrigger className="h-10">
-              <SelectValue placeholder="Catégorie" />
-            </SelectTrigger>
-            <SelectContent>
-              {MATERIAL_CATEGORIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        {field("Épaisseur", data.epaisseur, (v) => set({ epaisseur: v || null }), "ex: 5mm")}
-        {field("Unité", data.unite, (v) => set({ unite: v }), "plaque")}
-        {field("Identifiant (external_id)", data.external_id, (v) => set({ external_id: numOrNull(v) }), "ex: 12", "number")}
-      </div>
-
-      {field("Format standard", data.format_standard, (v) => set({ format_standard: v || null }), "ex: Grande feuille - 4,20m/1,22m")}
-
-      <div className="grid grid-cols-2 gap-4">
-        {field("Largeur std (m)", data.largeur_std, (v) => set({ largeur_std: numOrNull(v) }), "4.20", "number")}
-        {field("Hauteur std (m)", data.hauteur_std, (v) => set({ hauteur_std: numOrNull(v) }), "1.22", "number")}
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        {field("Coût min (FCFA)", data.cout_min, (v) => set({ cout_min: numOrNull(v) }), "", "number")}
-        {field("Coût max (FCFA)", data.cout_max, (v) => set({ cout_max: numOrNull(v) }), "", "number")}
-        {field("Usinage (FCFA)", data.cout_usinage, (v) => set({ cout_usinage: numOrNull(v) }), "", "number")}
-      </div>
-
-      <div>
-        <Label className="text-xs font-medium text-gray-500">
-          Couleurs disponibles (séparées par des virgules)
-        </Label>
+  const renderField = (f: MaterialField) => {
+    const meta = FIELD_META[f];
+    if (!meta) return null;
+    const value = (data as any)[f];
+    return (
+      <div key={f}>
+        <Label className="text-xs font-medium text-gray-500">{meta.label}</Label>
         <Input
-          value={data.couleurs.join(", ")}
+          type={meta.kind === "number" ? "number" : "text"}
+          value={value ?? ""}
           onChange={(e) =>
             set({
-              couleurs: e.target.value
-                .split(",")
-                .map((c) => c.trim())
-                .filter(Boolean),
-            })
+              [f]:
+                meta.kind === "number"
+                  ? numOrNull(e.target.value)
+                  : e.target.value || null,
+            } as Partial<MaterialCatalogFormData>)
           }
-          placeholder="Transparent, Rouge, Bleu"
+          placeholder={meta.placeholder}
           disabled={readOnly}
-          className="h-10"
+          className="h-10 mt-1"
         />
       </div>
+    );
+  };
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {field("Puissance / Volt", data.puissance_volt ?? null, (v) => set({ puissance_volt: v || null }), "ex: 12V - 200 W")}
-        {field("Étanchéité", data.etancheite ?? null, (v) => set({ etancheite: v || null }), "ex: Etanche")}
-        {field("Indications", data.indications ?? null, (v) => set({ indications: v || null }), "ex: 25mm")}
-      </div>
+  const addColor = (raw: string) => {
+    const parts = raw.split(",").map((c) => c.trim()).filter(Boolean);
+    if (!parts.length) return;
+    const next = Array.from(new Set([...data.couleurs, ...parts]));
+    set({ couleurs: next });
+    setColorDraft("");
+  };
 
-      <div>
-        <Label className="text-xs font-medium text-gray-500">Image</Label>
+  return (
+    <div className="space-y-6">
+      {/* Identité */}
+      <Section title="Identité">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <Label className="text-xs font-medium text-gray-500">Matériau</Label>
+            <Input
+              value={data.materiau}
+              onChange={(e) => set({ materiau: e.target.value })}
+              placeholder="ex: Plexiglass"
+              disabled={readOnly}
+              className="h-11 mt-1 text-base font-medium"
+            />
+          </div>
+          <div>
+            <Label className="text-xs font-medium text-gray-500">Catégorie</Label>
+            <Select
+              value={data.categorie}
+              onValueChange={(v) => set({ categorie: v })}
+              disabled={readOnly}
+            >
+              <SelectTrigger className="h-10 mt-1">
+                <SelectValue placeholder="Catégorie" />
+              </SelectTrigger>
+              <SelectContent>
+                {MATERIAL_CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    <span className="flex items-center gap-2">
+                      <span className={`inline-flex h-5 w-5 items-center justify-center rounded ${styleFor(c).iconBg}`}>
+                        {styleFor(c).icon}
+                      </span>
+                      {c}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs font-medium text-gray-500">Identifiant (réf.)</Label>
+            <Input
+              type="number"
+              value={data.external_id ?? ""}
+              onChange={(e) => set({ external_id: numOrNull(e.target.value) })}
+              placeholder="ex: 12"
+              disabled={readOnly}
+              className="h-10 mt-1"
+            />
+          </div>
+        </div>
+      </Section>
+
+      {/* Spécifications (adaptatives) */}
+      {specFields.length > 0 && (
+        <Section title="Spécifications">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {specFields.map(renderField)}
+          </div>
+        </Section>
+      )}
+
+      {/* Couleurs — éditeur à puces */}
+      {showColors && (
+        <Section title="Couleurs disponibles">
+          <div className={`rounded-xl border border-gray-200 p-3 ${style.softBg}`}>
+            <div className="flex flex-wrap gap-1.5 mb-2 min-h-[28px]">
+              {data.couleurs.length === 0 && (
+                <span className="text-xs text-gray-400 italic">Aucune couleur</span>
+              )}
+              {data.couleurs.map((c) => (
+                <span
+                  key={c}
+                  className="inline-flex items-center gap-1 bg-white border border-gray-200 rounded-full pl-2.5 pr-1 py-0.5 text-xs text-gray-700 shadow-sm"
+                >
+                  {c}
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => set({ couleurs: data.couleurs.filter((x) => x !== c) })}
+                      className="rounded-full hover:bg-gray-100 p-0.5"
+                      aria-label={`Retirer ${c}`}
+                    >
+                      <X className="h-3 w-3 text-gray-400" />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+            {!readOnly && (
+              <div className="flex gap-2">
+                <Input
+                  value={colorDraft}
+                  onChange={(e) => setColorDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addColor(colorDraft);
+                    }
+                  }}
+                  placeholder="Ajouter une couleur puis Entrée…"
+                  className="h-9 bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => addColor(colorDraft)}
+                  className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-white border border-gray-200 px-3 text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  <Plus className="h-4 w-4" /> Ajouter
+                </button>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {/* Tarifs */}
+      {priceFields.length > 0 && (
+        <Section title="Tarifs (FCFA)">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {priceFields.map(renderField)}
+          </div>
+        </Section>
+      )}
+
+      {/* Image */}
+      <Section title="Visuel">
         <ImageUpload
           imageUrl={data.image_url || ""}
           onChange={(url) => set({ image_url: url || null })}
           isEditable={!readOnly}
         />
-      </div>
+      </Section>
     </div>
   );
 };
