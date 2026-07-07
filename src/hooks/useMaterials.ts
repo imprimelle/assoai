@@ -18,6 +18,7 @@ const toEntry = (item: any): MaterialCatalogEntry => ({
   id: item.id,
   external_id: item.external_id ?? null,
   categorie: item.categorie || "Découpe",
+  sous_type: item.sous_type ?? null,
   materiau: item.materiau || "",
   epaisseur: item.epaisseur ?? null,
   format_standard: item.format_standard ?? null,

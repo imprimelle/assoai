@@ -15,6 +15,7 @@ export interface MaterialCatalogEntry {
   id: string;
   external_id: number | null;
   categorie: string;
+  sous_type: string | null;
   materiau: string;
   epaisseur: string | null;
   format_standard: string | null;
@@ -42,6 +43,7 @@ export type MaterialCatalogFormData = Omit<
 export const EMPTY_MATERIAL: MaterialCatalogFormData = {
   external_id: null,
   categorie: "Découpe",
+  sous_type: null,
   materiau: "",
   epaisseur: null,
   format_standard: null,

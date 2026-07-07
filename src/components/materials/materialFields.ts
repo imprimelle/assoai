@@ -53,10 +53,42 @@ export const FIELD_META: Record<string, FieldMeta> = {
   indications: { label: "Indications", placeholder: "ex: 25mm", kind: "text" },
 };
 
-/** Liste ordonnée des champs à afficher pour une catégorie donnée. */
-export function fieldsForCategory(categorie: string): MaterialField[] {
-  const extra = CATEGORY_EXTRA_FIELDS[categorie] ?? [];
-  // Ordre : format/unité, puis spécifiques, puis prix (min/max/usinage regroupés)
+/**
+ * Sous-types par catégorie (options suggérées, saisie libre possible).
+ * Pour Éclairage, le sous-type change les champs pertinents (voir extraFor).
+ */
+export const SUBTYPES: Record<string, string[]> = {
+  "Découpe": ["Plexiglass", "Plexiglass miroir", "Forex", "Allucobond"],
+  "Éclairage": ["LED", "Transformateur", "Consommable"],
+  "Métal": ["Tube", "Cornière", "Tôle"],
+  "Outillage": ["Fixation", "Consommable", "Peinture", "Outil"],
+  "Vinyl": ["Vinyle", "Bâche"],
+};
+
+export function subtypesFor(categorie: string): string[] {
+  return SUBTYPES[categorie] ?? [];
+}
+
+/** Champs spécifiques effectifs, raffinés par sous-type (surtout Éclairage). */
+function extraFor(categorie: string, sousType?: string | null): MaterialField[] {
+  if (categorie === "Éclairage") {
+    switch (sousType) {
+      case "Transformateur":
+        return ["puissance_volt", "etancheite"];
+      case "LED":
+        return ["couleurs", "etancheite"];
+      case "Consommable":
+        return ["etancheite"];
+      default:
+        return ["puissance_volt", "etancheite", "couleurs"];
+    }
+  }
+  return CATEGORY_EXTRA_FIELDS[categorie] ?? [];
+}
+
+/** Liste ordonnée des champs à afficher pour une catégorie (+ sous-type optionnel). */
+export function fieldsForCategory(categorie: string, sousType?: string | null): MaterialField[] {
+  const extra = extraFor(categorie, sousType);
   const specs = extra.filter((f) => f !== "cout_usinage");
   const hasUsinage = extra.includes("cout_usinage");
   return [

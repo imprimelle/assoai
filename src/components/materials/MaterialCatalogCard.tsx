@@ -15,7 +15,7 @@ interface Props {
 
 const MaterialCatalogCard: React.FC<Props> = ({ material, onView, onEdit, onDelete }) => {
   const style = styleFor(material.categorie);
-  const fields = fieldsForCategory(material.categorie);
+  const fields = fieldsForCategory(material.categorie, material.sous_type);
   const showColors = fields.includes("couleurs") && material.couleurs.length > 0;
 
   // Spec distinctive dans le titre (épaisseur ou puissance selon la catégorie)
@@ -53,6 +53,10 @@ const MaterialCatalogCard: React.FC<Props> = ({ material, onView, onEdit, onDele
                 {material.categorie}
               </span>
             </div>
+
+            {material.sous_type && material.sous_type !== material.materiau && (
+              <p className="mt-0.5 text-[11px] font-medium text-gray-400">{material.sous_type}</p>
+            )}
 
             {material.format_standard && (
               <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">

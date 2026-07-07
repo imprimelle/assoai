@@ -29,7 +29,7 @@ const MaterialCatalogTable: React.FC<Props> = ({ materials, onView, onEdit, onDe
         <tbody className="divide-y divide-gray-50">
           {materials.map((m) => {
             const st = styleFor(m.categorie);
-            const fields = fieldsForCategory(m.categorie);
+            const fields = fieldsForCategory(m.categorie, m.sous_type);
             const spec = m.epaisseur || m.puissance_volt || "";
             const showColors = fields.includes("couleurs") && m.couleurs.length > 0;
             const price =
@@ -52,7 +52,13 @@ const MaterialCatalogTable: React.FC<Props> = ({ materials, onView, onEdit, onDe
                     </span>
                     <div className="min-w-0">
                       <div className="font-medium text-gray-900 truncate">{m.materiau}</div>
-                      {spec && <div className="text-xs text-gray-400">{spec}</div>}
+                      {(() => {
+                        const sub = m.sous_type && m.sous_type !== m.materiau ? m.sous_type : "";
+                        const parts = [sub, spec].filter(Boolean);
+                        return parts.length ? (
+                          <div className="text-xs text-gray-400">{parts.join(" · ")}</div>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                 </td>

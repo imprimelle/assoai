@@ -67,6 +67,37 @@ def read_sheet_rows(z, fname, ss):
     return rows
 
 
+def derive_soustype(categorie, materiau):
+    m = (materiau or "").lower()
+    if categorie == "Découpe":
+        return materiau
+    if categorie == "Éclairage":
+        if m.startswith("led"):
+            return "LED"
+        if "transformateur" in m:
+            return "Transformateur"
+        return "Consommable"
+    if categorie == "Métal":
+        if "tube" in m:
+            return "Tube"
+        if "cornière" in m or "corniere" in m:
+            return "Cornière"
+        if "tôle" in m or "tole" in m:
+            return "Tôle"
+        return None
+    if categorie == "Outillage":
+        if any(k in m for k in ["entretoise", "vice", "cheville", "chaine", "typhon"]):
+            return "Fixation"
+        if "peinture" in m:
+            return "Peinture"
+        if any(k in m for k in ["colle", "diluant", "disque", "mèche", "meche"]):
+            return "Consommable"
+        return "Outil"
+    if categorie == "Vinyl":
+        return "Bâche" if "bâche" in m or "bache" in m else "Vinyle"
+    return None
+
+
 def parse_price(raw):
     if raw is None:
         return None
@@ -163,6 +194,7 @@ def build_rows(z, ss):
             row = {
                 "external_id": to_int(rec.get("external_id")),
                 "categorie": categorie,
+                "sous_type": derive_soustype(categorie, materiau),
                 "materiau": materiau,
                 "epaisseur": (rec.get("epaisseur") or "").strip() or None,
                 "format_standard": (rec.get("format_standard") or "").strip() or None,

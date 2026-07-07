@@ -62,8 +62,16 @@ const MaterialCatalog: React.FC = () => {
   const openView = (m: MaterialCatalogEntry) => { setSelected(m); setModalMode("view"); setModalOpen(true); };
 
   const handleSubmit = async (data: MaterialCatalogFormData) => {
-    if (modalMode === "create") await createMaterial(data);
-    else if (modalMode === "edit" && selected) await updateMaterial(selected.id, data);
+    if (modalMode === "create") {
+      // Identifiant attribué automatiquement : prochain disponible dans la catégorie
+      const maxId = materials
+        .filter((m) => m.categorie === data.categorie)
+        .reduce((mx, m) => Math.max(mx, m.external_id ?? 0), 0);
+      await createMaterial({ ...data, external_id: maxId + 1 });
+    } else if (modalMode === "edit" && selected) {
+      // L'identifiant existant n'est jamais modifié
+      await updateMaterial(selected.id, { ...data, external_id: selected.external_id });
+    }
   };
 
   const handleConfirmDelete = async () => {

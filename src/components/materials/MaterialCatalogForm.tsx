@@ -19,6 +19,7 @@ import {
   fieldsForCategory,
   FIELD_META,
   styleFor,
+  subtypesFor,
   type MaterialField,
 } from "./materialFields";
 
@@ -46,7 +47,8 @@ const MaterialCatalogForm: React.FC<Props> = ({ data, onChange, readOnly = false
   const style = styleFor(data.categorie);
   const [colorDraft, setColorDraft] = useState("");
 
-  const fields = fieldsForCategory(data.categorie);
+  const fields = fieldsForCategory(data.categorie, data.sous_type);
+  const subtypes = subtypesFor(data.categorie);
   const specFields = fields.filter(
     (f) => !["cout_min", "cout_max", "cout_usinage", "couleurs"].includes(f),
   );
@@ -106,7 +108,7 @@ const MaterialCatalogForm: React.FC<Props> = ({ data, onChange, readOnly = false
             <Label className="text-xs font-medium text-gray-500">Catégorie</Label>
             <Select
               value={data.categorie}
-              onValueChange={(v) => set({ categorie: v })}
+              onValueChange={(v) => set({ categorie: v, sous_type: null })}
               disabled={readOnly}
             >
               <SelectTrigger className="h-10 mt-1">
@@ -127,15 +129,43 @@ const MaterialCatalogForm: React.FC<Props> = ({ data, onChange, readOnly = false
             </Select>
           </div>
           <div>
+            <Label className="text-xs font-medium text-gray-500">Sous-type</Label>
+            {subtypes.length > 0 ? (
+              <Select
+                value={data.sous_type ?? "__none__"}
+                onValueChange={(v) => set({ sous_type: v === "__none__" ? null : v })}
+                disabled={readOnly}
+              >
+                <SelectTrigger className="h-10 mt-1">
+                  <SelectValue placeholder="Sous-type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">—</SelectItem>
+                  {subtypes.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                  {data.sous_type && !subtypes.includes(data.sous_type) && (
+                    <SelectItem value={data.sous_type}>{data.sous_type}</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                value={data.sous_type ?? ""}
+                onChange={(e) => set({ sous_type: e.target.value || null })}
+                placeholder="ex: Tube"
+                disabled={readOnly}
+                className="h-10 mt-1"
+              />
+            )}
+          </div>
+          <div>
             <Label className="text-xs font-medium text-gray-500">Identifiant (réf.)</Label>
-            <Input
-              type="number"
-              value={data.external_id ?? ""}
-              onChange={(e) => set({ external_id: numOrNull(e.target.value) })}
-              placeholder="ex: 12"
-              disabled={readOnly}
-              className="h-10 mt-1"
-            />
+            <div className="h-10 mt-1 flex items-center rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-500">
+              {data.external_id != null
+                ? `#${data.external_id}`
+                : "Attribué à l'enregistrement"}
+            </div>
           </div>
         </div>
       </Section>
