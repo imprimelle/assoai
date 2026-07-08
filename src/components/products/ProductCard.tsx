@@ -191,16 +191,38 @@ const ProductCard: React.FC<ProductCardProps> = ({
       animate="visible"
       className="group relative flex flex-col rounded-3xl overflow-hidden bg-white/70 backdrop-blur-sm border border-white/80 shadow-[0_2px_20px_-6px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_40px_-10px_rgba(59,130,246,0.12)] hover:-translate-y-1.5 hover:bg-white/90 transition-all duration-500 ease-out"
     >
-      {/* En-tête */}
-      <div className="flex items-center gap-3 px-4 py-3.5 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 border-b border-blue-100/30">
-        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-blue-100/80 text-blue-600 shadow-sm">
-          <Settings className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <h3 className="font-semibold text-sm text-gray-800 truncate">
+      {/* En-tête avec image */}
+      <div className="relative h-36 overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50">
+        {product.main_image_url ? (
+          <img
+            src={product.main_image_url}
+            alt={product.name}
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Settings className="h-12 w-12 text-blue-200/60" />
+          </div>
+        )}
+
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-blue-900/30 via-transparent to-transparent opacity-40 group-hover:opacity-60 transition-opacity duration-500" />
+
+        {/* Badge règles */}
+        {hasManufacturingRules && (
+          <div className="absolute top-3 left-3">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-blue-500/90 backdrop-blur-md text-white shadow-[0_2px_8px_rgba(59,130,246,0.3)]">
+              <Wrench className="h-3 w-3" />
+            </span>
+          </div>
+        )}
+
+        {/* Nom superposé */}
+        <div className="absolute bottom-0 left-0 right-0 px-4 py-3 bg-gradient-to-t from-black/60 via-black/30 to-transparent">
+          <h3 className="font-semibold text-sm text-white truncate">
             {product.name}
           </h3>
-          <p className="text-[10px] text-blue-400 font-medium">Règles de fabrication</p>
+          <p className="text-[10px] text-blue-200 font-medium">Règles de fabrication</p>
         </div>
       </div>
 

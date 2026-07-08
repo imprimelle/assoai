@@ -29,6 +29,8 @@ interface ProductListProps {
   setUserFilter: (filter: string) => void;
   viewMode: 'catalog' | 'fabrication';
   setViewMode: (mode: 'catalog' | 'fabrication') => void;
+  /** Si true, masque le toggle pill Catalogue/Fabrication (chef_technique) */
+  hideToggle?: boolean;
 }
 
 const ProductList: React.FC<ProductListProps> = ({
@@ -44,6 +46,7 @@ const ProductList: React.FC<ProductListProps> = ({
   setUserFilter,
   viewMode,
   setViewMode,
+  hideToggle = false,
 }) => {
   const [showFilters, setShowFilters] = useState(false);
 
@@ -130,6 +133,7 @@ const ProductList: React.FC<ProductListProps> = ({
             </Button>
 
             {/* Toggle pill */}
+            {!hideToggle && (
             <div className="flex rounded-2xl bg-gray-100 p-1 gap-0.5">
               <button
                 onClick={() => setViewMode('catalog')}
@@ -154,6 +158,7 @@ const ProductList: React.FC<ProductListProps> = ({
                 <span className="hidden sm:inline">Fabrication</span>
               </button>
             </div>
+            )}
           </div>
         </div>
 

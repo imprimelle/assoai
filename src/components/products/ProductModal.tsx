@@ -21,6 +21,8 @@ interface ProductModalProps {
   product?: Product | null;
   mode: 'create' | 'edit' | 'view';
   viewMode: 'catalog' | 'fabrication';
+  /** Si true, masque tous les onglets sauf Règles (chef_technique) */
+  restrictedView?: boolean;
 }
 
 const ProductModal: React.FC<ProductModalProps> = ({
@@ -30,6 +32,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
   product = null,
   mode,
   viewMode,
+  restrictedView = false,
 }) => {
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
@@ -157,6 +160,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
             isEditable={isEditable}
             variants={formData.variants}
             viewMode={viewMode}
+            restrictedView={restrictedView}
           />
         </div>
 

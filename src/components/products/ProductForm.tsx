@@ -21,6 +21,8 @@ interface ProductFormProps {
   isEditable?: boolean;
   variants?: ProductVariant[];
   viewMode?: 'catalog' | 'fabrication';
+  /** Si true, affiche uniquement l'onglet Règles (chef_technique) */
+  restrictedView?: boolean;
 }
 
 const tabItem = (value: string, icon: React.ReactNode, label: string, active: boolean, accent: string) => (
@@ -45,6 +47,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   isEditable = true,
   variants,
   viewMode = 'catalog',
+  restrictedView = false,
 }) => {
   const [activeTab, setActiveTab] = useState(viewMode === 'fabrication' ? "rules" : "info");
   const accent = viewMode === 'catalog' ? 'orange' : 'blue';
@@ -67,16 +70,18 @@ const ProductForm: React.FC<ProductFormProps> = ({
   return (
     <div className="p-4 sm:p-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        {!restrictedView && (
         <TabsList className="flex w-full border-b border-gray-200 bg-transparent p-0 h-auto gap-0 rounded-none mb-6">
           {tabItem("info", <Info className="h-4 w-4" />, "Informations", activeTab === "info", accent)}
           {tabItem("variants", <List className="h-4 w-4" />, "Variantes", activeTab === "variants", accent)}
           {tabItem("rules", <Settings className="h-4 w-4" />, "Règles", activeTab === "rules", accent)}
           {tabItem("billing", <Receipt className="h-4 w-4" />, "Facturation", activeTab === "billing", accent)}
         </TabsList>
+        )}
 
         <AnimatePresence mode="wait">
           {/* Info Tab */}
-          {activeTab === "info" && (
+          {!restrictedView && activeTab === "info" && (
             <motion.div key="info" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
               <TabsContent value="info" forceMount className="space-y-6 mt-0">
                 <div className="bg-white rounded-2xl p-3 sm:p-5 shadow-sm border border-gray-100 space-y-4">
@@ -105,7 +110,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           )}
 
           {/* Variants Tab */}
-          {activeTab === "variants" && (
+          {!restrictedView && activeTab === "variants" && (
             <motion.div key="variants" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
               <TabsContent value="variants" forceMount className="mt-0">
                 <div className="bg-white rounded-2xl p-3 sm:p-5 shadow-sm border border-gray-100">
@@ -115,8 +120,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
             </motion.div>
           )}
 
-          {/* Rules Tab */}
-          {activeTab === "rules" && (
+          {/* Rules Tab — toujours visible */}
+          {(activeTab === "rules" || restrictedView) && (
             <motion.div key="rules" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
               <TabsContent value="rules" forceMount className="mt-0">
                 <div className="bg-white rounded-2xl p-3 sm:p-5 shadow-sm border border-gray-100">
@@ -128,7 +133,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           )}
 
           {/* Billing Tab */}
-          {activeTab === "billing" && (
+          {!restrictedView && activeTab === "billing" && (
             <motion.div key="billing" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
               <TabsContent value="billing" forceMount className="mt-0">
                 <div className="bg-white rounded-2xl p-3 sm:p-5 shadow-sm border border-gray-100">

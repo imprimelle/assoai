@@ -125,7 +125,7 @@ const roleCards: Record<string, string[]> = {
   directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle"],
   directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux"],
   commerciale: ["projet", "demande", "wari", "monBara", "produit"],
-  chef_technique: ["demande", "monBara"],
+  chef_technique: ["demande", "monBara", "produit"],
   technicien_adjoint: ["demande", "monBara"],
   superviseur_logistique: ["demande", "monBara", "materiaux"],
 };

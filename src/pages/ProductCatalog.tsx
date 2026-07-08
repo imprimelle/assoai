@@ -43,6 +43,12 @@ const ProductCatalog = () => {
     const storedUser = localStorage.getItem('currentUser');
     return storedUser ? JSON.parse(storedUser) : { id: 'unknown', role: 'user' };
   }, []);
+
+  // Est-on chef_technique (ou technicien_adjoint) ? → vue Fabrication forcée, pas de toggle, modal restreint
+  const isChefTechnique = currentUser.role === 'chef_technique' || currentUser.role === 'technicien_adjoint';
+
+  // viewMode effectif : forcé à 'fabrication' pour chef_technique
+  const effectiveViewMode = isChefTechnique ? 'fabrication' : viewMode;
   
   // Gestionnaires d'événements pour le modal
   const handleAddNew = () => {
@@ -157,8 +163,9 @@ const ProductCatalog = () => {
         setSearchTerm={setLocalSearchTerm}
         userFilter={userFilter}
         setUserFilter={setUserFilter}
-        viewMode={viewMode}
+        viewMode={effectiveViewMode}
         setViewMode={setViewMode}
+        hideToggle={isChefTechnique}
       />
       
       {/* Modal pour créer/éditer/voir un produit */}
@@ -169,7 +176,8 @@ const ProductCatalog = () => {
         onSave={handleSaveProduct}
         product={selectedProduct}
         mode={modalMode}
-        viewMode={viewMode}
+        viewMode={effectiveViewMode}
+        restrictedView={isChefTechnique}
       />
       
       {/* Dialog de confirmation de suppression */}
