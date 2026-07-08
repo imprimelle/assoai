@@ -65,7 +65,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="flex w-full border-b border-gray-200 bg-transparent p-0 h-auto gap-0 rounded-none mb-6">
           {tabItem("info", <Info className="h-4 w-4" />, "Informations", activeTab === "info", accent)}
@@ -79,7 +79,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           {activeTab === "info" && (
             <motion.div key="info" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
               <TabsContent value="info" forceMount className="space-y-6 mt-0">
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
+                <div className="bg-white rounded-2xl p-3 sm:p-5 shadow-sm border border-gray-100 space-y-4">
                   <div>
                     <Label htmlFor="name" className="text-sm font-semibold text-gray-700">Nom du produit</Label>
                     <Input id="name" value={product.name || ''} onChange={(e) => onChange('name', e.target.value)}
@@ -108,7 +108,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           {activeTab === "variants" && (
             <motion.div key="variants" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
               <TabsContent value="variants" forceMount className="mt-0">
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div className="bg-white rounded-2xl p-3 sm:p-5 shadow-sm border border-gray-100">
                   <VariantEditor variants={product.variants || []} onChange={handleVariantsChange} isEditable={isEditable} />
                 </div>
               </TabsContent>
@@ -119,7 +119,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           {activeTab === "rules" && (
             <motion.div key="rules" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
               <TabsContent value="rules" forceMount className="mt-0">
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div className="bg-white rounded-2xl p-3 sm:p-5 shadow-sm border border-gray-100">
                   <ManufacturingRules rules={product.manufacturing_rules || EMPTY_FABRICATION_RULES}
                     onChange={handleRulesChange} isEditable={isEditable} />
                 </div>
@@ -131,7 +131,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           {activeTab === "billing" && (
             <motion.div key="billing" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
               <TabsContent value="billing" forceMount className="mt-0">
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div className="bg-white rounded-2xl p-3 sm:p-5 shadow-sm border border-gray-100">
                   <BillingRules rules={product.billing_rules || EMPTY_BILLING_RULES}
                     onChange={handleBillingRulesChange} isEditable={isEditable} />
                 </div>

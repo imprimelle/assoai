@@ -123,16 +123,16 @@ const ProductModal: React.FC<ProductModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={() => !isSubmitting && onClose()}>
-      <DialogContent className="sm:max-w-4xl max-h-[92vh] flex flex-col p-0 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border-0">
+      <DialogContent className="left-0 top-0 translate-x-0 translate-y-0 w-screen max-w-none h-[100dvh] max-h-[100dvh] rounded-none sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-4xl sm:h-auto sm:max-h-[92vh] sm:rounded-3xl flex flex-col p-0 bg-white/95 backdrop-blur-xl shadow-2xl border-0">
         {/* Header */}
-        <div className={`sticky top-0 z-10 px-6 py-5 border-b ${
+        <div className={`shrink-0 px-4 py-3 sm:px-6 sm:py-5 border-b ${
           viewMode === 'catalog' 
             ? 'bg-gradient-to-r from-orange-50/80 to-amber-50/80 border-orange-100'
             : 'bg-gradient-to-r from-blue-50/80 to-indigo-50/80 border-blue-100'
         }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`flex items-center justify-center w-10 h-10 rounded-2xl shadow-sm ${
+              <div className={`flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-2xl shadow-sm ${
                 viewMode === 'catalog' 
                   ? 'bg-orange-100 text-orange-600'
                   : 'bg-blue-100 text-blue-600'
@@ -140,7 +140,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
                 <ViewIcon className="h-5 w-5" />
               </div>
               <div>
-                <DialogTitle className="text-xl font-bold text-gray-800">{modalTitle}</DialogTitle>
+                <DialogTitle className="text-base sm:text-xl font-bold text-gray-800">{modalTitle}</DialogTitle>
                 <p className="text-xs text-gray-400 font-medium mt-0.5">
                   {mode === 'view' ? 'Lecture seule' : isEditable ? 'Édition' : ''}
                 </p>
@@ -150,7 +150,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto bg-white/50">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-white/50">
           <ProductForm
             product={formData}
             onChange={handleFieldChange}
@@ -161,7 +161,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className={`sticky bottom-0 z-10 px-6 py-4 border-t flex items-center justify-between ${
+        <div className={`shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-t flex items-center justify-between gap-3 ${
           viewMode === 'catalog' ? 'border-orange-100' : 'border-blue-100'
         } bg-white/80 backdrop-blur-xl`}>
           <Button
