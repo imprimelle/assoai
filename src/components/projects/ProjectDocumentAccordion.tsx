@@ -333,44 +333,71 @@ export const ProjectDocumentAccordion: React.FC<ProjectDocumentAccordionProps> =
     if (isDerivingCmdRef.current) return;
     isDerivingCmdRef.current = true;
     setCmdError(null);
+    setResumingCmd(true); // pilote le spinner (plus d'appel LLM → deriveCmd.isLoading inutilisé)
     try {
     // 🔧 Persistance : sauver l'intention pour reprise après navigation
     saveDerivePending('commande', selectedFacture.numero);
 
     // Utiliser factureFullData (déjà fetché pour la validation) — contient TOUS les champs
-    // Si pas encore dispo, fetch synchrone pour ne JAMAIS envoyer le fallback minimal
-    let dataToSend = factureFullData;
-    if (!dataToSend && selectedFacture.id) {
+    // Si pas encore dispo, fetch synchrone pour ne JAMAIS dériver sur des données partielles
+    let facData = factureFullData;
+    if (!facData && selectedFacture.id) {
       try {
         const { data: msg } = await supabase.from('messages')
           .select('template_type, template_data')
           .eq('id', selectedFacture.id).single();
-        if (msg) dataToSend = (msg.template_data as any)?.data;
-      } catch { /* garder null → fallback */ }
+        if (msg) facData = (msg.template_data as any)?.data;
+      } catch { /* garder null → fallback minimal */ }
     }
-    
-    const templateToSend = dataToSend
-      ? { templateType: 'facture' as const, data: dataToSend }
-      : {
-          templateType: 'facture' as const,
-          data: {
-            factureNumero: selectedFacture.numero,
-            version: selectedFacture.version,
-            client: { nom: selectedFacture.client },
-            total: selectedFacture.montant,
-          },
-        };
+    facData = facData || {
+      factureNumero: selectedFacture.numero,
+      version: selectedFacture.version,
+      client: { nom: selectedFacture.client },
+      total: selectedFacture.montant,
+    };
 
-    const result = await deriveCmd.derive(
-      'Crée la commande à partir de cette facture',
-      'hermes-wari',
-      ['document-derivation', 'document-create', 'document-numbers'],
-      templateToSend,
-      projectId,
-      undefined  // Pas de sourceMessageId — on envoie déjà les données complètes
-    );
-    if (result.success && result.data) {
-      const newCommandeNumero = result.data.commandeNumero;
+    // ── Dérivation DÉTERMINISTE (sans LLM) : Facture → Commande ──
+    // Transformation locale — aucun champ ne nécessite de raisonnement IA.
+    // Numéro alloué atomiquement par le même RPC que le serveur (next_document_number).
+    const { data: numData, error: numErr } = await supabase.rpc('next_document_number', { p_doc_type: 'commande' });
+    if (numErr || !numData) {
+      setCmdError("Impossible d'allouer le numéro de commande.");
+      clearDerivePending('commande');
+      return;
+    }
+    const newCommandeNumero = String(numData).replace(/"/g, '');
+
+    // Conversion details[] → items[] (description → nom), quantités/prix conservés
+    const derivedItems = (facData.details || []).map((d: any) => ({
+      id: d.id || crypto.randomUUID(),
+      nom: d.description || d.nom || '',
+      quantite: d.quantite ?? 1,
+      prixUnitaire: d.prixUnitaire ?? 0,
+      sous_total: d.sous_total ?? ((d.quantite ?? 1) * (d.prixUnitaire ?? 0)),
+      ...(d.image_url ? { image_url: d.image_url } : {}),
+    }));
+    // Total = somme des sous-totaux − réduction héritée
+    const reductionSrc = facData.reduction ?? 0;
+    const itemsSum = derivedItems.reduce((s: number, it: any) => s + (it.sous_total ?? 0), 0);
+    const derivedTotal = Math.max(0, itemsSum - reductionSrc);
+
+    // result.data reconstruit localement — même forme que la réponse LLM d'avant
+    const result = {
+      success: true as const,
+      data: {
+        commandeNumero: newCommandeNumero,
+        client: facData.client || { nom: selectedFacture.client },
+        items: derivedItems,
+        details: [] as any[],
+        total: derivedTotal,
+        deliveryAddress: facData.deliveryAddress || null,
+        dateLivraison: facData.delaiLivraison || '',
+        statut: 'en_attente',
+        reduction: reductionSrc,
+        dateCommande: new Date().toISOString().split('T')[0],
+      },
+    };
+    {
 
       // Marquer anciennes commandes is_latest=false
       const { data: oldCommandes } = await (supabase.from('messages') as any)
@@ -464,12 +491,14 @@ export const ProjectDocumentAccordion: React.FC<ProjectDocumentAccordionProps> =
       setLocalCommande(newCmd);
       setCommandeFullData(result.data);
       clearDerivePending('commande');
-    } else {
-      setCmdError(result.error || 'Échec');
-      clearDerivePending('commande');
     }
+    } catch (err) {
+      console.error('[deriveCmd] Dérivation déterministe échouée:', err);
+      setCmdError('Échec de la dérivation.');
+      clearDerivePending('commande');
     } finally {
       isDerivingCmdRef.current = false;
+      setResumingCmd(false);
     }
   };
   handleDeriveCommandeRef.current = handleDeriveCommande;
@@ -1080,7 +1109,7 @@ export const ProjectDocumentAccordion: React.FC<ProjectDocumentAccordionProps> =
             label="Générer la commande"
             onDerive={handleDeriveCommande}
             isLoading={isDerivingCmd}
-            isDone={!!deriveCmd.result?.success}
+            isDone={!!localCommande || !!deriveCmd.result?.success}
             error={cmdError}
             onReset={() => {
               deriveCmd.reset();
