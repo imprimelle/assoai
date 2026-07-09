@@ -394,6 +394,7 @@ export const ProjectDocumentAccordion: React.FC<ProjectDocumentAccordionProps> =
         dateLivraison: facData.delaiLivraison || '',
         statut: 'en_attente',
         reduction: reductionSrc,
+        echeancier: facData.echeancier || '',
         dateCommande: new Date().toISOString().split('T')[0],
       },
     };
@@ -432,6 +433,7 @@ export const ProjectDocumentAccordion: React.FC<ProjectDocumentAccordionProps> =
         is_latest: true,
         dateCommande: result.data.dateCommande || new Date().toISOString().split('T')[0],
         reduction: result.data.reduction ?? factureFullData?.reduction ?? 0,
+        echeancier: result.data.echeancier ?? factureFullData?.echeancier ?? '',
       };
 
       // 🔧 BUGFIX: Insérer la commande dérivée dans messages + attacher au projet

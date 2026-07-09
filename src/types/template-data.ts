@@ -138,6 +138,7 @@ export interface CommandeData {
   recu_image_url?: string | null;
   deliveryAddress?: DeliveryAddress;
   reduction?: number;  // Remise héritée de la facture source (montant CFA)
+  echeancier?: string;  // Échéancier hérité de la facture source
 }
 
 export interface CahierDesChargesData {
