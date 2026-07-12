@@ -252,7 +252,20 @@ const InfinityMirror: React.FC = () => {
                   <div className="grid grid-cols-3 gap-3">
                     <CompactSlider label="Largeur (L)" value={L} min={20} max={150} unit="cm" onChange={setL} />
                     <CompactSlider label="Longueur (H)" value={H} min={20} max={150} unit="cm" onChange={setH} />
-                    <CompactSlider label="Espace (d)" value={d} min={1} max={10} step={0.5} unit="cm" onChange={setD} hint="Distance miroir ↔ verre" />
+                    <CompactSlider label="Espace (d)" value={d} min={1} max={10} step={0.5} unit="cm" onChange={setD} />
+                  </div>
+                  {/* Mini visualisation du ratio L×H */}
+                  <div className="bg-white/5 rounded-lg p-3 flex items-center gap-4">
+                    <div className="relative border border-white/20 rounded" style={{ width: 60, height: 60 * (H / L) }}>
+                      <div className="absolute inset-1 border border-brand-orange/40 rounded-sm flex items-center justify-center">
+                        <span className="text-[9px] text-brand-orange font-mono">{L}×{H}</span>
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-1 text-xs">
+                      <div className="flex justify-between"><span className="text-gray-500">Périmètre</span><span className="font-mono text-white">{perimeter.toFixed(2)} m</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Surface</span><span className="font-mono text-white">{((L * H) / 10000).toFixed(2)} m²</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Ratio</span><span className="font-mono text-white">{(L / H).toFixed(2)}</span></div>
+                    </div>
                   </div>
                   <PhysicalNote d={d} visualDepth={visualDepth} reflections={reflections} />
                 </div>
@@ -260,52 +273,141 @@ const InfinityMirror: React.FC = () => {
 
               {activeTab === "led" && (
                 <div className="space-y-3">
+                  {/* Preview strip showing LED color + attenuation */}
+                  <div className="bg-black/40 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ledColor, boxShadow: `0 0 8px ${ledColor}` }} />
+                      <span className="text-xs text-gray-300">Aperçu atténuation sur {reflections} réflexions</span>
+                    </div>
+                    <div className="flex gap-1 h-6">
+                      {Array.from({ length: Math.min(reflections, 12) }).map((_, i) => {
+                        const vis = 1.0 - (i / Math.min(reflections, 12)) * 0.85;
+                        const rf = Math.pow(R_f / 100, i + 1) * Math.pow(R_m / 100, i + 1);
+                        const b = vis * Math.max(0.15, rf);
+                        return (
+                          <div key={i} className="flex-1 rounded-sm transition-all"
+                            style={{
+                              backgroundColor: ledColor,
+                              opacity: 0.15 + vis * 0.85,
+                              boxShadow: `0 0 ${4 + b * 6}px ${ledColor}`,
+                            }}
+                            title={`Réflexion ${i + 1}: ${(b * 100).toFixed(0)}%`} />
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-between text-[9px] text-gray-600 mt-1">
+                      <span>Surface</span>
+                      <span>Profondeur</span>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 block">Densité</label>
                     <div className="flex gap-2">
                       {LED_DENSITIES.map(dens => (
                         <button key={dens} onClick={() => setD_led(dens)}
-                          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${D_led === dens ? "bg-brand-orange text-white shadow-lg shadow-brand-orange/20" : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"}`}>
-                          {dens} <span className="text-[10px] opacity-70">LED/m</span>
+                          className={`flex-1 py-2.5 rounded-lg text-center transition-all ${
+                            D_led === dens
+                              ? "bg-brand-orange text-white shadow-lg shadow-brand-orange/20"
+                              : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
+                          }`}>
+                          <div className="text-sm font-bold">{dens}</div>
+                          <div className="text-[9px] opacity-70">LED/m</div>
+                          <div className="text-[10px] mt-0.5 opacity-80">{Math.round(perimeter * dens)} puces</div>
                         </button>
                       ))}
                     </div>
                   </div>
+
                   <div>
                     <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 block">Type</label>
                     <div className="flex gap-2">
                       {LED_TYPES.map(t => (
                         <button key={t.key} onClick={() => setLedType(t.key)}
-                          className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${ledType === t.key ? "bg-white/10 text-white border border-white/20" : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"}`}>
-                          {t.label}
+                          className={`flex-1 py-2.5 rounded-lg text-center transition-all ${
+                            ledType === t.key
+                              ? "bg-white/10 text-white border border-white/20 shadow-lg"
+                              : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
+                          }`}>
+                          <div className="text-xs font-semibold">{t.label}</div>
+                          <div className="text-[9px] opacity-50 mt-0.5">
+                            {t.key === "ruban" ? "━ Bande" : t.key === "module" ? "● Points" : "◉ Tubes"}
+                          </div>
                         </button>
                       ))}
                     </div>
                   </div>
+
                   <div>
                     <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 block">Couleur</label>
                     <div className="flex flex-wrap gap-1.5">
                       {LED_COLORS.map(c => (
                         <button key={c.hex} onClick={() => setLedColor(c.hex)}
-                          className={`w-7 h-7 rounded-full border-2 transition-all ${c.css} ${ledColor === c.hex ? "border-white scale-110 shadow-lg" : "border-transparent opacity-70 hover:opacity-100"}`} />
+                          className={`w-8 h-8 rounded-full border-2 transition-all ${c.css} ${
+                            ledColor === c.hex
+                              ? "border-white scale-115 shadow-lg ring-2 ring-white/20"
+                              : "border-transparent opacity-70 hover:opacity-100 hover:scale-105"
+                          }`}
+                          style={ledColor === c.hex ? { boxShadow: `0 0 12px ${c.hex}` } : {}}
+                          title={c.name} />
                       ))}
                     </div>
                   </div>
-                  <CompactSlider label="Puissance" value={ledPower} min={4.8} max={28.8} step={0.1} unit="W/m" onChange={setLedPower} />
+
+                  <CompactSlider label="Puissance" value={ledPower} min={4.8} max={28.8} step={0.1} unit="W/m" onChange={setLedPower}
+                    hint={`${ledPower.toFixed(1)}W/m → ${(ledPower * perimeter).toFixed(1)}W total`} />
                 </div>
               )}
 
               {activeTab === "optique" && (
                 <div className="space-y-3">
-                  <CompactSlider label="Film sans tain (R_f)" value={R_f} min={50} max={95} unit="%" onChange={setR_f} hint="Réflectivité du verre supérieur" />
-                  <CompactSlider label="Miroir de fond (R_m)" value={R_m} min={80} max={99} unit="%" onChange={setR_m} hint="Qualité du miroir inférieur" />
+                  {/* Diagramme de réflexion interactif */}
+                  <div className="bg-black/40 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Eye className="h-4 w-4 text-brand-orange" />
+                      <span className="text-xs text-gray-300">Diagramme de réflexion</span>
+                    </div>
+                    <div className="relative h-16 flex items-end gap-0.5">
+                      {Array.from({ length: Math.min(reflections, 10) }).map((_, i) => {
+                        const intensity = 100 * Math.pow(R_f / 100, i + 1) * Math.pow(R_m / 100, i + 1);
+                        const h = Math.max(5, (intensity / 100) * 64);
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center justify-end" style={{ height: 64 }}>
+                            <div
+                              className="w-full rounded-t-sm transition-all"
+                              style={{
+                                height: h,
+                                backgroundColor: ledColor,
+                                opacity: 0.3 + (intensity / 100) * 0.7,
+                              }}
+                            />
+                            <span className="text-[7px] text-gray-600 mt-0.5">{i + 1}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-between text-[9px] text-gray-600 mt-1">
+                      <span>Surface (réflexion 1)</span>
+                      <span>Profondeur (réflexion {Math.min(reflections, 10)})</span>
+                    </div>
+                  </div>
+
+                  <CompactSlider label="Film sans tain (R_f)" value={R_f} min={50} max={95} unit="%" onChange={setR_f}
+                    hint="Plus c'est élevé, plus le tunnel est profond" />
+                  <CompactSlider label="Miroir de fond (R_m)" value={R_m} min={80} max={99} unit="%" onChange={setR_m}
+                    hint="Qualité du miroir inférieur" />
+
                   <div className="bg-white/5 rounded-lg p-3 space-y-2">
-                    <h4 className="text-xs font-semibold text-gray-400">Simulation optique</h4>
+                    <h4 className="text-xs font-semibold text-gray-400">Résultat optique</h4>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div><span className="text-gray-500">Intensité initiale</span><div className="font-mono text-white">100%</div></div>
-                      <div><span className="text-gray-500">Intensité finale</span><div className="font-mono text-white">{reflections > 0 ? `${(100 * Math.pow(R_f / 100, reflections) * Math.pow(R_m / 100, reflections)).toFixed(2)}%` : "—"}</div></div>
-                      <div><span className="text-gray-500">Réflexions visibles</span><div className="font-mono text-cyan-400 font-bold">{reflections}</div></div>
-                      <div><span className="text-gray-500">Perte/réflexion</span><div className="font-mono text-white">{((1 - (R_f / 100) * (R_m / 100)) * 100).toFixed(1)}%</div></div>
+                      <div><span className="text-gray-500">Intensité initiale</span><div className="font-mono text-white text-lg">100%</div></div>
+                      <div><span className="text-gray-500">Après {reflections} réflexions</span>
+                        <div className="font-mono text-purple-400 text-lg font-bold">
+                          {reflections > 0 ? `${(100 * Math.pow(R_f / 100, reflections) * Math.pow(R_m / 100, reflections)).toFixed(2)}%` : "—"}
+                        </div>
+                      </div>
+                      <div><span className="text-gray-500">Couches visibles</span><div className="font-mono text-cyan-400 text-lg font-bold">{reflections}</div></div>
+                      <div><span className="text-gray-500">Perte par bond</span><div className="font-mono text-white text-lg">{((1 - (R_f / 100) * (R_m / 100)) * 100).toFixed(1)}%</div></div>
                     </div>
                   </div>
                 </div>

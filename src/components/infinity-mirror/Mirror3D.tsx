@@ -86,9 +86,9 @@ const Mirror3D: React.FC<Mirror3DProps> = ({
     controlsRef.current = controls;
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight("#334466", 2.5);
+    const ambientLight = new THREE.AmbientLight("#223344", 1.2);
     scene.add(ambientLight);
-    lightsRef.current.push({ light: ambientLight, baseIntensity: 2.5 });
+    lightsRef.current.push({ light: ambientLight, baseIntensity: 1.2 });
     const keyLight = new THREE.DirectionalLight("#ffffff", 5);
     keyLight.position.set(3, 5, 3);
     keyLight.castShadow = true;
@@ -392,6 +392,8 @@ const Mirror3D: React.FC<Mirror3DProps> = ({
     }
 
     // === TUNNEL ===
+    // Use MeshBasicMaterial for LED frames — self-illuminated, ignores scene lights.
+    // This ensures the LED color is 100% accurate and attenuation is clearly visible.
     if (n > 0) {
       const color3 = new THREE.Color(ledColor);
       const maxFrames = Math.min(n, 20);
@@ -406,38 +408,60 @@ const Mirror3D: React.FC<Mirror3DProps> = ({
         const shrink = frameInset * i;
         const fw = Math.max(0.02, w - shrink * 2);
         const fl = Math.max(0.02, l - shrink * 2);
+
+        // Linear falloff for visibility — first frame bright, last frame dim
+        const visibility = 1.0 - (i / maxFrames) * 0.85; // 1.0 → 0.15
+        // Reflection factor for optical realism (affects brightness)
         const reflectionFactor = Math.pow(R_f / 100, i + 1) * Math.pow(R_m / 100, i + 1);
-        const opacity = Math.max(0.04, reflectionFactor * 0.6);
-        const emissiveStrength = Math.max(0.1, reflectionFactor * 3 * (ledPower / 14.4));
-        const emissive = color3.clone().multiplyScalar(emissiveStrength);
+        // Blend visibility with optical factor for realistic attenuation
+        const brightness = visibility * Math.max(0.15, reflectionFactor);
+        const opacity = 0.15 + visibility * 0.85; // 0.15 → 1.0
+
+        // Brighter variant of the LED color for the emissive look
+        const brightColor = color3.clone();
+        // Make it more vivid by increasing saturation and lightness
+        const hsl = { h: 0, s: 0, l: 0 };
+        brightColor.getHSL(hsl);
+        brightColor.setHSL(hsl.h, Math.min(1, hsl.s * 1.2), Math.max(0.1, brightness * 0.9));
 
         if (ledType === "neon") {
-          const tubeRadius = 0.006;
-          const tubeMat = new THREE.MeshStandardMaterial({
-            color: color3, roughness: 0.1, metalness: 0.1,
-            emissive, emissiveIntensity: emissiveStrength * 1.5,
-            transparent: true, opacity: opacity * 1.3,
+          const tubeRadius = 0.008;
+          const innerRadius = 0.004;
+          const tubeMat = new THREE.MeshBasicMaterial({
+            color: brightColor, transparent: true, opacity,
           });
-          const makeTube = (len: number, axis: "x" | "z") => {
-            const cg = new THREE.CylinderGeometry(tubeRadius, tubeRadius, len, 8);
-            const t = new THREE.Mesh(cg, tubeMat);
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: color3, transparent: true, opacity: opacity * 0.3,
+          });
+          const makeTube = (len: number, axis: "x" | "z", mat: THREE.Material, r: number) => {
+            const cg = new THREE.CylinderGeometry(r, r, len, 8);
+            const t = new THREE.Mesh(cg, mat);
             if (axis === "x") t.rotation.z = Math.PI / 2;
             else t.rotation.x = Math.PI / 2;
             return t;
           };
-          const t1 = makeTube(fw, "x"); t1.position.set(0, y, fl / 2); tunnelGroup.add(t1);
-          const t2 = makeTube(fw, "x"); t2.position.set(0, y, -fl / 2); tunnelGroup.add(t2);
-          const t3 = makeTube(fl, "z"); t3.position.set(-fw / 2, y, 0); tunnelGroup.add(t3);
-          const t4 = makeTube(fl, "z"); t4.position.set(fw / 2, y, 0); tunnelGroup.add(t4);
+          // Glow outer tube
+          const g1 = makeTube(fw, "x", glowMat, tubeRadius + 0.004); g1.position.set(0, y, fl / 2); tunnelGroup.add(g1);
+          const g2 = makeTube(fw, "x", glowMat, tubeRadius + 0.004); g2.position.set(0, y, -fl / 2); tunnelGroup.add(g2);
+          const g3 = makeTube(fl, "z", glowMat, tubeRadius + 0.004); g3.position.set(-fw / 2, y, 0); tunnelGroup.add(g3);
+          const g4 = makeTube(fl, "z", glowMat, tubeRadius + 0.004); g4.position.set(fw / 2, y, 0); tunnelGroup.add(g4);
+          // Core bright tube
+          const t1 = makeTube(fw, "x", tubeMat, innerRadius); t1.position.set(0, y, fl / 2); tunnelGroup.add(t1);
+          const t2 = makeTube(fw, "x", tubeMat, innerRadius); t2.position.set(0, y, -fl / 2); tunnelGroup.add(t2);
+          const t3 = makeTube(fl, "z", tubeMat, innerRadius); t3.position.set(-fw / 2, y, 0); tunnelGroup.add(t3);
+          const t4 = makeTube(fl, "z", tubeMat, innerRadius); t4.position.set(fw / 2, y, 0); tunnelGroup.add(t4);
         } else if (ledType === "module") {
-          const dotRadius = 0.007;
-          const dotGeom = new THREE.SphereGeometry(dotRadius, 6, 6);
-          const dotMat = new THREE.MeshStandardMaterial({
-            color: color3, roughness: 0.1,
-            emissive, emissiveIntensity: emissiveStrength * 2,
-            transparent: true, opacity,
+          const dotRadius = 0.01;
+          const glowRadius = 0.018;
+          const dotMat = new THREE.MeshBasicMaterial({
+            color: brightColor, transparent: true, opacity,
           });
-          const dotCount = Math.max(4, Math.floor((2 * (fw + fl)) / 0.04));
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: color3, transparent: true, opacity: opacity * 0.25,
+          });
+          const dotGeom = new THREE.SphereGeometry(dotRadius, 8, 8);
+          const glowGeom = new THREE.SphereGeometry(glowRadius, 8, 8);
+          const dotCount = Math.max(4, Math.floor((2 * (fw + fl)) / 0.035));
           const perimeter = 2 * (fw + fl);
           for (let j = 0; j < dotCount; j++) {
             const p = (j / dotCount) * perimeter;
@@ -446,31 +470,42 @@ const Mirror3D: React.FC<Mirror3DProps> = ({
             else if (p < fw + fl) { dx = fw / 2; dz = fl / 2 - (p - fw); }
             else if (p < 2 * fw + fl) { dx = fw / 2 - (p - fw - fl); dz = -fl / 2; }
             else { dx = -fw / 2; dz = -fl / 2 + (p - 2 * fw - fl); }
-            const dot = new THREE.Mesh(dotGeom.clone(), dotMat);
-            dot.position.set(dx, y, dz);
-            tunnelGroup.add(dot);
+            const glow = new THREE.Mesh(glowGeom.clone(), glowMat); glow.position.set(dx, y, dz); tunnelGroup.add(glow);
+            const dot = new THREE.Mesh(dotGeom.clone(), dotMat); dot.position.set(dx, y, dz); tunnelGroup.add(dot);
           }
         } else {
-          const outlineThickness = 0.005;
-          const outlineMat = new THREE.MeshStandardMaterial({
-            color: color3, roughness: 0.1, metalness: 0.3,
-            emissive, emissiveIntensity: emissiveStrength,
-            transparent: true, opacity,
+          // Ruban: thin bright strips with glow
+          const outlineThickness = 0.004;
+          const glowThickness = 0.012;
+          const stripMat = new THREE.MeshBasicMaterial({
+            color: brightColor, transparent: true, opacity,
           });
-          const barGeom = new THREE.BoxGeometry(fw + outlineThickness * 2, frameThickness * 0.3, outlineThickness);
-          const barVGeom = new THREE.BoxGeometry(outlineThickness, frameThickness * 0.3, fl);
-          const bf = new THREE.Mesh(barGeom, outlineMat); bf.position.set(0, y, fl / 2); tunnelGroup.add(bf);
-          const bb = new THREE.Mesh(barGeom.clone(), outlineMat); bb.position.set(0, y, -fl / 2); tunnelGroup.add(bb);
-          const bl = new THREE.Mesh(barVGeom, outlineMat); bl.position.set(-fw / 2, y, 0); tunnelGroup.add(bl);
-          const br = new THREE.Mesh(barVGeom.clone(), outlineMat); br.position.set(fw / 2, y, 0); tunnelGroup.add(br);
-          const dotGeom = new THREE.SphereGeometry(0.004, 4, 4);
-          const dotMat2 = new THREE.MeshStandardMaterial({
-            color: color3, roughness: 0.1,
-            emissive, emissiveIntensity: emissiveStrength * 2,
-            transparent: true, opacity: Math.min(1, opacity * 1.5),
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: color3, transparent: true, opacity: opacity * 0.2,
           });
+
+          const barGeom = new THREE.BoxGeometry(fw + outlineThickness * 2, frameThickness * 0.2, outlineThickness);
+          const barVGeom = new THREE.BoxGeometry(outlineThickness, frameThickness * 0.2, fl);
+          const glowHGeom = new THREE.BoxGeometry(fw + glowThickness * 2, frameThickness * 0.5, glowThickness);
+          const glowVGeom = new THREE.BoxGeometry(glowThickness, frameThickness * 0.5, fl);
+
+          // Glow bars
+          const gf = new THREE.Mesh(glowHGeom, glowMat); gf.position.set(0, y, fl / 2); tunnelGroup.add(gf);
+          const gb = new THREE.Mesh(glowHGeom.clone(), glowMat); gb.position.set(0, y, -fl / 2); tunnelGroup.add(gb);
+          const gl = new THREE.Mesh(glowVGeom, glowMat); gl.position.set(-fw / 2, y, 0); tunnelGroup.add(gl);
+          const gr = new THREE.Mesh(glowVGeom.clone(), glowMat); gr.position.set(fw / 2, y, 0); tunnelGroup.add(gr);
+          // Bright strips
+          const bf = new THREE.Mesh(barGeom, stripMat); bf.position.set(0, y, fl / 2); tunnelGroup.add(bf);
+          const bb = new THREE.Mesh(barGeom.clone(), stripMat); bb.position.set(0, y, -fl / 2); tunnelGroup.add(bb);
+          const bl = new THREE.Mesh(barVGeom, stripMat); bl.position.set(-fw / 2, y, 0); tunnelGroup.add(bl);
+          const br = new THREE.Mesh(barVGeom.clone(), stripMat); br.position.set(fw / 2, y, 0); tunnelGroup.add(br);
+
+          // Corner dots with glow
+          const dotGeom = new THREE.SphereGeometry(0.006, 8, 8);
+          const glowDotGeom = new THREE.SphereGeometry(0.012, 8, 8);
           for (const [dx, dz] of [[-fw / 2, fl / 2], [fw / 2, fl / 2], [-fw / 2, -fl / 2], [fw / 2, -fl / 2]]) {
-            const dot = new THREE.Mesh(dotGeom, dotMat2); dot.position.set(dx, y, dz); tunnelGroup.add(dot);
+            const gd = new THREE.Mesh(glowDotGeom, glowMat); gd.position.set(dx, y, dz); tunnelGroup.add(gd);
+            const d = new THREE.Mesh(dotGeom.clone(), stripMat); d.position.set(dx, y, dz); tunnelGroup.add(d);
           }
         }
       }
