@@ -3,9 +3,8 @@ import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { AmountInput } from "./AmountInput";
 import ImageUpload from "./ImageUpload";
-import { Trash2, Plus, Minus, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { Trash2, ChevronDown, ChevronUp, FileText, Ruler } from "lucide-react";
 import type { MaterialItem } from "@/types";
 import { UNITES, COULEURS, EPAISSEURS, withCurrent } from "@/constants/materials";
 
@@ -16,6 +15,12 @@ interface MaterialCardProps {
   isEditable?: boolean;
   sectionName?: string; // ← si on préfère passer explicitement la section
 }
+
+// Formatage léger d'un nombre pour l'affichage (résumé header, mode lecture).
+const fmtNum = (n?: number) => {
+  if (n === undefined || n === null || Number.isNaN(n)) return "0";
+  return Number(n.toFixed(2)).toLocaleString("fr-FR");
+};
 
 const MaterialCard: React.FC<MaterialCardProps> = ({
   item,
@@ -29,45 +34,6 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
 
   const section = item.section || sectionName || "";
 
-  const handleIncrement = (
-    field: keyof Pick<MaterialItem, "quantite">,
-    step = 1
-  ) => {
-    const currentValue = item[field] || 0;
-    onChange({ [field]: Number((currentValue + step).toFixed(2)) });
-  };
-
-  const handleDecrement = (
-    field: keyof Pick<MaterialItem, "quantite">,
-    step = 1
-  ) => {
-    const currentValue = item[field] || 0;
-    const newValue = Math.max(0, Number((currentValue - step).toFixed(2)));
-    onChange({ [field]: newValue });
-  };
-
-  const handleWidthIncrement = (step = 0.1) => {
-    const currentValue = item.largeur || 0;
-    onChange({ largeur: Number((currentValue + step).toFixed(2)) });
-  };
-
-  const handleWidthDecrement = (step = 0.1) => {
-    const currentValue = item.largeur || 0;
-    const newValue = Math.max(0, Number((currentValue - step).toFixed(2)));
-    onChange({ largeur: newValue });
-  };
-
-  const handleHeightIncrement = (step = 0.1) => {
-    const currentValue = item.hauteur || 0;
-    onChange({ hauteur: Number((currentValue + step).toFixed(2)) });
-  };
-
-  const handleHeightDecrement = (step = 0.1) => {
-    const currentValue = item.hauteur || 0;
-    const newValue = Math.max(0, Number((currentValue - step).toFixed(2)));
-    onChange({ hauteur: newValue });
-  };
-
   const toggleCollapse = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsCollapsed(!isCollapsed);
@@ -77,6 +43,20 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
     e.stopPropagation();
   };
 
+  // Saisie numérique directe (remplace les boutons +/-).
+  const handleNumberChange = (
+    field: "quantite" | "largeur" | "hauteur",
+    raw: string
+  ) => {
+    if (raw === "") {
+      onChange({ [field]: field === "quantite" ? 1 : 0 });
+      return;
+    }
+    const parsed = Number(raw);
+    if (Number.isNaN(parsed)) return;
+    onChange({ [field]: Math.max(0, parsed) });
+  };
+
   const calculateSurface = () => {
     if (item.largeur && item.hauteur) {
       return (item.largeur * item.hauteur * (item.quantite || 1)).toFixed(2);
@@ -84,14 +64,35 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
     return "0.00";
   };
 
+  const showHauteur = ["Découpe", "Vinyl"].includes(section);
+  const showCouleur =
+    ["Éclairage", "Vinyl", "Découpe"].includes(section) ||
+    (item.couleurs_dispo && item.couleurs_dispo.length > 0);
+  const showEpaisseur = ["Métal", "Découpe"].includes(section);
+
+  // Résumé compact affiché dans le header (mode replié).
+  const dimsSummary = (() => {
+    const parts: string[] = [];
+    if (item.quantite) parts.push(`${fmtNum(item.quantite)} ${item.unite || ""}`.trim());
+    if (item.largeur) {
+      parts.push(
+        showHauteur && item.hauteur
+          ? `${fmtNum(item.largeur)} × ${fmtNum(item.hauteur)} m`
+          : `${fmtNum(item.largeur)} m`
+      );
+    }
+    if (item.largeur && item.hauteur) parts.push(`${calculateSurface()} m²`);
+    return parts.join(" · ");
+  })();
+
   // Fonction pour déterminer le type de fichier et appliquer la classe de couleur appropriée
   const getFileType = (url?: string) => {
     if (!url) return { isImage: false, isPdf: false, extension: "" };
-    
+
     const fileExtension = url.split(".").pop()?.toLowerCase() || "";
     const isImage = ["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg"].includes(fileExtension);
     const isPdf = fileExtension === "pdf";
-    
+
     return { isImage, isPdf, extension: fileExtension };
   };
 
@@ -112,19 +113,26 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
   };
   const getBgClass = (ext: string) => extColors[ext] || extColors.default;
 
+  // Styles partagés
+  const sectionTitleCls =
+    "text-[10px] font-semibold tracking-wider uppercase text-gray-400 border-b border-gray-100 pb-1";
+  const numInputCls =
+    "h-11 w-full text-center text-base font-medium tabular-nums";
+
   return (
-    <div 
+    <div
       className={`bg-white border border-gray-200 rounded-lg transition-all duration-300 ease-in-out
-        ${isCollapsed ? 'p-2' : 'p-4 space-y-4'}`}
+        ${isCollapsed ? 'p-2' : 'p-4 space-y-5'}`}
       onClick={toggleCollapse}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      {/* ===================== HEADER ===================== */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
           {item.image_url && (
             <div className="h-10 w-10 rounded-md overflow-hidden flex-shrink-0">
-              <img 
-                src={item.image_url} 
-                alt={item.nom} 
+              <img
+                src={item.image_url}
+                alt={item.nom}
                 className="h-full w-full object-cover"
               />
             </div>
@@ -138,34 +146,29 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                 </span>
               )}
             </h3>
-            {!isCollapsed && (
-              <p className="text-xs text-gray-500">
-                {item.reference ? `Réf. ${item.reference}` : "Sans référence"}
-              </p>
-            )}
+            {isCollapsed
+              ? dimsSummary && (
+                  <p className="text-xs text-gray-500 truncate">{dimsSummary}</p>
+                )
+              : (
+                <p className="text-xs text-gray-500">
+                  {item.reference ? `Réf. ${item.reference}` : "Sans référence"}
+                </p>
+              )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {isCollapsed && (
-            <span className="text-sm text-gray-500">
-              {item.quantite} {item.unite}
-            </span>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-1"
-          >
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button variant="ghost" size="sm" className="p-1">
             {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
           </Button>
         </div>
       </div>
 
       {!isCollapsed && (
-        <div onClick={handleInteractiveClick}>
-          {/* Affichage de l'image/fichier pour tous les matériaux quand ils sont étendus */}
+        <div onClick={handleInteractiveClick} className="space-y-5">
+          {/* Aperçu fichier (si présent) */}
           {item.image_url && (
-            <div className="mt-4 flex justify-center">
+            <div className="flex justify-center">
               <div className="relative">
                 {fileInfo.isImage ? (
                   <button
@@ -217,229 +220,216 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
             </div>
           )}
 
-          {/* Nom sur toute la largeur */}
-          <div className="mt-4">
-            <Label className="text-xs font-medium text-gray-500 uppercase mb-1">
-              Nom
-            </Label>
-            {isEditable ? (
-              <Input
-                value={item.nom}
-                onChange={(e) => onChange({ nom: e.target.value })}
-                className="h-10 w-full"
-                placeholder="Nom du matériau"
-              />
-            ) : (
-              <div className="text-sm text-gray-900">{item.nom}</div>
-            )}
-          </div>
-
-          {/* Réf. & Unité côte‑à‑côte sur mobile, 3‑cols à partir de md */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-            {/* on réserve la 3ᵉ colonne en mobile */}
-            <div className="hidden md:block" />
+          {/* ===================== SECTION 1 · IDENTIFICATION ===================== */}
+          <div className="space-y-3">
+            <div className={sectionTitleCls}>Identification</div>
 
             <div>
-              <Label className="text-xs font-medium text-gray-500 uppercase mb-1">
-                Réf.
-              </Label>
+              <Label className="text-xs font-medium text-gray-500 mb-1 block">Nom</Label>
               {isEditable ? (
                 <Input
-                  value={item.reference || ""}
-                  onChange={(e) => onChange({ reference: e.target.value })}
+                  value={item.nom}
+                  onChange={(e) => onChange({ nom: e.target.value })}
                   className="h-10 w-full"
-                  placeholder="REF-001"
+                  placeholder="Nom du matériau"
                 />
               ) : (
-                <div className="text-sm text-gray-900">{item.reference || "-"}</div>
+                <div className="text-sm text-gray-900">{item.nom}</div>
               )}
             </div>
 
-            <div>
-              <Label className="text-xs font-medium text-gray-500 uppercase mb-1">
-                Unité
-              </Label>
-              {isEditable ? (
-                <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-medium text-gray-500 mb-1 block">Référence</Label>
+                {isEditable ? (
                   <Input
-                    list={`unite-options-${item.id}`}
-                    value={item.unite || ""}
-                    onChange={(e) => onChange({ unite: e.target.value })}
+                    value={item.reference || ""}
+                    onChange={(e) => onChange({ reference: e.target.value })}
                     className="h-10 w-full"
-                    placeholder="ex: plaque, m²"
+                    placeholder="REF-001"
                   />
-                  <datalist id={`unite-options-${item.id}`}>
-                    {withCurrent(UNITES, item.unite).map((u) => (
-                      <option key={u} value={u} />
-                    ))}
-                  </datalist>
-                </>
-              ) : (
-                <div className="text-sm text-gray-900">{item.unite}</div>
-              )}
+                ) : (
+                  <div className="text-sm text-gray-900">{item.reference || "-"}</div>
+                )}
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium text-gray-500 mb-1 block">Unité</Label>
+                {isEditable ? (
+                  <>
+                    <Input
+                      list={`unite-options-${item.id}`}
+                      value={item.unite || ""}
+                      onChange={(e) => onChange({ unite: e.target.value })}
+                      className="h-10 w-full"
+                      placeholder="ex: plaque, m²"
+                    />
+                    <datalist id={`unite-options-${item.id}`}>
+                      {withCurrent(UNITES, item.unite).map((u) => (
+                        <option key={u} value={u} />
+                      ))}
+                    </datalist>
+                  </>
+                ) : (
+                  <div className="text-sm text-gray-900">{item.unite}</div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* GRILLE DES NOUVEAUX CHAMPS conditionnels + quantité/dimensions */}
-          <div className="grid grid-cols-3 gap-3 mt-4">
-            {/* Qté */}
-            <div className="flex flex-col items-center space-y-1">
-              <Label className="text-xs text-gray-500">Q</Label>
-              <div className="flex items-center space-x-1">
-                {isEditable && (
-                  <Button variant="outline" size="sm" onClick={(e) => {
-                    e.stopPropagation();
-                    handleDecrement("quantite");
-                  }} className="p-1 h-8 w-8"><Minus size={14} /></Button>
-                )}
-                <AmountInput
-                  value={item.quantite}
-                  onChange={(value) => onChange({ quantite: value })}
-                  isEditable={isEditable}
-                  min={1}
-                />
-                {isEditable && (
-                  <Button variant="outline" size="sm" onClick={(e) => {
-                    e.stopPropagation();
-                    handleIncrement("quantite");
-                  }} className="p-1 h-8 w-8"><Plus size={14} /></Button>
+          {/* ===================== SECTION 2 · DIMENSIONS & QUANTITÉ ===================== */}
+          <div className="space-y-3">
+            <div className={sectionTitleCls}>Dimensions &amp; quantité</div>
+
+            <div className={`grid ${showHauteur ? "grid-cols-3" : "grid-cols-2"} gap-3`}>
+              {/* Quantité */}
+              <div>
+                <Label className="text-xs font-medium text-gray-500 mb-1 block">Quantité</Label>
+                {isEditable ? (
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min={1}
+                    step={1}
+                    value={item.quantite ?? 1}
+                    onChange={(e) => handleNumberChange("quantite", e.target.value)}
+                    className={numInputCls}
+                  />
+                ) : (
+                  <div className="h-11 flex items-center justify-center text-base font-medium text-gray-900 tabular-nums">
+                    {fmtNum(item.quantite)}
+                  </div>
                 )}
               </div>
-            </div>
 
-            {/* Largeur */}
-            <div className="flex flex-col items-center space-y-1">
-              <Label className="text-xs text-gray-500">L</Label>
-              <div className="flex items-center space-x-1">
-                {isEditable && (
-                  <Button variant="outline" size="sm" onClick={(e) => {
-                    e.stopPropagation();
-                    handleWidthDecrement();
-                  }} className="p-1 h-8 w-8"><Minus size={14} /></Button>
-                )}
-                <AmountInput
-                  value={item.largeur || 0}
-                  onChange={(value) => onChange({ largeur: value })}
-                  isEditable={isEditable}
-                  min={0}
-                  step={0.1}
-                />
-                {isEditable && (
-                  <Button variant="outline" size="sm" onClick={(e) => {
-                    e.stopPropagation();
-                    handleWidthIncrement();
-                  }} className="p-1 h-8 w-8"><Plus size={14} /></Button>
-                )}
-              </div>
-            </div>
-
-            {/* Hauteur – affichée uniquement pour Découpe et Vinyl */}
-            {["Découpe", "Vinyl"].includes(section) && (
-              <div className="flex flex-col items-center space-y-1">
-                <Label className="text-xs text-gray-500">H</Label>
-                <div className="flex items-center space-x-1">
-                  {isEditable && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => { e.stopPropagation(); handleHeightDecrement(); }}
-                      className="p-1 h-8 w-8"
-                    >
-                      <Minus size={14} />
-                    </Button>
-                  )}
-                  <AmountInput
-                    value={item.hauteur || 0}
-                    onChange={(value) => onChange({ hauteur: value })}
-                    isEditable={isEditable}
+              {/* Largeur */}
+              <div>
+                <Label className="text-xs font-medium text-gray-500 mb-1 block">
+                  Largeur <span className="text-gray-400">(m)</span>
+                </Label>
+                {isEditable ? (
+                  <Input
+                    type="number"
+                    inputMode="decimal"
                     min={0}
                     step={0.1}
+                    value={item.largeur ?? 0}
+                    onChange={(e) => handleNumberChange("largeur", e.target.value)}
+                    className={numInputCls}
                   />
-                  {isEditable && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => { e.stopPropagation(); handleHeightIncrement(); }}
-                      className="p-1 h-8 w-8"
-                    >
-                      <Plus size={14} />
-                    </Button>
+                ) : (
+                  <div className="h-11 flex items-center justify-center text-base font-medium text-gray-900 tabular-nums">
+                    {fmtNum(item.largeur)}
+                  </div>
+                )}
+              </div>
+
+              {/* Hauteur – uniquement Découpe & Vinyl */}
+              {showHauteur && (
+                <div>
+                  <Label className="text-xs font-medium text-gray-500 mb-1 block">
+                    Hauteur <span className="text-gray-400">(m)</span>
+                  </Label>
+                  {isEditable ? (
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step={0.1}
+                      value={item.hauteur ?? 0}
+                      onChange={(e) => handleNumberChange("hauteur", e.target.value)}
+                      className={numInputCls}
+                    />
+                  ) : (
+                    <div className="h-11 flex items-center justify-center text-base font-medium text-gray-900 tabular-nums">
+                      {fmtNum(item.hauteur)}
+                    </div>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Champs conditionnels selon la section */}
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            {/* Couleur: seulement pour Éclairage ou Vinyl */}
-            {isEditable && (["Éclairage", "Vinyl", "Découpe"].includes(section) || (item.couleurs_dispo && item.couleurs_dispo.length > 0)) && (
-              <div>
-                <Label className="text-xs">Couleur</Label>
-                <select
-                  value={item.couleur || ""}
-                  onChange={e => onChange({ couleur: e.target.value })}
-                  className="w-full h-8 text-sm"
-                >
-                  <option value="">--</option>
-                  {withCurrent(
-                    item.couleurs_dispo && item.couleurs_dispo.length > 0 ? item.couleurs_dispo : COULEURS,
-                    item.couleur,
-                  ).map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Epaisseur: seulement pour Métal ou Découpe */}
-            {isEditable && ["Métal", "Découpe"].includes(section) && (
-              <div>
-                <Label className="text-xs">Epaisseur</Label>
-                <select
-                  value={item.epaisseur || ""}
-                  onChange={e => onChange({ epaisseur: e.target.value })}
-                  className="w-full h-8 text-sm"
-                >
-                  <option value="">--</option>
-                  {withCurrent(EPAISSEURS, item.epaisseur).map(ep => (
-                    <option key={ep} value={ep}>{ep}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-between items-center mt-4">
-            <div className="text-sm text-gray-600">
-              Surface: {calculateSurface()} m²
+              )}
             </div>
 
-            {isEditable && (
-              <div className="flex items-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete();
-                  }}
-                  className="text-red-600 hover:text-red-800 p-0 h-10 w-10"
-                >
-                  <Trash2 size={16} />
-                </Button>
-              </div>
-            )}
+            {/* Surface calculée en badge */}
+            <div className="flex items-center">
+              <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 text-sm font-medium px-2.5 py-1 rounded-md">
+                <Ruler size={14} />
+                Surface totale : <strong>{calculateSurface()} m²</strong>
+              </span>
+            </div>
           </div>
 
-          {/* ImageUpload pour tous les matériaux */}
+          {/* ===================== SECTION 3 · CARACTÉRISTIQUES ===================== */}
+          {isEditable && (showCouleur || showEpaisseur) && (
+            <div className="space-y-3">
+              <div className={sectionTitleCls}>Caractéristiques</div>
+              <div className="grid grid-cols-2 gap-3">
+                {showCouleur && (
+                  <div>
+                    <Label className="text-xs font-medium text-gray-500 mb-1 block">Couleur</Label>
+                    <select
+                      value={item.couleur || ""}
+                      onChange={(e) => onChange({ couleur: e.target.value })}
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0"
+                    >
+                      <option value="">--</option>
+                      {withCurrent(
+                        item.couleurs_dispo && item.couleurs_dispo.length > 0
+                          ? item.couleurs_dispo
+                          : COULEURS,
+                        item.couleur,
+                      ).map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {showEpaisseur && (
+                  <div>
+                    <Label className="text-xs font-medium text-gray-500 mb-1 block">Épaisseur</Label>
+                    <select
+                      value={item.epaisseur || ""}
+                      onChange={(e) => onChange({ epaisseur: e.target.value })}
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0"
+                    >
+                      <option value="">--</option>
+                      {withCurrent(EPAISSEURS, item.epaisseur).map((ep) => (
+                        <option key={ep} value={ep}>{ep}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ===================== SECTION 4 · PIÈCE JOINTE ===================== */}
           {isEditable && (
-            <div className="mt-4">
+            <div className="space-y-2">
+              <div className={sectionTitleCls}>Pièce jointe</div>
               <ImageUpload
                 imageUrl={item.image_url || ""}
                 onChange={(url) => onChange({ image_url: url })}
                 isEditable={isEditable}
               />
+            </div>
+          )}
+
+          {/* ===================== ACTIONS ===================== */}
+          {isEditable && (
+            <div className="flex justify-end pt-1 border-t border-gray-100">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                className="text-red-600 hover:text-red-800 hover:bg-red-50 gap-1.5"
+              >
+                <Trash2 size={16} />
+                Supprimer
+              </Button>
             </div>
           )}
         </div>
