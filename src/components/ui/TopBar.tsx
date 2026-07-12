@@ -14,7 +14,8 @@ import {
   Menu,
   X,
   SlidersHorizontal,
-  TrendingUp
+  TrendingUp,
+  Sparkles,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -81,6 +82,7 @@ const TopBar: React.FC<TopBarProps> = ({ className }) => {
     { to: "/agent-config", icon: <SlidersHorizontal className="h-4 w-4" />, label: "Agents" },
     { to: "/communicator", icon: <MessageSquare className="h-4 w-4" />, label: "Communicateur" },
     { to: "/finances", icon: <TrendingUp className="h-4 w-4" />, label: "Finances" },
+    { to: "/infinity-mirror", icon: <Sparkles className="h-4 w-4" />, label: "Miroir Infini" },
   ];
 
   return (
