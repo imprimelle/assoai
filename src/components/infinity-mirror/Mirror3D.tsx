@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useCallback } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
+export type LedType = "ruban" | "module" | "neon";
+
 export interface Mirror3DProps {
   L: number;
   H: number;
@@ -9,10 +11,24 @@ export interface Mirror3DProps {
   n: number;
   R_f: number;
   R_m: number;
-  brightness?: number; // Multiplicateur de luminosité (défaut: 1)
+  brightness?: number;
+  ledColor?: string;
+  ledType?: LedType;
+  ledPower?: number;
 }
 
-const Mirror3D: React.FC<Mirror3DProps> = ({ L, H, d, n, R_f, R_m, brightness = 1 }) => {
+const Mirror3D: React.FC<Mirror3DProps> = ({
+  L,
+  H,
+  d,
+  n,
+  R_f,
+  R_m,
+  brightness = 1,
+  ledColor = "#00aaff",
+  ledType = "ruban",
+  ledPower = 14.4,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -22,32 +38,26 @@ const Mirror3D: React.FC<Mirror3DProps> = ({ L, H, d, n, R_f, R_m, brightness = 
   const tunnelGroupRef = useRef<THREE.Group | null>(null);
   const lightsRef = useRef<{ light: THREE.Light; baseIntensity: number }[]>([]);
 
-  // Scale: 1 unit = 1 cm, so 60 cm = 60 units... that's too big.
-  // Let's use 0.01 scale: 1 unit = 1 cm → 60 units is reasonable
-  const SCALE = 0.01; // 1 unit in 3D = 1 cm
+  const SCALE = 0.01;
 
   const initScene = useCallback(() => {
     if (!containerRef.current) return;
-
     const container = containerRef.current;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const w = container.clientWidth;
+    const h = container.clientHeight;
 
-    // Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("#0f0f1a");
     scene.fog = new THREE.Fog("#0f0f1a", 5, 30);
     sceneRef.current = scene;
 
-    // Camera
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(2.5, 1.8, 2.5);
-    camera.lookAt(0, -0.1, 0);
+    const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+    camera.position.set(2.5, 2.0, 2.5);
+    camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(width, height);
+    renderer.setSize(w, h);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -56,14 +66,13 @@ const Mirror3D: React.FC<Mirror3DProps> = ({ L, H, d, n, R_f, R_m, brightness = 
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Controls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
-    controls.minDistance = 0.8;
-    controls.maxDistance = 6;
-    controls.maxPolarAngle = Math.PI * 0.65;
-    controls.target.set(0, -0.1, 0);
+    controls.minDistance = 0.5;
+    controls.maxDistance = 8;
+    controls.maxPolarAngle = Math.PI * 0.7;
+    controls.target.set(0, 0, 0);
     controls.update();
     controlsRef.current = controls;
 
@@ -97,7 +106,7 @@ const Mirror3D: React.FC<Mirror3DProps> = ({ L, H, d, n, R_f, R_m, brightness = 
     scene.add(rimLight);
     lightsRef.current.push({ light: rimLight, baseIntensity: 3 });
 
-    // Ground plane (subtle reflection surface)
+    // Ground
     const groundGeom = new THREE.PlaneGeometry(6, 6);
     const groundMat = new THREE.MeshStandardMaterial({
       color: "#1a1a2e",
@@ -106,11 +115,10 @@ const Mirror3D: React.FC<Mirror3DProps> = ({ L, H, d, n, R_f, R_m, brightness = 
     });
     const ground = new THREE.Mesh(groundGeom, groundMat);
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -1.2;
+    ground.position.y = -1.5;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // Groups for dynamic content
     const frameGroup = new THREE.Group();
     scene.add(frameGroup);
     frameGroupRef.current = frameGroup;
@@ -119,282 +127,262 @@ const Mirror3D: React.FC<Mirror3DProps> = ({ L, H, d, n, R_f, R_m, brightness = 
     scene.add(tunnelGroup);
     tunnelGroupRef.current = tunnelGroup;
 
-    // Animate
     const animate = () => {
       requestAnimationFrame(animate);
-      if (controlsRef.current) {
-        controlsRef.current.update();
-      }
+      controlsRef.current?.update();
       if (rendererRef.current && sceneRef.current && cameraRef.current) {
         rendererRef.current.render(sceneRef.current, cameraRef.current);
       }
     };
     animate();
 
-    // Resize handler
     const handleResize = () => {
-      if (!containerRef.current || !cameraRef.current || !rendererRef.current)
-        return;
-      const w = containerRef.current.clientWidth;
-      const h = containerRef.current.clientHeight;
-      cameraRef.current.aspect = w / h;
+      if (!containerRef.current || !cameraRef.current || !rendererRef.current) return;
+      const cw = containerRef.current.clientWidth;
+      const ch = containerRef.current.clientHeight;
+      cameraRef.current.aspect = cw / ch;
       cameraRef.current.updateProjectionMatrix();
-      rendererRef.current.setSize(w, h);
+      rendererRef.current.setSize(cw, ch);
     };
     window.addEventListener("resize", handleResize);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Initialize scene once
   useEffect(() => {
     const cleanup = initScene();
     return () => {
       cleanup?.();
-      if (rendererRef.current) {
-        rendererRef.current.dispose();
-        if (containerRef.current && rendererRef.current.domElement) {
-          containerRef.current.removeChild(rendererRef.current.domElement);
-        }
+      rendererRef.current?.dispose();
+      if (containerRef.current && rendererRef.current?.domElement) {
+        containerRef.current.removeChild(rendererRef.current.domElement);
       }
     };
   }, [initScene]);
 
-  // Update model geometry when props change
+  // ── Rebuild geometry ──
   useEffect(() => {
     if (!frameGroupRef.current || !tunnelGroupRef.current) return;
 
     const frameGroup = frameGroupRef.current;
     const tunnelGroup = tunnelGroupRef.current;
 
-    // Clear previous geometry
-    while (frameGroup.children.length > 0) {
-      const child = frameGroup.children[0];
-      if (child instanceof THREE.Mesh) {
-        child.geometry?.dispose();
-        if (Array.isArray(child.material)) {
-          child.material.forEach((m) => m.dispose());
-        } else {
-          child.material?.dispose();
+    const disposeGroup = (g: THREE.Group) => {
+      while (g.children.length > 0) {
+        const child = g.children[0];
+        if (child instanceof THREE.Mesh) {
+          child.geometry?.dispose();
+          if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
+          else child.material?.dispose();
         }
+        g.remove(child);
       }
-      frameGroup.remove(child);
-    }
-    while (tunnelGroup.children.length > 0) {
-      const child = tunnelGroup.children[0];
-      if (child instanceof THREE.Mesh) {
-        child.geometry?.dispose();
-        if (Array.isArray(child.material)) {
-          child.material.forEach((m) => m.dispose());
-        } else {
-          child.material?.dispose();
-        }
-      }
-      tunnelGroup.remove(child);
-    }
+    };
+    disposeGroup(frameGroup);
+    disposeGroup(tunnelGroup);
 
-    const w = L * SCALE; // width (X)
-    const l = H * SCALE; // length (Z)
-    const depth = d * SCALE; // internal spacing (Y)
+    const w = L * SCALE;
+    const l = H * SCALE;
+    // ── PHYSICAL DEPTH (not visual) ──
+    const physicalDepth = d * SCALE;
     const frameThickness = 0.02;
-    const boxHeight = depth * Math.max(n, 1) * 1.2; // visual height
+    const edgeThickness = 0.03;
 
-    // === FRAME (outer box) ===
-    // Bottom base (mirror)
+    // === FRAME ===
+    const frameColor = "#334455";
+    const frameMat = new THREE.MeshStandardMaterial({ color: frameColor, roughness: 0.3, metalness: 0.9 });
+
+    // Bottom (mirror)
     const bottomGeom = new THREE.BoxGeometry(w, frameThickness, l);
-    const bottomMat = new THREE.MeshStandardMaterial({
-      color: "#8899cc",
-      roughness: 0.1,
-      metalness: 1.0,
-      envMapIntensity: 0.8,
-    });
+    const bottomMat = new THREE.MeshStandardMaterial({ color: "#8899cc", roughness: 0.1, metalness: 1.0 });
     const bottom = new THREE.Mesh(bottomGeom, bottomMat);
-    bottom.position.y = -boxHeight / 2;
+    bottom.position.y = -physicalDepth / 2;
     bottom.castShadow = true;
     bottom.receiveShadow = true;
     frameGroup.add(bottom);
 
-    // Top glass (semi-transparent)
+    // Top (glass)
     const topGeom = new THREE.BoxGeometry(w, frameThickness * 0.5, l);
     const topMat = new THREE.MeshPhysicalMaterial({
-      color: "#aaccff",
-      roughness: 0.05,
-      metalness: 0.1,
-      transparent: true,
-      opacity: 0.4,
-      envMapIntensity: 1.5,
+      color: "#aaccff", roughness: 0.05, metalness: 0.1,
+      transparent: true, opacity: 0.35, envMapIntensity: 1.5,
     });
     const top = new THREE.Mesh(topGeom, topMat);
-    top.position.y = boxHeight / 2;
+    top.position.y = physicalDepth / 2;
     top.castShadow = true;
     frameGroup.add(top);
 
-    // Frame sides (4 edges)
-    const frameColor = "#334455";
-    const frameMat = new THREE.MeshStandardMaterial({
-      color: frameColor,
-      roughness: 0.3,
-      metalness: 0.9,
-    });
+    // Sides
+    const edgeHeight = physicalDepth;
+    const makeEdge = (x: number, z: number, gw: number, gl: number) => {
+      const g = new THREE.BoxGeometry(gw, edgeHeight, gl);
+      const m = new THREE.Mesh(g, frameMat);
+      m.position.set(x, 0, z);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      frameGroup.add(m);
+    };
+    makeEdge(0, l / 2 + edgeThickness / 2, w + edgeThickness * 2, edgeThickness);
+    makeEdge(0, -l / 2 - edgeThickness / 2, w + edgeThickness * 2, edgeThickness);
+    makeEdge(-w / 2 - edgeThickness / 2, 0, edgeThickness, l);
+    makeEdge(w / 2 + edgeThickness / 2, 0, edgeThickness, l);
 
-    // Side extrusions for a more realistic frame
-    const edgeThickness = 0.03;
-    const edgeHeight = boxHeight;
-
-    // Front edge (Z+)
-    const frontGeom = new THREE.BoxGeometry(w + edgeThickness * 2, edgeHeight, edgeThickness);
-    const front = new THREE.Mesh(frontGeom, frameMat);
-    front.position.set(0, 0, l / 2 + edgeThickness / 2);
-    front.castShadow = true;
-    front.receiveShadow = true;
-    frameGroup.add(front);
-
-    // Back edge (Z-)
-    const backGeom = new THREE.BoxGeometry(w + edgeThickness * 2, edgeHeight, edgeThickness);
-    const back = new THREE.Mesh(backGeom, frameMat);
-    back.position.set(0, 0, -l / 2 - edgeThickness / 2);
-    back.castShadow = true;
-    back.receiveShadow = true;
-    frameGroup.add(back);
-
-    // Left edge (X-)
-    const leftGeom = new THREE.BoxGeometry(edgeThickness, edgeHeight, l);
-    const left = new THREE.Mesh(leftGeom, frameMat);
-    left.position.set(-w / 2 - edgeThickness / 2, 0, 0);
-    left.castShadow = true;
-    left.receiveShadow = true;
-    frameGroup.add(left);
-
-    // Right edge (X+)
-    const rightGeom = new THREE.BoxGeometry(edgeThickness, edgeHeight, l);
-    const right = new THREE.Mesh(rightGeom, frameMat);
-    right.position.set(w / 2 + edgeThickness / 2, 0, 0);
-    right.castShadow = true;
-    right.receiveShadow = true;
-    frameGroup.add(right);
-
-    // Corner accents (small cubes at each corner)
+    // Corners
     const cornerSize = 0.025;
-    const cornerMat = new THREE.MeshStandardMaterial({
-      color: "#667788",
-      roughness: 0.15,
-      metalness: 1.0,
-    });
-    const corners = [
-      [-w / 2, boxHeight / 2, l / 2],
-      [w / 2, boxHeight / 2, l / 2],
-      [-w / 2, boxHeight / 2, -l / 2],
-      [w / 2, boxHeight / 2, -l / 2],
-      [-w / 2, -boxHeight / 2, l / 2],
-      [w / 2, -boxHeight / 2, l / 2],
-      [-w / 2, -boxHeight / 2, -l / 2],
-      [w / 2, -boxHeight / 2, -l / 2],
-    ];
+    const cornerMat = new THREE.MeshStandardMaterial({ color: "#667788", roughness: 0.15, metalness: 1.0 });
+    const corners: [number, number, number][] = [];
+    for (const sx of [-1, 1]) {
+      for (const sy of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          corners.push([sx * (w / 2), sy * (physicalDepth / 2), sz * (l / 2)]);
+        }
+      }
+    }
     corners.forEach(([cx, cy, cz]) => {
-      const cornerGeom = new THREE.BoxGeometry(cornerSize, cornerSize, cornerSize);
-      const corner = new THREE.Mesh(cornerGeom, cornerMat);
-      corner.position.set(cx, cy, cz);
-      corner.castShadow = true;
-      frameGroup.add(corner);
+      const cg = new THREE.BoxGeometry(cornerSize, cornerSize, cornerSize);
+      const c = new THREE.Mesh(cg, cornerMat);
+      c.position.set(cx, cy, cz);
+      c.castShadow = true;
+      frameGroup.add(c);
     });
 
-    // === TUNNEL EFFECT (nested reflective frames) ===
+    // === TUNNEL (nested frames within physical depth) ===
     if (n > 0) {
-      const frameInset = 0.04; // how much each inner frame shrinks
-      const startY = boxHeight / 2 - depth; // start just below the top glass
-      const totalTunnelDepth = n * depth; // actual depth of the tunnel
+      // Parse LED color
+      const color3 = new THREE.Color(ledColor);
+      const maxFrames = Math.min(n, 20);
 
-      for (let i = 0; i < Math.min(n, 20); i++) {
-        const y = startY - i * depth;
+      // Frames are spaced exponentially converging to the bottom mirror
+      // Geometric series: pos_i = top - depth * (1 - 1/2^i) for i=[1..maxFrames]
+      const topY = physicalDepth / 2 - frameThickness;
+      const bottomY = -physicalDepth / 2 + frameThickness;
+      const range = topY - bottomY;
+
+      const frameInset = 0.03;
+
+      for (let i = 0; i < maxFrames; i++) {
+        // Geometric progression: frames get closer together as they approach the bottom
+        const t = 1 - Math.pow(0.5, i + 1); // 0.5, 0.75, 0.875, 0.9375, ...
+        const y = topY - t * range;
+
         const shrink = frameInset * i;
-        const fw = w - shrink * 2;
-        const fl = l - shrink * 2;
-        const fh = frameThickness * 0.3;
+        const fw = Math.max(0.02, w - shrink * 2);
+        const fl = Math.max(0.02, l - shrink * 2);
 
-        // Compute intensity based on the actual reflection formula
-        // I = 100 * (R_f/100)^(i+1) * (R_m/100)^(i+1)
+        // Reflection intensity
         const reflectionFactor = Math.pow(R_f / 100, i + 1) * Math.pow(R_m / 100, i + 1);
-        const opacity = Math.max(0.05, reflectionFactor * 0.7);
-        const brightness = Math.max(0.1, reflectionFactor);
+        const opacity = Math.max(0.04, reflectionFactor * 0.6);
+        const emissiveStrength = Math.max(0.1, reflectionFactor * 3 * (ledPower / 14.4));
 
-        // Neon-like glow colors that shift with depth
-        const hue = 0.58 + i * 0.02; // shift from blue toward purple
-        const saturation = 0.8 - i * 0.03;
-        const lightness = 0.3 + brightness * 0.5;
-        const color = new THREE.Color().setHSL(hue % 1, saturation, lightness);
+        const emissive = color3.clone().multiplyScalar(emissiveStrength);
 
-        // Frame rectangle (using 4 thin boxes to form a rectangular outline)
-        const outlineThickness = 0.008;
-        const outlineMat = new THREE.MeshStandardMaterial({
-          color: color,
-          roughness: 0.1,
-          metalness: 0.3,
-          emissive: color,
-          emissiveIntensity: brightness * 3,
-          transparent: true,
-          opacity: opacity,
-        });
+        if (ledType === "neon") {
+          // Neon: thicker tubes, glow effect
+          const tubeRadius = 0.006;
+          const tubeMat = new THREE.MeshStandardMaterial({
+            color: color3, roughness: 0.1, metalness: 0.1,
+            emissive, emissiveIntensity: emissiveStrength * 1.5,
+            transparent: true, opacity: opacity * 1.3,
+          });
 
-        // Front bar
-        const barFGeom = new THREE.BoxGeometry(fw + outlineThickness * 2, fh, outlineThickness);
-        const barF = new THREE.Mesh(barFGeom, outlineMat);
-        barF.position.set(0, y, fl / 2);
-        tunnelGroup.add(barF);
+          const cg = new THREE.CylinderGeometry(tubeRadius, tubeRadius, fw, 8);
+          const segments: THREE.Mesh[] = [];
+          // Top tube
+          const t1 = new THREE.Mesh(cg, tubeMat);
+          t1.rotation.z = Math.PI / 2;
+          t1.position.set(0, y, fl / 2);
+          tunnelGroup.add(t1);
+          // Bottom tube
+          const t2 = new THREE.Mesh(cg.clone(), tubeMat);
+          t2.rotation.z = Math.PI / 2;
+          t2.position.set(0, y, -fl / 2);
+          tunnelGroup.add(t2);
+          // Left tube
+          const cgV = new THREE.CylinderGeometry(tubeRadius, tubeRadius, fl, 8);
+          const t3 = new THREE.Mesh(cgV, tubeMat);
+          t3.rotation.x = Math.PI / 2;
+          t3.position.set(-fw / 2, y, 0);
+          tunnelGroup.add(t3);
+          // Right tube
+          const t4 = new THREE.Mesh(cgV.clone(), tubeMat);
+          t4.rotation.x = Math.PI / 2;
+          t4.position.set(fw / 2, y, 0);
+          tunnelGroup.add(t4);
+        } else if (ledType === "module") {
+          // Module: individual LEDs as small dots/spheres along the perimeter
+          const dotRadius = 0.007;
+          const dotGeom = new THREE.SphereGeometry(dotRadius, 6, 6);
+          const dotMat = new THREE.MeshStandardMaterial({
+            color: color3, roughness: 0.1,
+            emissive, emissiveIntensity: emissiveStrength * 2,
+            transparent: true, opacity: opacity,
+          });
 
-        // Back bar
-        const barBGeom = new THREE.BoxGeometry(fw + outlineThickness * 2, fh, outlineThickness);
-        const barB = new THREE.Mesh(barBGeom, outlineMat);
-        barB.position.set(0, y, -fl / 2);
-        tunnelGroup.add(barB);
+          const dotCount = Math.max(4, Math.floor((2 * (fw + fl)) / 0.04));
+          const perimeter = 2 * (fw + fl);
+          for (let j = 0; j < dotCount; j++) {
+            const p = (j / dotCount) * perimeter;
+            let dx: number, dz: number;
+            if (p < fw) { dx = -fw / 2 + p; dz = fl / 2; }
+            else if (p < fw + fl) { dx = fw / 2; dz = fl / 2 - (p - fw); }
+            else if (p < 2 * fw + fl) { dx = fw / 2 - (p - fw - fl); dz = -fl / 2; }
+            else { dx = -fw / 2; dz = -fl / 2 + (p - 2 * fw - fl); }
 
-        // Left bar
-        const barLGeom = new THREE.BoxGeometry(outlineThickness, fh, fl);
-        const barL = new THREE.Mesh(barLGeom, outlineMat);
-        barL.position.set(-fw / 2, y, 0);
-        tunnelGroup.add(barL);
+            const dot = new THREE.Mesh(dotGeom.clone(), dotMat);
+            dot.position.set(dx, y, dz);
+            tunnelGroup.add(dot);
+          }
+        } else {
+          // Ruban: thin rectangular outline
+          const outlineThickness = 0.005;
+          const outlineMat = new THREE.MeshStandardMaterial({
+            color: color3, roughness: 0.1, metalness: 0.3,
+            emissive, emissiveIntensity: emissiveStrength,
+            transparent: true, opacity,
+          });
 
-        // Right bar
-        const barRGeom = new THREE.BoxGeometry(outlineThickness, fh, fl);
-        const barR = new THREE.Mesh(barRGeom, outlineMat);
-        barR.position.set(fw / 2, y, 0);
-        tunnelGroup.add(barR);
+          const barGeom = new THREE.BoxGeometry(fw + outlineThickness * 2, frameThickness * 0.3, outlineThickness);
+          // Front, back
+          const bf = new THREE.Mesh(barGeom, outlineMat);
+          bf.position.set(0, y, fl / 2);
+          tunnelGroup.add(bf);
+          const bb = new THREE.Mesh(barGeom.clone(), outlineMat);
+          bb.position.set(0, y, -fl / 2);
+          tunnelGroup.add(bb);
+          // Left, right
+          const barVGeom = new THREE.BoxGeometry(outlineThickness, frameThickness * 0.3, fl);
+          const bl = new THREE.Mesh(barVGeom, outlineMat);
+          bl.position.set(-fw / 2, y, 0);
+          tunnelGroup.add(bl);
+          const br = new THREE.Mesh(barVGeom.clone(), outlineMat);
+          br.position.set(fw / 2, y, 0);
+          tunnelGroup.add(br);
 
-        // Add subtle LED dots at corners
-        const dotGeom = new THREE.SphereGeometry(0.005, 4, 4);
-        const dotMat = new THREE.MeshStandardMaterial({
-          color: color,
-          roughness: 0.1,
-          emissive: color,
-          emissiveIntensity: brightness * 5,
-          transparent: true,
-          opacity: opacity * 1.5,
-        });
-        [
-          [-fw / 2, y, fl / 2],
-          [fw / 2, y, fl / 2],
-          [-fw / 2, y, -fl / 2],
-          [fw / 2, y, -fl / 2],
-        ].forEach(([dx, dy, dz]) => {
-          const dot = new THREE.Mesh(dotGeom, dotMat);
-          dot.position.set(dx, dy, dz);
-          tunnelGroup.add(dot);
-        });
+          // Corner dots
+          const dotGeom = new THREE.SphereGeometry(0.004, 4, 4);
+          const dotMat = new THREE.MeshStandardMaterial({
+            color: color3, roughness: 0.1,
+            emissive, emissiveIntensity: emissiveStrength * 2,
+            transparent: true, opacity: Math.min(1, opacity * 1.5),
+          });
+          for (const [dx, dz] of [[-fw / 2, fl / 2], [fw / 2, fl / 2], [-fw / 2, -fl / 2], [fw / 2, -fl / 2]]) {
+            const dot = new THREE.Mesh(dotGeom, dotMat);
+            dot.position.set(dx, y, dz);
+            tunnelGroup.add(dot);
+          }
+        }
       }
     }
 
-    // Position the whole model so it sits nicely
-    frameGroup.position.y = boxHeight / 2 - 0.1;
-    tunnelGroup.position.y = boxHeight / 2 - 0.1;
-  }, [L, H, d, n, R_f, R_m, SCALE]);
+    // Center the model
+    frameGroup.position.y = physicalDepth / 2;
+    tunnelGroup.position.y = physicalDepth / 2;
+  }, [L, H, d, n, R_f, R_m, ledColor, ledType, ledPower, SCALE]);
 
-  // Update light intensities when brightness changes
+  // Brightness
   useEffect(() => {
     for (const entry of lightsRef.current) {
       entry.light.intensity = entry.baseIntensity * brightness;
     }
-    // Also adjust tone mapping exposure for overall brightness
     if (rendererRef.current) {
       rendererRef.current.toneMappingExposure = 1.2 * brightness;
     }
