@@ -133,6 +133,66 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
     handleChange({ enseignes: newEnseignes });
   };
 
+  // --- Édition des matériaux depuis la vue globale (enseigne ciblée par le filtre) ---
+  // Ces handlers ne s'activent que lorsqu'une enseigne précise est sélectionnée
+  // (pas en mode "all", où l'origine des items agrégés serait ambiguë).
+  const mutateSelectedEnseigneSections = (
+    mutator: (sections: Record<string, MaterialItem[]>) => Record<string, MaterialItem[]>
+  ) => {
+    if (selectedEnseigneFilter === "all") return;
+    const idx = (data.enseignes || []).findIndex(e => e.id === selectedEnseigneFilter);
+    if (idx < 0) return;
+    const current = data.enseignes![idx].materiauxSections || {};
+    const updatedSections = mutator({ ...current });
+    updateEnseigne(idx, { materiauxSections: updatedSections });
+  };
+
+  const addGlobalItem = (section: string) => {
+    mutateSelectedEnseigneSections(sections => {
+      const newItem: MaterialItem = {
+        id: crypto.randomUUID?.() || `mat-${Date.now()}-${Math.random()}`,
+        nom: "",
+        quantite: 1,
+        unite: "",
+        section,
+      };
+      return { ...sections, [section]: [...(sections[section] || []), newItem] };
+    });
+  };
+
+  const addGlobalItemFromCatalog = (section: string, preset: Partial<MaterialItem>) => {
+    mutateSelectedEnseigneSections(sections => {
+      const newItem: MaterialItem = {
+        id: crypto.randomUUID?.() || `mat-${Date.now()}-${Math.random()}`,
+        nom: "",
+        quantite: 1,
+        unite: "",
+        section,
+        ...preset,
+      };
+      return { ...sections, [section]: [...(sections[section] || []), newItem] };
+    });
+  };
+
+  const deleteGlobalItem = (section: string, idx: number) => {
+    mutateSelectedEnseigneSections(sections => {
+      const arr = [...(sections[section] || [])];
+      arr.splice(idx, 1);
+      return { ...sections, [section]: arr };
+    });
+  };
+
+  const changeGlobalItem = (section: string, idx: number, changes: Partial<MaterialItem>) => {
+    mutateSelectedEnseigneSections(sections => {
+      const arr = [...(sections[section] || [])];
+      arr[idx] = { ...arr[idx], ...changes };
+      return { ...sections, [section]: arr };
+    });
+  };
+
+  // La vue globale n'est éditable que si on édite ET qu'une enseigne précise est ciblée.
+  const globalMaterialsEditable = isEditMode && selectedEnseigneFilter !== "all";
+
   // Matériaux filtrés selon l'enseigne sélectionnée
   const getFilteredMaterials = () => {
     if (selectedEnseigneFilter === "all") {
@@ -334,15 +394,22 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
           />
         </div>
 
+        {isEditMode && selectedEnseigneFilter === "all" && (
+          <p className="mb-3 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+            ℹ️ Sélectionnez une enseigne précise ci-dessus pour modifier ses matériaux ici. La vue « Tous » agrège toutes les enseignes (lecture seule).
+          </p>
+        )}
+
         {nonVides.length > 0 ? (
           <MaterialTable
             key={selectedEnseigneFilter}
             sections={filteredMaterials}
             knownCategories={DEFAULT_SECTIONS}
-            isEditable={false}
-            onAddItem={() => {}}
-            onDeleteItem={() => {}}
-            onChangeItem={() => {}}
+            isEditable={globalMaterialsEditable}
+            onAddItem={addGlobalItem}
+            onDeleteItem={deleteGlobalItem}
+            onChangeItem={changeGlobalItem}
+            onAddFromCatalog={addGlobalItemFromCatalog}
           />
         ) : (
           <p className="text-sm text-gray-500 italic">
