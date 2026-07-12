@@ -21,6 +21,8 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,mp3}"],
         cleanupOutdatedCaches: true,
+        navigateFallback: "index.html",
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
         runtimeCaching: [
           // Google Fonts — cache long terme
           {
