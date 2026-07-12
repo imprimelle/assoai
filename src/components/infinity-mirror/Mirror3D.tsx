@@ -3,15 +3,16 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 export interface Mirror3DProps {
-  L: number; // Largeur en cm
-  H: number; // Longueur en cm
-  d: number; // Espace interne en cm
-  n: number; // Nombre de reflets
-  R_f: number; // Réflectivité film sans tain (%)
-  R_m: number; // Réflectivité miroir de fond (%)
+  L: number;
+  H: number;
+  d: number;
+  n: number;
+  R_f: number;
+  R_m: number;
+  brightness?: number; // Multiplicateur de luminosité (défaut: 1)
 }
 
-const Mirror3D: React.FC<Mirror3DProps> = ({ L, H, d, n, R_f, R_m }) => {
+const Mirror3D: React.FC<Mirror3DProps> = ({ L, H, d, n, R_f, R_m, brightness = 1 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -19,6 +20,7 @@ const Mirror3D: React.FC<Mirror3DProps> = ({ L, H, d, n, R_f, R_m }) => {
   const controlsRef = useRef<OrbitControls | null>(null);
   const frameGroupRef = useRef<THREE.Group | null>(null);
   const tunnelGroupRef = useRef<THREE.Group | null>(null);
+  const lightsRef = useRef<{ light: THREE.Light; baseIntensity: number }[]>([]);
 
   // Scale: 1 unit = 1 cm, so 60 cm = 60 units... that's too big.
   // Let's use 0.01 scale: 1 unit = 1 cm → 60 units is reasonable
@@ -68,6 +70,7 @@ const Mirror3D: React.FC<Mirror3DProps> = ({ L, H, d, n, R_f, R_m }) => {
     // Lighting
     const ambientLight = new THREE.AmbientLight("#334466", 2.5);
     scene.add(ambientLight);
+    lightsRef.current.push({ light: ambientLight, baseIntensity: 2.5 });
 
     const keyLight = new THREE.DirectionalLight("#ffffff", 5);
     keyLight.position.set(3, 5, 3);
@@ -82,14 +85,17 @@ const Mirror3D: React.FC<Mirror3DProps> = ({ L, H, d, n, R_f, R_m }) => {
     keyLight.shadow.camera.bottom = -5;
     keyLight.shadow.bias = -0.0001;
     scene.add(keyLight);
+    lightsRef.current.push({ light: keyLight, baseIntensity: 5 });
 
     const fillLight = new THREE.DirectionalLight("#8899cc", 2);
     fillLight.position.set(-2, 0.5, -1);
     scene.add(fillLight);
+    lightsRef.current.push({ light: fillLight, baseIntensity: 2 });
 
     const rimLight = new THREE.DirectionalLight("#ffaa66", 3);
     rimLight.position.set(0, 0.3, -3);
     scene.add(rimLight);
+    lightsRef.current.push({ light: rimLight, baseIntensity: 3 });
 
     // Ground plane (subtle reflection surface)
     const groundGeom = new THREE.PlaneGeometry(6, 6);
@@ -382,6 +388,17 @@ const Mirror3D: React.FC<Mirror3DProps> = ({ L, H, d, n, R_f, R_m }) => {
     frameGroup.position.y = boxHeight / 2 - 0.1;
     tunnelGroup.position.y = boxHeight / 2 - 0.1;
   }, [L, H, d, n, R_f, R_m, SCALE]);
+
+  // Update light intensities when brightness changes
+  useEffect(() => {
+    for (const entry of lightsRef.current) {
+      entry.light.intensity = entry.baseIntensity * brightness;
+    }
+    // Also adjust tone mapping exposure for overall brightness
+    if (rendererRef.current) {
+      rendererRef.current.toneMappingExposure = 1.2 * brightness;
+    }
+  }, [brightness]);
 
   return (
     <div
