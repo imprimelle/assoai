@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { FileSpreadsheet, PlusCircle, Trash2 } from "lucide-react";
 import AddressPicker from "../shared/AddressPicker";
 import StatusLine from "@/components/ui/StatusLine";
-import MaterialSection from "./shared/MaterialSection";
+import MaterialTable from "./shared/MaterialTable";
 import EnseigneSection from "./shared/EnseigneSection";
 import EnseigneFilter from "./shared/EnseigneFilter";
 import type { CahierStatus } from "@/types";
@@ -335,17 +335,15 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
         </div>
 
         {nonVides.length > 0 ? (
-          nonVides.map(name => (
-            <MaterialSection
-              key={`${name}-${selectedEnseigneFilter}`}
-              name={name}
-              items={filteredMaterials[name] || []}
-              isEditable={false} // En lecture seule dans cette vue globale
-              onAddItem={() => {}}
-              onDeleteItem={() => {}}
-              onChangeItem={() => {}}
-            />
-          ))
+          <MaterialTable
+            key={selectedEnseigneFilter}
+            sections={filteredMaterials}
+            knownCategories={DEFAULT_SECTIONS}
+            isEditable={false}
+            onAddItem={() => {}}
+            onDeleteItem={() => {}}
+            onChangeItem={() => {}}
+          />
         ) : (
           <p className="text-sm text-gray-500 italic">
             {selectedEnseigneFilter === "all" 

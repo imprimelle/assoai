@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ProductSuggestions from "@/components/shared/ProductSuggestions";
 import ImageUpload from "./ImageUpload";
-import MaterialSection from "./MaterialSection";
+import MaterialTable from "./MaterialTable";
 import type { Enseigne, ProductReference, MaterialItem } from "@/types";
 
 interface EnseigneSectionProps {
@@ -111,9 +111,6 @@ const EnseigneSection: React.FC<EnseigneSectionProps> = ({
     const updated = { ...sections, [section]: arr };
     onChange({ materiauxSections: updated });
   };
-
-  const nonVides = DEFAULT_SECTIONS.filter(name => (sections[name] || []).length > 0);
-  const disponibles = DEFAULT_SECTIONS.filter(name => (sections[name] || []).length === 0);
 
   return (
     <Collapsible
@@ -336,39 +333,18 @@ const EnseigneSection: React.FC<EnseigneSectionProps> = ({
                 {/* Matériaux spécifiques à cette enseigne */}
                 <div>
                   <h5 className="text-sm font-medium mb-3 text-gray-600">Matériaux spécifiques</h5>
-                  {nonVides.map(name => (
-                    <MaterialSection
-                      key={name}
-                      name={name}
-                      items={sections[name]}
-                      isEditable={isEditable}
-                      onAddItem={addItem}
-                      onDeleteItem={deleteItem}
-                      onChangeItem={changeItem}
-                      onAddFromCatalog={addItemFromCatalog}
-                    />
-                  ))}
-
-                  {isEditable && disponibles.length > 0 && (
-                    <div className="mt-4 flex items-center space-x-2">
-                      <select
-                        defaultValue=""
-                        onChange={e => {
-                          const sel = e.target.value;
-                          if (!sel) return;
-                          addSection(sel);
-                          addItem(sel); 
-                          e.target.value = "";
-                        }}
-                        className="p-2 border rounded bg-white text-sm w-full max-w-xs"
-                      >
-                        <option value="" disabled>+ Ajouter une section…</option>
-                        {disponibles.map(name => (
-                          <option key={name} value={name}>{name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                  <MaterialTable
+                    sections={sections}
+                    knownCategories={DEFAULT_SECTIONS}
+                    isEditable={isEditable}
+                    onAddItem={(section) => {
+                      addSection(section);
+                      addItem(section);
+                    }}
+                    onDeleteItem={deleteItem}
+                    onChangeItem={changeItem}
+                    onAddFromCatalog={addItemFromCatalog}
+                  />
                 </div>
               </div>
             </motion.div>
