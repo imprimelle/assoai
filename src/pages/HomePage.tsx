@@ -13,6 +13,7 @@ import {
   BookOpen,
   Bot,
   Zap,
+  Sparkles,
 } from "lucide-react";
 import { useHomeCounters, type HomeCounters } from "@/hooks/useHomeCounters";
 import { usePageVisit } from "@/hooks/usePageVisit";
@@ -118,11 +119,19 @@ const cardDefs: Record<string, HomeCard> = {
     path: "/test-cycle",
     color: "bg-orange-100 text-orange-700",
   },
+  infinityMirror: {
+    id: "infinityMirror",
+    title: "Miroir Infini",
+    description: "Simulateur 3D d'effet miroir infini",
+    icon: <Sparkles className="h-8 w-8" />,
+    path: "/infinity-mirror",
+    color: "bg-cyan-100 text-cyan-700",
+  },
 };
 
 // Rôles → cartes affichées
 const roleCards: Record<string, string[]> = {
-  directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle"],
+  directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle", "infinityMirror"],
   directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux"],
   commerciale: ["projet", "demande", "wari", "monBara", "produit"],
   chef_technique: ["demande", "monBara", "produit"],

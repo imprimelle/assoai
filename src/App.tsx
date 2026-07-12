@@ -23,6 +23,7 @@ import Contacts from "./pages/Contacts";
 import PublicChecklist from "./pages/PublicChecklist";
 import PublicChecklists from "./pages/PublicChecklists";
 import PublicDocument from "./pages/PublicDocument";
+import InfinityMirror from "./pages/InfinityMirror";
 import NotFound from "./pages/NotFound";
 import InstallBanner from "./components/pwa/InstallBanner";
 import UpdateNotification from "./components/pwa/UpdateNotification";
@@ -355,6 +356,16 @@ const AppContent = () => {
               element={
                 <RequireAuth persistentSessionId={persistentSessionId}>
                   <MaterialCatalog />
+                </RequireAuth>
+              }
+            />
+
+            {/* Simulateur Miroir Infini */}
+            <Route
+              path="/infinity-mirror"
+              element={
+                <RequireAuth persistentSessionId={persistentSessionId}>
+                  <InfinityMirror />
                 </RequireAuth>
               }
             />
