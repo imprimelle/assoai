@@ -4,6 +4,14 @@ import { CahierDesChargesData, MaterialItem, Enseigne } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   FileSpreadsheet,
   PlusCircle,
@@ -16,14 +24,17 @@ import {
   Users,
   MapPin,
   Ruler,
+  X,
+  Image as ImageIcon,
 } from "lucide-react";
 import AddressPicker from "../shared/AddressPicker";
 import StatusLine from "@/components/ui/StatusLine";
 import MaterialTable from "./shared/MaterialTable";
-import EnseigneSection from "./shared/EnseigneSection";
 import EnseigneFilter from "./shared/EnseigneFilter";
+import ImageUpload from "./shared/ImageUpload";
 import type { CahierStatus } from "@/types";
 import { getStatusLineState } from "@/utils/status-utils";
+
 const DEFAULT_SECTIONS = ["Découpe", "Éclairage", "Outillage", "Métal", "Vinyl"];
 
 interface CahierDesChargesTemplateProps {
@@ -33,25 +44,36 @@ interface CahierDesChargesTemplateProps {
   onSave?: (data: CahierDesChargesData) => void;
 }
 
-// ─────── Petite carte du dashboard (inspirée ProjectDetail) ───────
+// ─────── Carte dashboard cliquable ───────
 const DashboardCard: React.FC<{
   icon: React.ReactNode;
   title: string;
   children: React.ReactNode;
+  onClick?: () => void;
   className?: string;
-}> = ({ icon, title, children, className }) => (
-  <div
-    className={`bg-white rounded-lg p-3 flex items-start gap-2.5 border border-gray-100 ${
-      className || ""
-    }`}
-  >
-    <span className="mt-0.5 shrink-0">{icon}</span>
-    <div className="min-w-0 flex-1">
-      <p className="text-[10px] text-gray-500 uppercase tracking-wider">{title}</p>
-      {children}
+}> = ({ icon, title, children, onClick, className }) => {
+  const interactive = !!onClick;
+  return (
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-lg p-3 flex items-start gap-2.5 border border-gray-100 ${
+        interactive ? "cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all" : ""
+      } ${className || ""}`}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={interactive ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick!(); } } : undefined}
+    >
+      <span className="mt-0.5 shrink-0">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] text-gray-500 uppercase tracking-wider">{title}</p>
+        {children}
+      </div>
     </div>
-  </div>
-);
+  );
+};
+
+// ── ID de dialogue possible ──
+type DialogId = "statut" | "commande" | "enseignes" | "equipe" | "livraison" | null;
 
 const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
   data: initialData,
@@ -66,7 +88,12 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
     equipe: initialData.equipe || [],
   });
   const [selectedEnseigneFilter, setSelectedEnseigneFilter] = useState<string | "all">("all");
-  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(true); // ouvert par défaut pour montrer les cartes
+  const [dialog, setDialog] = useState<DialogId>(null);
+
+  // Pour le dialogue enseigne : quelle enseigne est affichée en détail
+  const [dialogEnseigneIdx, setDialogEnseigneIdx] = useState<number | null>(null);
+
   const CAHIER_STATUSES: CahierStatus[] = [
     "Brouillon",
     "infographie",
@@ -76,9 +103,7 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
   ];
 
   // Migration legacy → enseignes
-  const migrateToNewFormat = (
-    oldData: CahierDesChargesData,
-  ): CahierDesChargesData => {
+  const migrateToNewFormat = (oldData: CahierDesChargesData): CahierDesChargesData => {
     if (oldData.enseignes && oldData.enseignes.length > 0) return oldData;
     const defaultEnseigne: Enseigne = {
       id: "enseigne-default",
@@ -87,10 +112,7 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
       details: {
         image_url: oldData.image_url,
         dimensions: oldData.dimensions || { largeur: 0, hauteur: 0 },
-        technique: oldData.technique || {
-          type_structure: "",
-          method_fabrication: "",
-        },
+        technique: oldData.technique || { type_structure: "", method_fabrication: "" },
       },
       materiauxSections: oldData.materiauxSections || {},
     };
@@ -123,9 +145,7 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
     handleChange({ equipe: newEquipe });
   };
   const addEquipeMembre = () => {
-    handleChange({
-      equipe: [...data.equipe, { id: `eq-${Date.now()}`, nom: "", role: "" }],
-    });
+    handleChange({ equipe: [...data.equipe, { id: `eq-${Date.now()}`, nom: "", role: "" }] });
   };
   const removeEquipeMembre = (index: number) => {
     const newEquipe = [...data.equipe];
@@ -158,54 +178,30 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
     handleChange({ enseignes: newEnseignes });
   };
 
-  // ── Matériaux (vue globale, enseigne ciblée) ──
+  // ── Matériaux (vue globale) ──
   const mutateSelectedEnseigneSections = (
-    mutator: (
-      sections: Record<string, MaterialItem[]>,
-    ) => Record<string, MaterialItem[]>,
+    mutator: (sections: Record<string, MaterialItem[]>) => Record<string, MaterialItem[]>,
   ) => {
     if (selectedEnseigneFilter === "all") return;
-    const idx = (data.enseignes || []).findIndex(
-      (e) => e.id === selectedEnseigneFilter,
-    );
+    const idx = (data.enseignes || []).findIndex((e) => e.id === selectedEnseigneFilter);
     if (idx < 0) return;
     const current = data.enseignes![idx].materiauxSections || {};
     const updatedSections = mutator({ ...current });
     updateEnseigne(idx, { materiauxSections: updatedSections });
   };
-
   const addGlobalItem = (section: string) => {
     mutateSelectedEnseigneSections((sections) => ({
       ...sections,
       [section]: [
         ...(sections[section] || []),
-        {
-          id: crypto.randomUUID?.() || `mat-${Date.now()}-${Math.random()}`,
-          nom: "",
-          quantite: 1,
-          unite: "",
-          section,
-        },
+        { id: crypto.randomUUID?.() || `mat-${Date.now()}-${Math.random()}`, nom: "", quantite: 1, unite: "", section },
       ],
     }));
   };
-  const addGlobalItemFromCatalog = (
-    section: string,
-    preset: Partial<MaterialItem>,
-  ) => {
+  const addGlobalItemFromCatalog = (section: string, preset: Partial<MaterialItem>) => {
     mutateSelectedEnseigneSections((sections) => ({
       ...sections,
-      [section]: [
-        ...(sections[section] || []),
-        {
-          id: crypto.randomUUID?.() || `mat-${Date.now()}-${Math.random()}`,
-          nom: "",
-          quantite: 1,
-          unite: "",
-          section,
-          ...preset,
-        },
-      ],
+      [section]: [...(sections[section] || []), { id: crypto.randomUUID?.() || `mat-${Date.now()}-${Math.random()}`, nom: "", quantite: 1, unite: "", section, ...preset }],
     }));
   };
   const deleteGlobalItem = (section: string, idx: number) => {
@@ -215,19 +211,14 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
       return { ...sections, [section]: arr };
     });
   };
-  const changeGlobalItem = (
-    section: string,
-    idx: number,
-    changes: Partial<MaterialItem>,
-  ) => {
+  const changeGlobalItem = (section: string, idx: number, changes: Partial<MaterialItem>) => {
     mutateSelectedEnseigneSections((sections) => {
       const arr = [...(sections[section] || [])];
       arr[idx] = { ...arr[idx], ...changes };
       return { ...sections, [section]: arr };
     });
   };
-  const globalMaterialsEditable =
-    isEditMode && selectedEnseigneFilter !== "all";
+  const globalMaterialsEditable = isEditMode && selectedEnseigneFilter !== "all";
 
   // ── Matériaux filtrés ──
   const getFilteredMaterials = () => {
@@ -235,42 +226,33 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
       const allMaterials: Record<string, MaterialItem[]> = {};
       data.enseignes?.forEach((enseigne) => {
         if (enseigne.materiauxSections) {
-          Object.entries(enseigne.materiauxSections).forEach(
-            ([section, items]) => {
-              if (!allMaterials[section]) allMaterials[section] = [];
-              allMaterials[section].push(...items);
-            },
-          );
+          Object.entries(enseigne.materiauxSections).forEach(([section, items]) => {
+            if (!allMaterials[section]) allMaterials[section] = [];
+            allMaterials[section].push(...items);
+          });
         }
       });
       return allMaterials;
     }
-    const selectedEnseigne = data.enseignes?.find(
-      (e) => e.id === selectedEnseigneFilter,
-    );
-    return selectedEnseigne?.materiauxSections || {};
+    const sel = data.enseignes?.find((e) => e.id === selectedEnseigneFilter);
+    return sel?.materiauxSections || {};
   };
   const filteredMaterials = getFilteredMaterials();
-  const existingSections = Object.keys(filteredMaterials).filter(
-    (k) => (filteredMaterials[k] || []).length > 0,
-  );
-  const orderedKnown = DEFAULT_SECTIONS.filter((s) =>
-    existingSections.includes(s),
-  );
-  const orderedUnknown = existingSections.filter(
-    (s) => !DEFAULT_SECTIONS.includes(s),
-  );
+  const existingSections = Object.keys(filteredMaterials).filter((k) => (filteredMaterials[k] || []).length > 0);
+  const orderedKnown = DEFAULT_SECTIONS.filter((s) => existingSections.includes(s));
+  const orderedUnknown = existingSections.filter((s) => !DEFAULT_SECTIONS.includes(s));
   const nonVides = [...orderedKnown, ...orderedUnknown];
 
   // ── Enseigne sélectionnée (pour l'image bannière) ──
   const selectedEnseigne =
-    selectedEnseigneFilter !== "all"
-      ? data.enseignes?.find((e) => e.id === selectedEnseigneFilter)
-      : null;
+    selectedEnseigneFilter !== "all" ? data.enseignes?.find((e) => e.id === selectedEnseigneFilter) : null;
   const enseignesCount = (data.enseignes || []).length;
   const equipeCount = data.equipe.length;
-  const hasDeliveryAddr =
-    !!data.deliveryAddress?.label || !!data.deliveryAddress?.lat;
+  const hasDeliveryAddr = !!data.deliveryAddress?.label || !!data.deliveryAddress?.lat;
+  const totalMateriaux = nonVides.reduce((sum, k) => sum + (filteredMaterials[k] || []).length, 0);
+
+  // Enseigne affichée dans le dialogue détail
+  const dialogEnseigne = dialogEnseigneIdx != null ? (data.enseignes || [])[dialogEnseigneIdx] : null;
 
   return (
     <div className="w-full py-4 sm:py-6 space-y-4">
@@ -281,273 +263,112 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
             <FileSpreadsheet className="h-8 w-8 text-blue-600" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">
-              Cahier des charges
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-800">Cahier des charges</h2>
             {data.cdcNumero && (
-              <p className="font-semibold mt-1 text-sm text-brand-orange">
-                N° {data.cdcNumero}
-              </p>
+              <p className="font-semibold mt-1 text-sm text-brand-orange">N° {data.cdcNumero}</p>
             )}
-            <p className="font-medium mt-1 text-md text-gray-600">
-              {data.titre}
-            </p>
+            <p className="font-medium mt-1 text-md text-gray-600">{data.titre}</p>
           </div>
         </div>
       </div>
 
-      {/* ========== DASHBOARD COLLAPSIBLE (toutes les infos non-matériaux) ========== */}
+      {/* ========== DASHBOARD COLLAPSIBLE ========== */}
       <div className="mb-4 border rounded-lg overflow-hidden bg-white shadow-sm">
         <button
           onClick={() => setDashboardOpen(!dashboardOpen)}
           className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors text-left"
         >
           <div className="flex items-center gap-3 flex-wrap min-w-0">
-            {/* Badge statut */}
             <StatusLine
               label={data.statut ?? "Brouillon"}
-              status={getStatusLineState(
-                (data.statut as CahierStatus) ?? "Brouillon",
-              )}
+              status={getStatusLineState((data.statut as CahierStatus) ?? "Brouillon")}
             />
-            {/* Résumé rapide */}
             <span className="text-sm text-gray-500 truncate">
               {enseignesCount} enseigne{enseignesCount !== 1 ? "s" : ""}
-              {" · "}
-              {equipeCount} membre{equipeCount !== 1 ? "s" : ""}
+              {" · "}{equipeCount} membre{equipeCount !== 1 ? "s" : ""}
               {hasDeliveryAddr ? " · lieu défini" : ""}
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-2">
-            <span className="text-xs text-gray-400">
-              {dashboardOpen ? "Fermer" : "Informations"}
-            </span>
-            {dashboardOpen ? (
-              <ChevronUp className="h-4 w-4 text-gray-400" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-gray-400" />
-            )}
+            <span className="text-xs text-gray-400">{dashboardOpen ? "Fermer" : "Informations"}</span>
+            {dashboardOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
           </div>
         </button>
 
         {dashboardOpen && (
           <div className="px-4 pb-4 border-t bg-gray-50/50">
-            {/* Description CDC (si présente) */}
-            {data.description && (
-              <p className="text-sm text-gray-500 pt-3 pb-1">
-                {data.description}
-              </p>
-            )}
+            {data.description && <p className="text-sm text-gray-500 pt-3 pb-1">{data.description}</p>}
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-3">
               {/* ── Statut ── */}
-              <DashboardCard
-                icon={<Info size={14} className="text-blue-600" />}
-                title="Statut"
-              >
-                <p className="text-sm font-semibold">
-                  {data.statut ?? "Brouillon"}
-                </p>
-                {isEditMode && (
-                  <select
-                    value={data.statut || "Brouillon"}
-                    onChange={(e) =>
-                      handleChange({ statut: e.target.value as CahierStatus })
-                    }
-                    className="mt-1 w-full text-xs border rounded px-1 py-0.5"
-                  >
-                    {CAHIER_STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                )}
+              <DashboardCard icon={<Info size={14} className="text-blue-600" />} title="Statut" onClick={() => setDialog("statut")}>
+                <p className="text-sm font-semibold">{data.statut ?? "Brouillon"}</p>
               </DashboardCard>
 
               {/* ── Commande ── */}
-              <DashboardCard
-                icon={<FileText size={14} className="text-indigo-600" />}
-                title="Commande"
-              >
-                <p className="text-sm font-semibold">
-                  {data.commande_id || "—"}
-                </p>
-                <p className="text-[10px] text-gray-400 truncate">ID référence</p>
+              <DashboardCard icon={<FileText size={14} className="text-indigo-600" />} title="Commande" onClick={() => setDialog("commande")}>
+                <p className="text-sm font-semibold">{data.commande_id || "—"}</p>
               </DashboardCard>
 
-              {/* ── Enseignes ── */}
-              <DashboardCard
-                icon={<Store size={14} className="text-purple-600" />}
-                title="Enseignes"
-              >
+              {/* ── Enseignes (avec miniatures) ── */}
+              <DashboardCard icon={<Store size={14} className="text-purple-600" />} title="Enseignes" onClick={() => setDialog("enseignes")}>
                 <p className="text-sm font-semibold">
                   {enseignesCount} enseigne{enseignesCount !== 1 ? "s" : ""}
                 </p>
-                <p className="text-[10px] text-gray-400 truncate">
-                  {(data.enseignes || [])
-                    .map((e) => e.nom)
-                    .join(" · ") || "—"}
-                </p>
-                {/* Gestion des enseignes (ajout + liste déroulante) */}
-                {isEditMode && (
-                  <div className="mt-2 space-y-2">
-                    {data.enseignes?.map((enseigne, index) => (
-                      <EnseigneSection
-                        key={enseigne.id}
-                        enseigne={enseigne}
-                        isEditable={isEditMode}
-                        onDelete={() => removeEnseigne(index)}
-                        onChange={(changes) => updateEnseigne(index, changes)}
-                        defaultOpen={false}
-                      />
-                    ))}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={addEnseigne}
-                      className="flex items-center text-brand-orange border-brand-orange hover:bg-brand-orange hover:text-white text-xs"
-                    >
-                      <PlusCircle className="h-3 w-3 mr-1" /> Ajouter une
-                      enseigne
-                    </Button>
-                  </div>
-                )}
+                {/* Galerie miniature des enseignes */}
+                <div className="flex gap-1.5 mt-1.5 flex-wrap -ml-0.5">
+                  {(data.enseignes || []).map((e) => (
+                    <div key={e.id} className="relative group">
+                      {e.details?.image_url ? (
+                        <img
+                          src={e.details.image_url}
+                          alt={e.nom}
+                          className="w-10 h-10 rounded-md object-cover border border-gray-200 shadow-sm"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center">
+                          <ImageIcon size={14} className="text-gray-400" />
+                        </div>
+                      )}
+                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[8px] bg-gray-800 text-white rounded px-1 py-px opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                        {e.nom}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </DashboardCard>
 
               {/* ── Équipe ── */}
-              <DashboardCard
-                icon={<Users size={14} className="text-green-600" />}
-                title="Équipe"
-              >
+              <DashboardCard icon={<Users size={14} className="text-green-600" />} title="Équipe" onClick={() => setDialog("equipe")}>
                 <p className="text-sm font-semibold">
                   {equipeCount} membre{equipeCount !== 1 ? "s" : ""}
                 </p>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {data.equipe.map((m) => (
-                    <span
-                      key={m.id}
-                      className="text-[10px] bg-gray-100 rounded px-1.5 py-0.5 truncate max-w-[80px]"
-                    >
+                    <span key={m.id} className="text-[10px] bg-gray-100 rounded px-1.5 py-0.5 truncate max-w-[80px]">
                       {m.nom || "—"}
                     </span>
                   ))}
                 </div>
-                {isEditMode && (
-                  <details className="mt-2">
-                    <summary className="text-xs text-brand-orange cursor-pointer hover:underline">
-                      Gérer l'équipe
-                    </summary>
-                    <div className="mt-1 space-y-1 max-h-40 overflow-y-auto">
-                      {data.equipe.map((membre, index) => (
-                        <div
-                          key={membre.id}
-                          className="flex items-center gap-1"
-                        >
-                          <Input
-                            value={membre.nom}
-                            onChange={(e) =>
-                              handleEquipeMembreChange(
-                                index,
-                                "nom",
-                                e.target.value,
-                              )
-                            }
-                            className="h-7 text-xs flex-1"
-                            placeholder="Nom"
-                          />
-                          <Input
-                            value={membre.role}
-                            onChange={(e) =>
-                              handleEquipeMembreChange(
-                                index,
-                                "role",
-                                e.target.value,
-                              )
-                            }
-                            className="h-7 text-xs w-20"
-                            placeholder="Rôle"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeEquipeMembre(index)}
-                            className="text-red-500 h-7 w-7 p-0"
-                          >
-                            <Trash2 size={12} />
-                          </Button>
-                        </div>
-                      ))}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={addEquipeMembre}
-                        className="text-xs text-brand-orange h-7"
-                      >
-                        + Ajouter
-                      </Button>
-                    </div>
-                  </details>
-                )}
               </DashboardCard>
 
-              {/* ── Adresse de livraison ── */}
-              <DashboardCard
-                icon={<MapPin size={14} className="text-amber-600" />}
-                title="Livraison"
-              >
+              {/* ── Livraison ── */}
+              <DashboardCard icon={<MapPin size={14} className="text-amber-600" />} title="Livraison" onClick={() => setDialog("livraison")}>
                 {hasDeliveryAddr ? (
-                  <>
-                    <p className="text-sm font-semibold">
-                      {data.deliveryAddress!.label || "Adresse définie"}
-                    </p>
-                    {isEditMode && (
-                      <details className="mt-2">
-                        <summary className="text-xs text-brand-orange cursor-pointer hover:underline">
-                          Modifier
-                        </summary>
-                        <div className="mt-1">
-                          <AddressPicker
-                            value={data.deliveryAddress}
-                            onChange={(addr) =>
-                              handleChange({ deliveryAddress: addr })
-                            }
-                            isEditable={isEditMode}
-                          />
-                        </div>
-                      </details>
-                    )}
-                  </>
+                  <p className="text-sm font-semibold truncate">{data.deliveryAddress!.label || "Adresse définie"}</p>
                 ) : (
                   <p className="text-sm text-gray-400">Non définie</p>
                 )}
-                {isEditMode && !hasDeliveryAddr && (
-                  <div className="mt-1">
-                    <AddressPicker
-                      value={data.deliveryAddress}
-                      onChange={(addr) =>
-                        handleChange({ deliveryAddress: addr })
-                      }
-                      isEditable={isEditMode}
-                    />
-                  </div>
-                )}
               </DashboardCard>
 
-              {/* ── Dimensions de l'enseigne sélectionnée ── */}
+              {/* ── Dimensions (enseigne sélectionnée) ── */}
               {selectedEnseigne && (
-                <DashboardCard
-                  icon={<Ruler size={14} className="text-teal-600" />}
-                  title="Dimensions"
-                >
+                <DashboardCard icon={<Ruler size={14} className="text-teal-600" />} title="Dimensions">
                   <p className="text-sm font-semibold">
-                    L: {selectedEnseigne.details?.dimensions?.largeur || "—"} m · H:{" "}
-                    {selectedEnseigne.details?.dimensions?.hauteur || "—"} m
+                    L: {selectedEnseigne.details?.dimensions?.largeur || "—"} m · H: {selectedEnseigne.details?.dimensions?.hauteur || "—"} m
                   </p>
                   {selectedEnseigne.details?.technique?.type_structure && (
-                    <p className="text-[10px] text-gray-500 truncate">
-                      {selectedEnseigne.details.technique.type_structure}
-                    </p>
+                    <p className="text-[10px] text-gray-500 truncate">{selectedEnseigne.details.technique.type_structure}</p>
                   )}
                 </DashboardCard>
               )}
@@ -556,25 +377,373 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
         )}
       </div>
 
+      {/* ========================================================
+                            DIALOGUES DÉTAIL
+      ========================================================= */}
+
+      {/* ── Dialogue STATUT ── */}
+      <Dialog open={dialog === "statut"} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Statut du CDC</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <StatusLine label={data.statut ?? "Brouillon"} status={getStatusLineState((data.statut as CahierStatus) ?? "Brouillon")} />
+            {isEditMode && (
+              <div>
+                <Label className="text-xs">Modifier le statut</Label>
+                <select
+                  value={data.statut || "Brouillon"}
+                  onChange={(e) => handleChange({ statut: e.target.value as CahierStatus })}
+                  className="mt-1 w-full text-sm border rounded px-2 py-1.5"
+                >
+                  {CAHIER_STATUSES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Fermer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialogue COMMANDE ── */}
+      <Dialog open={dialog === "commande"} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Commande liée</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">ID commande</Label>
+            <Input value={data.commande_id} disabled className="h-10" />
+            <p className="text-xs text-gray-400">Identifiant de la commande associée à ce cahier des charges.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Fermer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialogue ENSEIGNES ── */}
+      <Dialog open={dialog === "enseignes"} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Enseignes</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {dialogEnseigneIdx != null && dialogEnseigne ? (
+              /* Vue détail d'une enseigne */
+              <div className="space-y-4">
+                <button
+                  onClick={() => setDialogEnseigneIdx(null)}
+                  className="text-xs text-brand-orange hover:underline"
+                >
+                  ← Retour à la liste
+                </button>
+
+                {/* Image */}
+                <div className="flex justify-center">
+                  {dialogEnseigne.details?.image_url ? (
+                    <img
+                      src={dialogEnseigne.details.image_url}
+                      alt={dialogEnseigne.nom}
+                      className="max-h-48 rounded-lg object-contain border border-gray-200"
+                    />
+                  ) : (
+                    <div className="h-32 w-full bg-gray-100 rounded-lg flex items-center justify-center">
+                      <ImageIcon className="h-10 w-10 text-gray-300" />
+                    </div>
+                  )}
+                  {isEditMode && (
+                    <div className="mt-2 w-full">
+                      <ImageUpload
+                        imageUrl={dialogEnseigne.details?.image_url || ""}
+                        onChange={(url) => updateEnseigne(dialogEnseigneIdx, { details: { ...dialogEnseigne.details, image_url: url } })}
+                        isEditable={true}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Nom */}
+                <div>
+                  <Label className="text-xs">Nom</Label>
+                  {isEditMode ? (
+                    <Input
+                      value={dialogEnseigne.nom}
+                      onChange={(e) => updateEnseigne(dialogEnseigneIdx, { nom: e.target.value })}
+                      className="h-10"
+                    />
+                  ) : (
+                    <p className="text-sm font-semibold">{dialogEnseigne.nom}</p>
+                  )}
+                </div>
+
+                {/* Dimensions */}
+                <div>
+                  <Label className="text-xs">Dimensions (m)</Label>
+                  <div className="grid grid-cols-3 gap-2 mt-1">
+                    <div>
+                      <Label className="text-[10px] text-gray-500">Largeur</Label>
+                      {isEditMode ? (
+                        <Input
+                          type="number"
+                          value={dialogEnseigne.details?.dimensions?.largeur ?? 0}
+                          onChange={(e) =>
+                            updateEnseigne(dialogEnseigneIdx, {
+                              details: {
+                                ...dialogEnseigne.details,
+                                dimensions: { ...dialogEnseigne.details?.dimensions, largeur: Number(e.target.value) },
+                              },
+                            })
+                          }
+                          className="h-9"
+                        />
+                      ) : (
+                        <p className="text-sm">{dialogEnseigne.details?.dimensions?.largeur || "—"}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-gray-500">Hauteur</Label>
+                      {isEditMode ? (
+                        <Input
+                          type="number"
+                          value={dialogEnseigne.details?.dimensions?.hauteur ?? 0}
+                          onChange={(e) =>
+                            updateEnseigne(dialogEnseigneIdx, {
+                              details: {
+                                ...dialogEnseigne.details,
+                                dimensions: { ...dialogEnseigne.details?.dimensions, hauteur: Number(e.target.value) },
+                              },
+                            })
+                          }
+                          className="h-9"
+                        />
+                      ) : (
+                        <p className="text-sm">{dialogEnseigne.details?.dimensions?.hauteur || "—"}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-gray-500">Profondeur</Label>
+                      {isEditMode ? (
+                        <Input
+                          type="number"
+                          value={dialogEnseigne.details?.dimensions?.profondeur ?? 0}
+                          onChange={(e) =>
+                            updateEnseigne(dialogEnseigneIdx, {
+                              details: {
+                                ...dialogEnseigne.details,
+                                dimensions: { ...dialogEnseigne.details?.dimensions, profondeur: Number(e.target.value) },
+                              },
+                            })
+                          }
+                          className="h-9"
+                        />
+                      ) : (
+                        <p className="text-sm">{dialogEnseigne.details?.dimensions?.profondeur || "—"}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Technique */}
+                <div className="space-y-2">
+                  <Label className="text-xs">Structure</Label>
+                  {isEditMode ? (
+                    <Input
+                      value={dialogEnseigne.details?.technique?.type_structure || ""}
+                      onChange={(e) =>
+                        updateEnseigne(dialogEnseigneIdx, {
+                          details: {
+                            ...dialogEnseigne.details,
+                            technique: { ...dialogEnseigne.details?.technique, type_structure: e.target.value },
+                          },
+                        })
+                      }
+                      className="h-9"
+                      placeholder="Type de structure"
+                    />
+                  ) : (
+                    <p className="text-sm">{dialogEnseigne.details?.technique?.type_structure || "—"}</p>
+                  )}
+                  <Label className="text-xs">Méthode de fabrication</Label>
+                  {isEditMode ? (
+                    <Textarea
+                      value={dialogEnseigne.details?.technique?.method_fabrication || ""}
+                      onChange={(e) =>
+                        updateEnseigne(dialogEnseigneIdx, {
+                          details: {
+                            ...dialogEnseigne.details,
+                            technique: { ...dialogEnseigne.details?.technique, method_fabrication: e.target.value },
+                          },
+                        })
+                      }
+                      rows={2}
+                      className="text-sm"
+                    />
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap">{dialogEnseigne.details?.technique?.method_fabrication || "—"}</p>
+                  )}
+                </div>
+
+                {/* Matériaux de cette enseigne */}
+                <div>
+                  <Label className="text-xs mb-1 block">
+                    Matériaux : {dialogEnseigne.materiauxSections ? Object.values(dialogEnseigne.materiauxSections).flat().length : 0} item(s)
+                  </Label>
+                  <p className="text-xs text-gray-400">
+                    Utilisez la section Matériaux ci-dessous en filtrant sur cette enseigne pour les modifier.
+                  </p>
+                </div>
+
+                {/* Actions */}
+                {isEditMode && (
+                  <div className="flex justify-between pt-2 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        removeEnseigne(dialogEnseigneIdx);
+                        setDialogEnseigneIdx(null);
+                      }}
+                      className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                    >
+                      <Trash2 size={14} className="mr-1" /> Supprimer
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Liste des enseignes */
+              <div className="space-y-3">
+                {(data.enseignes || []).map((enseigne, idx) => (
+                  <div
+                    key={enseigne.id}
+                    onClick={() => setDialogEnseigneIdx(idx)}
+                    className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all"
+                  >
+                    {enseigne.details?.image_url ? (
+                      <img
+                        src={enseigne.details.image_url}
+                        alt={enseigne.nom}
+                        className="w-12 h-12 rounded-lg object-cover border border-gray-200 flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <Store size={18} className="text-gray-400" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold truncate">{enseigne.nom}</p>
+                      <p className="text-[10px] text-gray-500">
+                        {enseigne.materiauxSections
+                          ? `${Object.values(enseigne.materiauxSections).flat().length} matériau(x)`
+                          : "0 matériau"}
+                        {enseigne.details?.dimensions?.largeur
+                          ? ` · ${enseigne.details.dimensions.largeur}×${enseigne.details.dimensions.hauteur} m`
+                          : ""}
+                      </p>
+                    </div>
+                    <ChevronDown size={16} className="text-gray-400 -rotate-90 flex-shrink-0" />
+                  </div>
+                ))}
+
+                {isEditMode && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={addEnseigne}
+                    className="flex items-center text-brand-orange border-brand-orange hover:bg-brand-orange hover:text-white text-xs"
+                  >
+                    <PlusCircle className="h-3 w-3 mr-1" /> Ajouter une enseigne
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDialog(null); setDialogEnseigneIdx(null); }}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialogue ÉQUIPE ── */}
+      <Dialog open={dialog === "equipe"} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Équipe</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {data.equipe.map((membre, index) => (
+              <div key={membre.id} className="flex items-center gap-2">
+                {isEditMode ? (
+                  <>
+                    <Input
+                      value={membre.nom}
+                      onChange={(e) => handleEquipeMembreChange(index, "nom", e.target.value)}
+                      className="h-9 text-sm flex-1"
+                      placeholder="Nom"
+                    />
+                    <Input
+                      value={membre.role}
+                      onChange={(e) => handleEquipeMembreChange(index, "role", e.target.value)}
+                      className="h-9 text-sm w-24"
+                      placeholder="Rôle"
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => removeEquipeMembre(index)} className="text-red-500 h-9 w-9 p-0">
+                      <Trash2 size={14} />
+                    </Button>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between w-full py-1">
+                    <span className="text-sm font-medium">{membre.nom}</span>
+                    <span className="text-xs text-gray-500">{membre.role}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+            {isEditMode && (
+              <Button variant="outline" size="sm" onClick={addEquipeMembre} className="text-xs text-brand-orange">
+                <PlusCircle className="h-3 w-3 mr-1" /> Ajouter un membre
+              </Button>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Fermer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialogue LIVRAISON ── */}
+      <Dialog open={dialog === "livraison"} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Adresse de livraison</DialogTitle>
+          </DialogHeader>
+          <AddressPicker
+            value={data.deliveryAddress}
+            onChange={(addr) => handleChange({ deliveryAddress: addr })}
+            isEditable={isEditMode}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Fermer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ========== MATÉRIAUX (toujours visible, en pleine surface) ========== */}
       <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
-        {/* Barre de titre + filtre enseignes + image enseigne */}
         <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50 flex-wrap gap-2">
           <span className="text-sm font-semibold text-gray-700 flex items-center gap-2">
             📦 Matériaux
             {nonVides.length > 0 && (
               <span className="inline-block bg-white text-gray-500 text-xs font-normal px-1.5 py-0.5 rounded-full">
-                {nonVides.reduce(
-                  (sum, k) => sum + (filteredMaterials[k] || []).length,
-                  0,
-                )}{" "}
-                matériau
-                {nonVides.reduce(
-                  (sum, k) => sum + (filteredMaterials[k] || []).length,
-                  0,
-                ) !== 1
-                  ? "x"
-                  : ""}
+                {totalMateriaux} matériau{totalMateriaux !== 1 ? "x" : ""}
               </span>
             )}
           </span>
@@ -603,32 +772,19 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
                 {selectedEnseigne.details?.dimensions?.largeur
                   ? `${selectedEnseigne.details.dimensions.largeur} × ${selectedEnseigne.details.dimensions.hauteur} m`
                   : ""}
-                {selectedEnseigne.details?.dimensions?.largeur &&
-                nonVides.length
-                  ? " · "
-                  : ""}
-                {nonVides.length > 0
-                  ? `${nonVides.reduce(
-                      (sum, k) =>
-                        sum + (filteredMaterials[k] || []).length,
-                      0,
-                    )} matériau${nonVides.reduce((sum, k) => sum + (filteredMaterials[k] || []).length, 0) !== 1 ? "x" : ""}`
-                  : ""}
+                {selectedEnseigne.details?.dimensions?.largeur && nonVides.length ? " · " : ""}
+                {nonVides.length > 0 ? `${totalMateriaux} matériau${totalMateriaux !== 1 ? "x" : ""}` : ""}
               </p>
             </div>
           </div>
         )}
 
-        {/* Contenu tableau matériaux (toujours visible) */}
         <div className="p-4">
           {isEditMode && selectedEnseigneFilter === "all" && (
             <p className="mb-3 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-              ℹ️ Sélectionnez une enseigne précise ci-dessus pour modifier ses
-              matériaux ici. La vue « Tous » agrège toutes les enseignes
-              (lecture seule).
+              ℹ️ Sélectionnez une enseigne précise ci-dessus pour modifier ses matériaux ici. La vue « Tous » agrège toutes les enseignes (lecture seule).
             </p>
           )}
-
           {nonVides.length > 0 ? (
             <MaterialTable
               key={selectedEnseigneFilter}
@@ -644,26 +800,15 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
             <p className="text-sm text-gray-500 italic py-4">
               {selectedEnseigneFilter === "all"
                 ? "Aucun matériau dans toutes les enseignes."
-                : `Aucun matériau pour cette enseigne.${
-                    isEditMode
-                      ? " Sélectionnez « Tous » ou ajoutez-en via le bouton ci-dessous."
-                      : ""
-                  }`}
+                : `Aucun matériau pour cette enseigne.${isEditMode ? " Sélectionnez « Tous » ou ajoutez-en via le bouton ci-dessous." : ""}`}
             </p>
           )}
         </div>
       </div>
 
-      {/* Bouton d'enregistrement */}
       {isEditMode && (
         <div className="flex justify-end">
-          <Button
-            onClick={(e) => {
-              e.preventDefault();
-              onSave?.(data);
-            }}
-            className="px-6"
-          >
+          <Button onClick={(e) => { e.preventDefault(); onSave?.(data); }} className="px-6">
             Enregistrer
           </Button>
         </div>
