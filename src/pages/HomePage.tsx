@@ -14,6 +14,7 @@ import {
   Bot,
   Zap,
   Sparkles,
+  Wrench,
 } from "lucide-react";
 import { useHomeCounters, type HomeCounters } from "@/hooks/useHomeCounters";
 import { usePageVisit } from "@/hooks/usePageVisit";
@@ -119,6 +120,14 @@ const cardDefs: Record<string, HomeCard> = {
     path: "/test-cycle",
     color: "bg-orange-100 text-orange-700",
   },
+  configurateur: {
+    id: "configurateur",
+    title: "Configurateur",
+    description: "Visualiser et configurer les produits en 3D",
+    icon: <Wrench className="h-8 w-8" />,
+    path: "/configurateur",
+    color: "bg-orange-100 text-orange-700",
+  },
   infinityMirror: {
     id: "infinityMirror",
     title: "Miroir Infini",
@@ -131,10 +140,10 @@ const cardDefs: Record<string, HomeCard> = {
 
 // Rôles → cartes affichées
 const roleCards: Record<string, string[]> = {
-  directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle", "infinityMirror"],
-  directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux"],
+  directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle", "configurateur", "infinityMirror"],
+  directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "configurateur"],
   commerciale: ["projet", "demande", "wari", "monBara", "produit"],
-  chef_technique: ["demande", "monBara", "produit"],
+  chef_technique: ["demande", "monBara", "produit", "configurateur"],
   technicien_adjoint: ["demande", "monBara"],
   superviseur_logistique: ["demande", "monBara", "materiaux"],
 };

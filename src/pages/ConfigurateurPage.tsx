@@ -82,7 +82,7 @@ const ConfigurateurPage: React.FC = () => {
 
   // Rendu desktop : 3D à gauche, contrôles à droite
   return (
-    <div className="flex flex-col h-screen bg-[#0a0a14] text-white overflow-hidden">
+    <div className="flex flex-col h-screen bg-[#0a0a14] text-white">
       {/* ========== HEADER ========== */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-[#0f0f1a]/80 backdrop-blur-sm shrink-0 z-10">
         <button
@@ -175,7 +175,7 @@ const ConfigurateurPage: React.FC = () => {
         </div>
       ) : (
         /* Vue configuration */
-        <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row min-h-0">
           {/* === 3D VIEWER === */}
           <div className="flex-1 relative min-h-[300px] lg:min-h-0">
             <ConfiguratorEngine
