@@ -6,10 +6,8 @@ import React, { useState, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
-  Sparkles,
   Search,
   Check,
-  FileSpreadsheet,
   Wrench,
   Package,
   ChevronDown,
@@ -19,8 +17,7 @@ import { Input } from "@/components/ui/input";
 import { useProducts } from "@/hooks/useProducts";
 import { useBomCalculator } from "@/hooks/useBomCalculator";
 import ConfiguratorEngine from "@/components/configurator/ConfiguratorEngine";
-import DynamicControls from "@/components/configurator/controls/DynamicControls";
-import MaterialPreview from "@/components/configurator/controls/MaterialPreview";
+import ConfigurateurFooter from "@/components/configurator/ConfigurateurFooter";
 import type { Product } from "@/types/product";
 
 // ============================================================
@@ -48,6 +45,13 @@ const ConfigurateurPage: React.FC = () => {
     hasBom,
     isLoading: bomLoading,
   } = useBomCalculator(selectedProduct?.id);
+
+  // Reset dimensions
+  const handleReset = () => {
+    for (const v of variables) {
+      setVariable(v.symbol, v.value);
+    }
+  };
 
   // Filtrer les produits
   const filteredProducts = useMemo(() => {
@@ -211,65 +215,25 @@ const ConfigurateurPage: React.FC = () => {
               </div>
             </div>
           </div>
-
-          {/* === SIDEBAR === */}
-          <div className="w-full lg:w-80 xl:w-96 border-t lg:border-t-0 lg:border-l border-white/10 bg-[#0f0f1a]/60 backdrop-blur-sm overflow-y-auto shrink-0">
-            <div className="p-4 space-y-5">
-              {/* Dimensions */}
-              {variables.length > 0 && (
-                <DynamicControls
-                  variables={variables}
-                  values={variableValues}
-                  onChange={setVariable}
-                />
-              )}
-
-              {/* Matériaux */}
-              {bomLoading ? (
-                <div className="text-center py-8 text-gray-500 text-sm">
-                  Chargement de la nomenclature...
-                </div>
-              ) : hasBom ? (
-                <MaterialPreview
-                  calculations={calculations}
-                  totalCost={totalCostEstimate}
-                />
-              ) : (
-                <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                  ⚠️ Ce produit n'a pas encore de nomenclature structurée. Le CDC
-                  sera généré par Brico à partir des règles de fabrication.
-                </p>
-              )}
-
-              {/* Générer CDC */}
-              <Button
-                onClick={handleGenerateCDC}
-                disabled={!selectedProduct}
-                className="w-full bg-brand-orange hover:bg-orange-600 text-white gap-2 h-11"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                Générer un CDC
-              </Button>
-            </div>
-          </div>
         </div>
       )}
 
-      {/* ========== FOOTER ========== */}
+      {/* Spacer pour le footer sticky */}
+      {selectedProduct && <div className="h-14 shrink-0" />}
+
+      {/* === FOOTER STICKY UNIFIÉ === */}
       {selectedProduct && (
-        <div className="shrink-0 px-4 py-2 border-t border-white/10 bg-[#0f0f1a] flex items-center justify-between text-xs text-gray-500">
-          <span>
-            {selectedProduct.name}
-            {hasBom && ` · BOM : ${calculations.length} items`}
-          </span>
-          <span>
-            {variables.length > 0
-              ? `${Object.entries(variableValues)
-                  .map(([k, v]) => `${k}=${(v * 100).toFixed(0)}cm`)
-                  .join(" · ")}`
-              : ""}
-          </span>
-        </div>
+        <ConfigurateurFooter
+          variables={variables}
+          variableValues={variableValues}
+          onVariableChange={setVariable}
+          calculations={calculations}
+          totalCost={totalCostEstimate}
+          hasBom={hasBom}
+          productName={selectedProduct.name}
+          onGenerateCDC={handleGenerateCDC}
+          onReset={handleReset}
+        />
       )}
     </div>
   );
