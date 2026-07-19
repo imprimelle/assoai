@@ -10,6 +10,7 @@ import VariantEditor from './VariantEditor';
 import ManufacturingRules from './ManufacturingRules';
 import BillingRules from './BillingRules';
 import BomEditor from './BomEditor';
+import { useProductBom } from '@/hooks/useProductBom';
 import { Product, ProductVariant, FabricationRules, BillingRules as BillingRulesType } from '@/types/product';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Info, List, Settings, Receipt, ShoppingBag, Wrench, ChevronDown, ChevronRight } from 'lucide-react';
@@ -51,9 +52,25 @@ const ProductForm: React.FC<ProductFormProps> = ({
   viewMode = 'catalog',
   restrictedView = false,
 }) => {
-  const [activeTab, setActiveTab] = useState(viewMode === 'fabrication' ? "bom" : "info");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (viewMode === 'fabrication') return "bom";
+    // 🆕 Si le produit a un ID, on vérifiera la BOM via le hook
+    return "info"; // sera mis à jour par l'effet ci-dessous
+  });
   const [showLegacyRules, setShowLegacyRules] = useState(false);
   const accent = viewMode === 'catalog' ? 'orange' : 'blue';
+
+  // 🆕 Vérifier si une BOM existe → priorité à l'onglet Nomenclature
+  const { items: bomCheckItems, isLoading: bomCheckLoading } = useProductBom(
+    activeTab === "info" ? product.id : undefined // ne charge que si on est encore sur "info"
+  );
+
+  // 🆕 Si BOM détectée et qu'on n'a pas encore changé d'onglet, basculer
+  useEffect(() => {
+    if (!bomCheckLoading && bomCheckItems.length > 0 && activeTab === "info" && viewMode !== 'fabrication') {
+      setActiveTab("bom");
+    }
+  }, [bomCheckLoading, bomCheckItems, viewMode]);
 
   const handleMainImageChange = (url: string) => onChange('main_image_url', url);
   const handleAddGalleryImage = (url: string) => onChange('gallery_images', [...(product.gallery_images || []), url]);

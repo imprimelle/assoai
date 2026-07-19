@@ -14,6 +14,8 @@ import {
 import { Product } from '@/types/product';
 import { formatCFA } from '@/utils/format';
 import { motion } from 'framer-motion';
+import { useProductBom } from '@/hooks/useProductBom';
+import { Package } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -41,6 +43,10 @@ const ProductCard: React.FC<ProductCardProps> = ({
     product.manufacturing_rules?.description_complete?.trim()?.length > 0;
   const hasExamples =
     product.manufacturing_rules?.exemples?.trim()?.length > 0;
+
+  // 🆕 BOM count
+  const { items: bomItems } = useProductBom(product.id);
+  const bomCount = bomItems.length;
 
   const cardAnimation = {
     hidden: { opacity: 0, y: 20, scale: 0.95 },
@@ -84,6 +90,16 @@ const ProductCard: React.FC<ProductCardProps> = ({
               <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-white/90 backdrop-blur-md text-gray-700 shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
                 <Layers className="h-3 w-3" />
                 {product.variants.length}
+              </span>
+            </div>
+          )}
+
+          {/* 🆕 Badge BOM */}
+          {bomCount > 0 && (
+            <div className={`absolute top-3 ${hasVariants ? 'right-16' : 'right-3'}`}>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-green-500/90 backdrop-blur-md text-white shadow-[0_2px_8px_rgba(34,197,94,0.3)]">
+                <Package className="h-3 w-3" />
+                {bomCount}
               </span>
             </div>
           )}
@@ -213,6 +229,16 @@ const ProductCard: React.FC<ProductCardProps> = ({
           <div className="absolute top-3 left-3">
             <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-blue-500/90 backdrop-blur-md text-white shadow-[0_2px_8px_rgba(59,130,246,0.3)]">
               <Wrench className="h-3 w-3" />
+            </span>
+          </div>
+        )}
+
+        {/* 🆕 Badge BOM */}
+        {bomCount > 0 && (
+          <div className="absolute top-3 right-3">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold bg-green-500/90 backdrop-blur-md text-white shadow-[0_2px_8px_rgba(34,197,94,0.3)]">
+              <Package className="h-3 w-3" />
+              {bomCount}
             </span>
           </div>
         )}
