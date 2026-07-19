@@ -4,13 +4,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import ImageGallery from './ImageGallery';
 import VariantEditor from './VariantEditor';
 import ManufacturingRules from './ManufacturingRules';
 import BillingRules from './BillingRules';
+import BomEditor from './BomEditor';
 import { Product, ProductVariant, FabricationRules, BillingRules as BillingRulesType } from '@/types/product';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Info, List, Settings, Receipt, ShoppingBag, Wrench } from 'lucide-react';
+import { Info, List, Settings, Receipt, ShoppingBag, Wrench, ChevronDown, ChevronRight } from 'lucide-react';
 
 const EMPTY_FABRICATION_RULES: FabricationRules = { description_complete: '', exemples: '' };
 const EMPTY_BILLING_RULES: BillingRulesType = { description_complete: '', exemples: '' };
@@ -49,7 +51,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
   viewMode = 'catalog',
   restrictedView = false,
 }) => {
-  const [activeTab, setActiveTab] = useState(viewMode === 'fabrication' ? "rules" : "info");
+  const [activeTab, setActiveTab] = useState(viewMode === 'fabrication' ? "bom" : "info");
+  const [showLegacyRules, setShowLegacyRules] = useState(false);
   const accent = viewMode === 'catalog' ? 'orange' : 'blue';
 
   const handleMainImageChange = (url: string) => onChange('main_image_url', url);
@@ -74,7 +77,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         <TabsList className="flex w-full border-b border-gray-200 bg-transparent p-0 h-auto gap-0 rounded-none mb-6">
           {tabItem("info", <Info className="h-4 w-4" />, "Informations", activeTab === "info", accent)}
           {tabItem("variants", <List className="h-4 w-4" />, "Variantes", activeTab === "variants", accent)}
-          {tabItem("rules", <Settings className="h-4 w-4" />, "Règles", activeTab === "rules", accent)}
+          {tabItem("bom", <Wrench className="h-4 w-4" />, "Nomenclature", activeTab === "bom", accent)}
           {tabItem("billing", <Receipt className="h-4 w-4" />, "Facturation", activeTab === "billing", accent)}
         </TabsList>
         )}
@@ -120,13 +123,41 @@ const ProductForm: React.FC<ProductFormProps> = ({
             </motion.div>
           )}
 
-          {/* Rules Tab — toujours visible */}
-          {(activeTab === "rules" || restrictedView) && (
-            <motion.div key="rules" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
-              <TabsContent value="rules" forceMount className="mt-0">
-                <div className="bg-white rounded-2xl p-3 sm:p-5 shadow-sm border border-gray-100">
-                  <ManufacturingRules rules={product.manufacturing_rules || EMPTY_FABRICATION_RULES}
-                    onChange={handleRulesChange} isEditable={isEditable} />
+          {/* Nomenclature Tab — toujours visible */}
+          {(activeTab === "bom" || restrictedView) && (
+            <motion.div key="bom" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit">
+              <TabsContent value="bom" forceMount className="mt-0 space-y-4">
+                {/* 🆕 BOM structuré — interface principale */}
+                <BomEditor
+                  productId={product.id || ''}
+                  isEditable={isEditable}
+                />
+
+                {/* Legacy : Règles de fabrication texte libre (collapsible) */}
+                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowLegacyRules(!showLegacyRules)}
+                    className="flex w-full items-center justify-between gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-sm"
+                  >
+                    <span className="flex items-center gap-2 text-gray-600">
+                      <Settings className="h-4 w-4" />
+                      Règles de fabrication (avancé / legacy)
+                    </span>
+                    <span className="text-gray-400">
+                      {showLegacyRules ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </span>
+                  </button>
+                  {showLegacyRules && (
+                    <div className="p-4 border-t border-gray-200">
+                      <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+                        ℹ️ La nomenclature structurée ci-dessus remplace les règles texte pour le calcul automatique des matériaux. 
+                        Cette section est conservée pour les instructions narratives et la rétrocompatibilité.
+                      </p>
+                      <ManufacturingRules rules={product.manufacturing_rules || EMPTY_FABRICATION_RULES}
+                        onChange={handleRulesChange} isEditable={isEditable} />
+                    </div>
+                  )}
                 </div>
               </TabsContent>
             </motion.div>
