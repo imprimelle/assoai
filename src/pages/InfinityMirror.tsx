@@ -3,16 +3,29 @@ import { createPortal } from "react-dom";
 import {
   ArrowLeft, Sparkles, Ruler, Zap, Eye, Layers,
   ChevronUp, ChevronDown, Sun, RotateCcw, Palette,
-  X,
+  X, FileSpreadsheet, Search, Check,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Slider } from "@/components/ui/slider";
-import Mirror3D, {
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import InfinityRenderer, {
   type LedType,
   type LegStyle,
   type SideMaterial,
   type MirrorOptions,
-} from "@/components/infinity-mirror/Mirror3D";
+} from "@/components/configurator/renderers/InfinityRenderer";
+import { useProducts } from "@/hooks/useProducts";
+import type { Product } from "@/types/product";
+import { useBomCalculator } from "@/hooks/useBomCalculator";
+import MaterialPreview from "@/components/configurator/controls/MaterialPreview";
 
 // ============================================================
 // FORMULES
@@ -58,6 +71,7 @@ const DEFAULTS = { L: 60, H: 60, d: 3, D_led: 60, R_f: 80, R_m: 92 };
 // ============================================================
 const InfinityMirror: React.FC = () => {
   const navigate = useNavigate();
+  const { products } = useProducts();
   const [L, setL] = useState(DEFAULTS.L);
   const [H, setH] = useState(DEFAULTS.H);
   const [d, setD] = useState(DEFAULTS.d);
@@ -75,6 +89,18 @@ const InfinityMirror: React.FC = () => {
     legStyle: "none",
     sideMaterial: "standard",
   });
+
+  // CDC dialog state
+  const [showCdcDialog, setShowCdcDialog] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productSearch, setProductSearch] = useState("");
+
+  // 🆕 BOM Calculator — réactif au produit sélectionné
+  const {
+    calculations: bomCalcs,
+    totalCostEstimate: bomTotalCost,
+    hasBom,
+  } = useBomCalculator(selectedProduct?.id);
 
   // Contextual popup
   const [popup, setPopup] = useState<{
@@ -101,6 +127,53 @@ const InfinityMirror: React.FC = () => {
     setD_led(DEFAULTS.D_led); setR_f(DEFAULTS.R_f); setR_m(DEFAULTS.R_m);
     setBrightness(1.0); setLedColor("#00aaff"); setLedType("ruban"); setLedPower(14.4);
     setMirrorOptions({ showTopGlass: true, legStyle: "none", sideMaterial: "standard" });
+  };
+
+  // Filtrer les produits pour l'autocomplete
+  const filteredProducts = useMemo(() => {
+    if (!productSearch) return products.slice(0, 8);
+    const q = productSearch.toLowerCase();
+    return products.filter(p => p.name.toLowerCase().includes(q)).slice(0, 8);
+  }, [products, productSearch]);
+
+  // Ouvrir le dialogue CDC
+  const handleOpenCdcDialog = () => {
+    setSelectedProduct(null);
+    setProductSearch("");
+    setShowCdcDialog(true);
+  };
+
+  // Générer CDC → stocker dans sessionStorage et naviguer vers CRM
+  const handleGenerateCDC = () => {
+    if (!selectedProduct) return;
+    const cdcData = {
+      product_id: selectedProduct.id,
+      product_name: selectedProduct.name,
+      dimensions: { largeur: L, hauteur: H, profondeur: d },
+      options: {
+        led_type: ledType,
+        led_color: ledColor,
+        led_density: D_led,
+      },
+      perimeter_m: perimeter,
+      led_count: ledCount,
+      reflections,
+      visualDepth_cm: visualDepth,
+      // 🆕 Matériaux pré-calculés depuis la BOM
+      materiaux_precalcules: hasBom ? bomCalcs.map(c => ({
+        section: c.section,
+        material_name: c.material_name,
+        material_id: c.material_id,
+        quantite: c.quantite_calculee,
+        unite: c.unite,
+        cout_unitaire: c.cout_unitaire,
+        cout_total: c.cout_total,
+      })) : [],
+      total_estime: bomTotalCost,
+    };
+    sessionStorage.setItem("infinity_mirror_cdc", JSON.stringify(cdcData));
+    setShowCdcDialog(false);
+    navigate("/crm-templates?tab=commande");
   };
 
   const handlePartClick = useCallback((part: string, screenX: number, screenY: number) => {
@@ -183,10 +256,18 @@ const InfinityMirror: React.FC = () => {
 
       {/* 3D Viewer */}
       <div className="flex-1 relative min-h-0">
-        <Mirror3D
-          L={L} H={H} d={d} n={reflections} R_f={R_f} R_m={R_m}
-          brightness={brightness} ledColor={ledColor} ledType={ledType} ledPower={ledPower}
-          options={mirrorOptions}
+        <InfinityRenderer
+          dimensions={{ L, H, P: d }}
+          options={{
+            n: reflections,
+            R_f,
+            R_m,
+            brightness,
+            ledColor,
+            ledType,
+            ledPower,
+            mirrorOptions,
+          }}
           onPartClick={handlePartClick}
         />
 
@@ -231,6 +312,13 @@ const InfinityMirror: React.FC = () => {
               <MiniStat icon={<Palette className="h-3 w-3" style={{ color: ledColor }} />} value={ledType} />
             </div>
             <button onClick={resetAll} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/5"><RotateCcw className="h-4 w-4" /></button>
+            <button
+              onClick={handleOpenCdcDialog}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-orange hover:bg-orange-600 text-white text-xs font-semibold transition-all shadow-lg shadow-brand-orange/20"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Générer un CDC</span>
+            </button>
             <button onClick={() => setFooterExpanded(!footerExpanded)} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5">
               {footerExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
             </button>
@@ -461,6 +549,114 @@ const InfinityMirror: React.FC = () => {
         </div>,
         document.body
       )}
+
+      {/* === DIALOGUE GÉNÉRER CDC === */}
+      <Dialog open={showCdcDialog} onOpenChange={setShowCdcDialog}>
+        <DialogContent className="bg-[#0f0f1a] border-white/15 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <FileSpreadsheet className="h-5 w-5 text-brand-orange" />
+              Générer un Cahier des Charges
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Récapitulatif de la configuration */}
+            <div className="bg-white/5 rounded-lg p-3 space-y-2 text-sm">
+              <p className="text-gray-400 text-xs uppercase tracking-wider">Configuration actuelle</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-gray-500 text-xs">Dimensions</span>
+                  <p className="font-mono text-white">{L}×{H}×{d} cm</p>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-xs">Périmètre</span>
+                  <p className="font-mono text-white">{perimeter.toFixed(2)} m</p>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-xs">LED</span>
+                  <p className="font-mono text-white">{ledCount} puces ({D_led}/m)</p>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-xs">Gouffre visuel</span>
+                  <p className="font-mono text-purple-400">{visualDepth} cm</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Sélecteur de produit */}
+            <div>
+              <label className="text-xs text-gray-400 mb-1.5 block">
+                Quel produit correspond à cette configuration ?
+              </label>
+              <div className="relative">
+                <div className="flex items-center gap-1.5 px-3 py-2 bg-white/5 border border-white/10 rounded-lg">
+                  <Search className="h-4 w-4 text-gray-500 shrink-0" />
+                  <Input
+                    value={selectedProduct ? selectedProduct.name : productSearch}
+                    onChange={(e) => {
+                      setProductSearch(e.target.value);
+                      setSelectedProduct(null);
+                    }}
+                    placeholder="Rechercher un produit..."
+                    className="border-0 bg-transparent text-white text-sm h-auto p-0 focus-visible:ring-0 placeholder:text-gray-500"
+                  />
+                </div>
+                {!selectedProduct && filteredProducts.length > 0 && (
+                  <div className="absolute z-10 top-full mt-1 w-full bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                    {filteredProducts.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedProduct(p);
+                          setProductSearch(p.name);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-brand-orange/10 flex items-center justify-between group"
+                      >
+                        <span className="text-gray-200 group-hover:text-white">{p.name}</span>
+                        {p.id === selectedProduct?.id && (
+                          <Check className="h-4 w-4 text-brand-orange" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 🆕 BOM Preview — visible quand un produit avec BOM est sélectionné */}
+            {selectedProduct && hasBom && (
+              <div className="bg-white/5 rounded-lg p-3 max-h-64 overflow-y-auto">
+                <MaterialPreview calculations={bomCalcs} totalCost={bomTotalCost} />
+              </div>
+            )}
+            {selectedProduct && !hasBom && (
+              <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                ⚠️ Ce produit n'a pas encore de nomenclature (BOM). Les matériaux seront estimés par Brico.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setShowCdcDialog(false)}
+              className="text-gray-400 hover:text-white hover:bg-white/5"
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleGenerateCDC}
+              disabled={!selectedProduct}
+              className="bg-brand-orange hover:bg-orange-600 text-white gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Générer le CDC
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -26,6 +26,8 @@ import {
   Ruler,
   X,
   Image as ImageIcon,
+  Wrench,
+  AlertCircle,
 } from "lucide-react";
 import AddressPicker from "../shared/AddressPicker";
 import StatusLine from "@/components/ui/StatusLine";
@@ -34,6 +36,8 @@ import EnseigneFilter from "./shared/EnseigneFilter";
 import ImageUpload from "./shared/ImageUpload";
 import type { CahierStatus } from "@/types";
 import { getStatusLineState } from "@/utils/status-utils";
+import { useProductBom } from "@/hooks/useProductBom";
+import type { ProductBomItem } from "@/types/productBom";
 
 const DEFAULT_SECTIONS = ["Découpe", "Éclairage", "Outillage", "Métal", "Vinyl"];
 
@@ -93,6 +97,84 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
 
   // Pour le dialogue enseigne : quelle enseigne est affichée en détail
   const [dialogEnseigneIdx, setDialogEnseigneIdx] = useState<number | null>(null);
+
+  // ── 🆕 Détection écarts BOM ──
+  const [showBomDeviationDialog, setShowBomDeviationDialog] = useState(false);
+  const [bomDeviations, setBomDeviations] = useState<Array<{
+    section: string;
+    material_name: string;
+    material_id?: string;
+    enseigne: string;
+  }>>([]);
+  const [bomUpdateProductId, setBomUpdateProductId] = useState<string | null>(null);
+
+  // Récupérer tous les product_id des enseignes
+  const allProductIds = (data.enseignes || []).flatMap(
+    (e) => (e.produits || []).map((p) => p.id)
+  );
+  // Prendre le premier product_id (on suppose qu'un CDC a un produit principal)
+  const primaryProductId = allProductIds[0] || null;
+
+  // Charger la BOM si on a un product_id
+  const { items: bomItems } = useProductBom(
+    data.statut === "Brouillon" ? undefined : primaryProductId || undefined
+  );
+
+  // Détecter les écarts BOM après sauvegarde
+  const detectBomDeviations = () => {
+    if (!primaryProductId || bomItems.length === 0) return;
+    
+    const deviations: typeof bomDeviations = [];
+    const bomMaterialIds = new Set(bomItems.map((b) => b.material_id).filter(Boolean));
+    
+    for (const enseigne of data.enseignes || []) {
+      const sections = enseigne.materiauxSections || {};
+      for (const [section, items] of Object.entries(sections)) {
+        for (const item of items) {
+          // Si le matériau a un material_id qui n'est pas dans la BOM
+          if (item.material_id && !bomMaterialIds.has(item.material_id)) {
+            deviations.push({
+              section,
+              material_name: item.nom,
+              material_id: item.material_id,
+              enseigne: enseigne.nom,
+            });
+          }
+        }
+      }
+    }
+    
+    if (deviations.length > 0) {
+      setBomDeviations(deviations);
+      setBomUpdateProductId(primaryProductId);
+      setShowBomDeviationDialog(true);
+    }
+  };
+
+  // Ajouter les matériaux manquants à la BOM
+  const handleAddToBom = async () => {
+    if (!bomUpdateProductId || bomDeviations.length === 0) return;
+    
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const items = bomDeviations.map((d, i) => ({
+        product_id: bomUpdateProductId,
+        section: d.section,
+        material_id: d.material_id || null,
+        material_name: d.material_name,
+        unite: "unité",
+        ordre: bomItems.length + i,
+      }));
+      
+      const { error } = await supabase.from("product_bom").insert(items);
+      if (error) throw error;
+      
+      setShowBomDeviationDialog(false);
+      setBomDeviations([]);
+    } catch (err) {
+      console.error("Erreur ajout BOM:", err);
+    }
+  };
 
   const CAHIER_STATUSES: CahierStatus[] = [
     "Brouillon",
@@ -808,11 +890,59 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
 
       {isEditMode && (
         <div className="flex justify-end">
-          <Button onClick={(e) => { e.preventDefault(); onSave?.(data); }} className="px-6">
+          <Button onClick={(e) => { e.preventDefault(); onSave?.(data); detectBomDeviations(); }} className="px-6">
             Enregistrer
           </Button>
         </div>
       )}
+
+      {/* === 🆕 DIALOGUE ÉCARTS BOM === */}
+      <Dialog open={showBomDeviationDialog} onOpenChange={setShowBomDeviationDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wrench className="h-5 w-5 text-brand-orange" />
+              Nomenclature enrichie
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              Le CDC contient{" "}
+              <strong>{bomDeviations.length} matériau{bomDeviations.length > 1 ? "x" : ""}</strong>{" "}
+              absent{bomDeviations.length > 1 ? "s" : ""} de la nomenclature du produit.
+            </p>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1.5 max-h-48 overflow-y-auto">
+              {bomDeviations.map((d, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span>
+                    <strong>{d.material_name}</strong>
+                    <span className="text-gray-500 ml-1">({d.section})</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setShowBomDeviationDialog(false)}
+            >
+              Ignorer
+            </Button>
+            <Button
+              onClick={handleAddToBom}
+              className="bg-brand-orange hover:bg-orange-600 text-white gap-2"
+            >
+              <Wrench className="h-4 w-4" />
+              Mettre à jour la nomenclature
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

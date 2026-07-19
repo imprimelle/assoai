@@ -19,3 +19,4 @@ tail-logs.py
 .supabase-service-role
 .supabase-db-password
 dist.old/
+dist.root-old/
