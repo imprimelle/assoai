@@ -191,6 +191,7 @@ const ConfigurateurPage: React.FC = () => {
                   facadeColor: "#e8e8f0",
                   showFrame: true,
                   frameMaterial: "metal",
+                  imageUrl: selectedProduct.main_image_url || "",
                 },
               }}
             />

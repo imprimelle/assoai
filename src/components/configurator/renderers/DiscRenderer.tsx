@@ -14,6 +14,7 @@ interface DiscOptions {
   facadeColor?: string;
   edgeMaterial?: "metal" | "wood";
   showFacade?: boolean;
+  imageUrl?: string;
 }
 
 const DEFAULTS: Required<DiscOptions> = {
@@ -21,6 +22,7 @@ const DEFAULTS: Required<DiscOptions> = {
   facadeColor: "#e8e8f0",
   edgeMaterial: "metal",
   showFacade: true,
+  imageUrl: "",
 };
 
 const DiscRenderer: React.FC<ProductRendererProps> = ({
@@ -168,10 +170,18 @@ const DiscRenderer: React.FC<ProductRendererProps> = ({
     if (opts.showFacade) {
       const facadeGeom = new THREE.CylinderGeometry(radius, radius, 0.005, segments);
       const facadeMat = new THREE.MeshStandardMaterial({
-        color: opts.facadeColor,
+        color: opts.imageUrl ? 0xffffff : opts.facadeColor,
         roughness: 0.3,
         metalness: 0.1,
       });
+
+      // 🆕 Charger la texture si imageUrl fournie
+      if (opts.imageUrl) {
+        new THREE.TextureLoader().load(opts.imageUrl, (texture) => {
+          facadeMat.map = texture;
+          facadeMat.needsUpdate = true;
+        });
+      }
       const facade = new THREE.Mesh(facadeGeom, facadeMat);
       facade.position.z = thickness / 2;
       facade.receiveShadow = true;

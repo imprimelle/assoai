@@ -14,6 +14,7 @@ interface RectOptions {
   ledColor?: string;
   facadeColor?: string;
   frameMaterial?: "metal" | "wood" | "glass";
+  imageUrl?: string;
 }
 
 const DEFAULTS: Required<RectOptions> = {
@@ -21,6 +22,7 @@ const DEFAULTS: Required<RectOptions> = {
   ledColor: "#ffffff",
   facadeColor: "#e8e8f0",
   frameMaterial: "metal",
+  imageUrl: "",
 };
 
 const RectPlanRenderer: React.FC<ProductRendererProps> = ({
@@ -166,10 +168,18 @@ const RectPlanRenderer: React.FC<ProductRendererProps> = ({
     // Facade
     const facadeGeom = new THREE.PlaneGeometry(w, h);
     const facadeMat = new THREE.MeshStandardMaterial({
-      color: opts.facadeColor,
+      color: opts.imageUrl ? 0xffffff : opts.facadeColor,
       roughness: 0.3,
       metalness: 0.1,
     });
+
+    // 🆕 Charger la texture si imageUrl fournie
+    if (opts.imageUrl) {
+      new THREE.TextureLoader().load(opts.imageUrl, (texture) => {
+        facadeMat.map = texture;
+        facadeMat.needsUpdate = true;
+      });
+    }
     const facade = new THREE.Mesh(facadeGeom, facadeMat);
     facade.receiveShadow = true;
     group.add(facade);

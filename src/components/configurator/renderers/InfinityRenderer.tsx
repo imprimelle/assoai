@@ -28,6 +28,7 @@ interface InfinityOptions {
   ledType?: LedType;      // ruban | module | neon
   ledPower?: number;      // puissance W/m
   mirrorOptions?: MirrorOptions; // showTopGlass, legStyle, sideMaterial
+  imageUrl?: string;      // image produit → texture miroir de fond
 }
 
 const DEFAULTS: Required<InfinityOptions> = {
@@ -39,6 +40,7 @@ const DEFAULTS: Required<InfinityOptions> = {
   ledType: "ruban",
   ledPower: 14.4,
   mirrorOptions: { showTopGlass: true, legStyle: "none", sideMaterial: "standard" },
+  imageUrl: "",
 };
 
 const SCALE = 0.01;
@@ -303,6 +305,17 @@ const InfinityRenderer: React.FC<ProductRendererProps> = ({
     // === FRAME ===
     const bottomGeom = new THREE.BoxGeometry(w, frameThickness, l);
     const bottomMat = new THREE.MeshStandardMaterial({ color: "#8899cc", roughness: 0.1, metalness: 1.0 });
+
+    // 🆕 Texture produit sur le miroir de fond
+    if (opts.imageUrl) {
+      new THREE.TextureLoader().load(opts.imageUrl, (texture) => {
+        bottomMat.map = texture;
+        bottomMat.color.set(0xffffff);
+        bottomMat.metalness = 0.3;
+        bottomMat.roughness = 0.5;
+        bottomMat.needsUpdate = true;
+      });
+    }
     const bottom = new THREE.Mesh(bottomGeom, bottomMat);
     bottom.position.y = -physicalDepth / 2;
     bottom.castShadow = true; bottom.receiveShadow = true;
