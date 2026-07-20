@@ -193,7 +193,6 @@ export function calculateBom(
         formuleUtilisee = null;
       }
     }
-    }
 
     // Arrondir à 2 décimales
     quantite = Math.round(quantite * 100) / 100;
