@@ -41,6 +41,7 @@ export interface BomCalculation {
 const VARIABLE_DEFS: Record<string, Omit<BomVariable, "value">> = {
   L: { symbol: "L", label: "Largeur", unit: "m", min: 0.2, max: 6.0, step: 0.01 },
   H: { symbol: "H", label: "Hauteur", unit: "m", min: 0.2, max: 4.0, step: 0.01 },
+  l: { symbol: "l", label: "Largeur second.", unit: "m", min: 0.2, max: 4.0, step: 0.01 },
   P: { symbol: "P", label: "Profondeur", unit: "m", min: 0.03, max: 0.5, step: 0.01 },
   d: { symbol: "d", label: "Diamètre", unit: "m", min: 0.3, max: 2.0, step: 0.01 },
 };
@@ -63,13 +64,38 @@ export function extractVariables(bomItems: ProductBomItem[]): BomVariable[] {
     }
   }
 
-  // Scanner les formules
+  // Scanner les formules ET conditions pour toutes les variables uppercase standalone
+  const aliasSet = new Set(["S", "PER", "PI", "E"]);
   for (const item of bomItems) {
-    if (!item.formule) continue;
-    for (const sym of ["P", "d"]) {
-      if (new RegExp(`\\b${sym}\\b`).test(item.formule)) {
+    const texts = [item.formule, item.condition_expr].filter(Boolean) as string[];
+    for (const text of texts) {
+      const matches = text.match(/\b([A-Z][A-Za-z0-9_]*)\b/g) || [];
+      for (const sym of matches) {
+        if (aliasSet.has(sym)) continue; // alias, pas une variable
         if (!found.has(sym) && VARIABLE_DEFS[sym]) {
-          found.set(sym, { ...VARIABLE_DEFS[sym], value: VARIABLE_DEFS[sym].min + (VARIABLE_DEFS[sym].max - VARIABLE_DEFS[sym].min) / 2 });
+          found.set(sym, {
+            ...VARIABLE_DEFS[sym],
+            value: VARIABLE_DEFS[sym].min + (VARIABLE_DEFS[sym].max - VARIABLE_DEFS[sym].min) / 2,
+          });
+        }
+      }
+    }
+  }
+
+  // Scanner les meta_variables
+  for (const item of bomItems) {
+    if (item.meta_variables) {
+      for (const [key, defaultVal] of Object.entries(item.meta_variables)) {
+        if (!found.has(key)) {
+          found.set(key, {
+            symbol: key,
+            label: key.replace(/_/g, " "),
+            value: typeof defaultVal === "number" ? defaultVal : 0,
+            unit: "",
+            min: 0,
+            max: 100,
+            step: 1,
+          });
         }
       }
     }
@@ -92,18 +118,49 @@ export function extractVariables(bomItems: ProductBomItem[]): BomVariable[] {
 export function calculateBom(
   bomItems: ProductBomItem[],
   variables: Map<string, number>,
-  materials: Map<string, MaterialCatalogEntry> = new Map()
+  materials: Map<string, MaterialCatalogEntry> = new Map(),
+  profileChoices?: Record<string, string>,
+  metaValues?: Record<string, any>
 ): BomCalculation[] {
   const L = variables.get("L") ?? 1;
   const H = variables.get("H") ?? 1;
 
   // Calculer les alias une seule fois
   const aliases: Record<string, number> = {
-    S: L * H,
+    S: variables.has("l") ? (variables.get("L") ?? 1) * (variables.get("l") ?? 1) : L * H,
     PER: 2 * (L + H),
   };
 
-  return bomItems.map((item) => {
+  // Contexte d'évaluation (variables + alias + metaValues)
+  const evalContext: Record<string, number> = {};
+  for (const [k, v] of variables) evalContext[k] = v;
+  for (const [k, v] of Object.entries(aliases)) evalContext[k] = v;
+  if (metaValues) {
+    for (const [k, v] of Object.entries(metaValues)) {
+      evalContext[k] = typeof v === "number" ? v : (typeof v === "boolean" ? (v ? 1 : 0) : 0);
+    }
+  }
+
+  // Filtrer par profil et condition
+  const filteredItems = bomItems.filter((item) => {
+    // Filtre profil
+    if (item.profile_group && item.profile_value && profileChoices) {
+      const choice = profileChoices[item.profile_group];
+      if (choice !== undefined && choice !== item.profile_value) return false;
+    }
+    // Filtre condition
+    if (item.condition_expr) {
+      try {
+        const result = Parser.evaluate(item.condition_expr, evalContext);
+        if (!result) return false;
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  return filteredItems.map((item) => {
     let quantite = item.quantite_fixe ?? 1;
     let formuleUtilisee = item.formule;
 
@@ -120,13 +177,22 @@ export function calculateBom(
           expr = expr.replace(new RegExp(`\\b${sym}\\b`, "g"), String(val));
         }
 
+        // Injecter les metaValues
+        if (metaValues) {
+          for (const [k, v] of Object.entries(metaValues)) {
+            if (typeof v === "number" || typeof v === "boolean") {
+              expr = expr.replace(new RegExp(`\\b${k}\\b`, "g"), String(typeof v === "boolean" ? (v ? 1 : 0) : v));
+            }
+          }
+        }
+
         // Évaluer avec expr-eval (sandbox sécurisé)
         quantite = Parser.evaluate(expr);
       } catch {
-        // Si l'évaluation échoue, on garde la quantité fixe ou 1
         quantite = item.quantite_fixe ?? 1;
-        formuleUtilisee = null; // marquer comme non évaluée
+        formuleUtilisee = null;
       }
+    }
     }
 
     // Arrondir à 2 décimales

@@ -27,6 +27,10 @@ const toItem = (raw: any): ProductBomItem => ({
   unite: raw.unite || "unité",
   reference: raw.reference ?? null,
   ordre: raw.ordre || 0,
+  condition_expr: raw.condition_expr ?? null,
+  profile_group: raw.profile_group ?? null,
+  profile_value: raw.profile_value ?? null,
+  meta_variables: raw.meta_variables ?? null,
   created_at: raw.created_at,
   updated_at: raw.updated_at,
 });
@@ -82,6 +86,10 @@ export function useProductBom(productId?: string) {
           unite: formItem.unite,
           reference: formItem.reference ?? null,
           ordre: formItem.ordre,
+          condition_expr: formItem.condition_expr ?? null,
+          profile_group: formItem.profile_group ?? null,
+          profile_value: formItem.profile_value ?? null,
+          meta_variables: formItem.meta_variables ?? null,
         };
 
         const { data, error: err } = await supabase
@@ -183,6 +191,10 @@ export function useProductBom(productId?: string) {
           unite: item.unite,
           reference: item.reference ?? null,
           ordre: item.ordre,
+          condition_expr: item.condition_expr ?? null,
+          profile_group: item.profile_group ?? null,
+          profile_value: item.profile_value ?? null,
+          meta_variables: item.meta_variables ?? null,
         }));
 
         const { data, error: insErr } = await supabase

@@ -35,6 +35,10 @@ const ConfigurateurPage: React.FC = () => {
   const [productSearch, setProductSearch] = useState("");
   const [showProductList, setShowProductList] = useState(false);
 
+  // 🆕 États pour profils et meta-variables
+  const [profileChoices, setProfileChoices] = useState<Record<string, string>>({});
+  const [metaValues, setMetaValues] = useState<Record<string, any>>({});
+
   // 🆕 BOM Calculator
   const {
     variables,
@@ -44,7 +48,9 @@ const ConfigurateurPage: React.FC = () => {
     variableValues,
     hasBom,
     isLoading: bomLoading,
-  } = useBomCalculator(selectedProduct?.id);
+    profileGroups,
+    metaVariableDefs,
+  } = useBomCalculator(selectedProduct?.id, profileChoices, metaValues);
 
   // Reset dimensions
   const handleReset = () => {
@@ -233,6 +239,12 @@ const ConfigurateurPage: React.FC = () => {
           productName={selectedProduct.name}
           onGenerateCDC={handleGenerateCDC}
           onReset={handleReset}
+          profileGroups={profileGroups}
+          profileChoices={profileChoices}
+          onProfileChange={setProfileChoices}
+          metaVariableDefs={metaVariableDefs}
+          metaValues={metaValues}
+          onMetaValueChange={setMetaValues}
         />
       )}
     </div>

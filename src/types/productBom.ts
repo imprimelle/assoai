@@ -26,6 +26,10 @@ export interface ProductBomItem {
   unite: string;
   reference?: string;
   ordre: number;
+  condition_expr?: string | null;
+  profile_group?: string | null;
+  profile_value?: string | null;
+  meta_variables?: Record<string, any> | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -40,6 +44,10 @@ export interface ProductBomFormItem {
   unite: string;
   reference?: string;
   ordre: number;
+  condition_expr?: string | null;
+  profile_group?: string | null;
+  profile_value?: string | null;
+  meta_variables?: Record<string, any> | null;
 }
 
 /** Résultat d'un match avec le catalogue matériaux. */

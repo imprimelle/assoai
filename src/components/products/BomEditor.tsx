@@ -386,7 +386,7 @@ const BomRow: React.FC<BomRowProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-12 gap-2 px-3 py-2 items-center text-sm hover:bg-gray-50/50 transition-colors">
+    <div className="grid grid-cols-16 gap-2 px-3 py-2 items-center text-sm hover:bg-gray-50/50 transition-colors">
       {/* Matériau — colonne principale */}
       <div className="col-span-5 relative">
         {isEditable ? (
@@ -499,6 +499,50 @@ const BomRow: React.FC<BomRowProps> = ({
         <span className="text-[10px] text-gray-400 font-mono">
           {item.reference || autoReference(item.section, index)}
         </span>
+      </div>
+
+      {/* Condition (optionnelle) */}
+      <div className="col-span-2">
+        {isEditable ? (
+          <Input
+            value={item.condition_expr || ""}
+            onChange={(e) => onUpdate({ condition_expr: e.target.value || null })}
+            placeholder="S>=1.05"
+            className="h-8 text-[10px] font-mono border-gray-200"
+          />
+        ) : (
+          item.condition_expr && (
+            <span className="text-[10px] text-amber-600 font-mono truncate block" title={item.condition_expr}>
+              {item.condition_expr}
+            </span>
+          )
+        )}
+      </div>
+
+      {/* Profil (optionnel) */}
+      <div className="col-span-2 flex gap-1">
+        {isEditable ? (
+          <>
+            <Input
+              value={item.profile_group || ""}
+              onChange={(e) => onUpdate({ profile_group: e.target.value || null, profile_value: item.profile_value || (e.target.value ? "" : null) })}
+              placeholder="groupe"
+              className="h-8 text-[10px] border-gray-200 w-1/2"
+            />
+            <Input
+              value={item.profile_value || ""}
+              onChange={(e) => onUpdate({ profile_value: e.target.value || null })}
+              placeholder="valeur"
+              className="h-8 text-[10px] border-gray-200 w-1/2"
+            />
+          </>
+        ) : (
+          item.profile_group && (
+            <span className="text-[10px] text-purple-600 truncate block">
+              {item.profile_group}={item.profile_value}
+            </span>
+          )
+        )}
       </div>
 
       {/* Supprimer */}
