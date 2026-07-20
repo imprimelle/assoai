@@ -157,6 +157,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-white/50">
           <ProductForm
             product={formData}
+            productId={product?.id}
             onChange={handleFieldChange}
             isEditable={isEditable}
             variants={formData.variants}

@@ -20,6 +20,7 @@ const EMPTY_BILLING_RULES: BillingRulesType = { description_complete: '', exempl
 
 interface ProductFormProps {
   product: Partial<Product>;
+  productId?: string;
   onChange: (field: string, value: any) => void;
   isEditable?: boolean;
   variants?: ProductVariant[];
@@ -46,6 +47,7 @@ const tabItem = (value: string, icon: React.ReactNode, label: string, active: bo
 
 const ProductForm: React.FC<ProductFormProps> = ({
   product,
+  productId,
   onChange,
   isEditable = true,
   variants,
@@ -62,7 +64,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
   // 🆕 Vérifier si une BOM existe → priorité à l'onglet Nomenclature
   const { items: bomCheckItems, isLoading: bomCheckLoading } = useProductBom(
-    activeTab === "info" ? product.id : undefined // ne charge que si on est encore sur "info"
+    activeTab === "info" ? productId : undefined
   );
 
   // 🆕 Si BOM détectée et qu'on n'a pas encore changé d'onglet, basculer
@@ -146,7 +148,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               <TabsContent value="bom" forceMount className="mt-0 space-y-4">
                 {/* 🆕 BOM structuré — interface principale */}
                 <BomEditor
-                  productId={product.id || ''}
+                  productId={productId || ''}
                   isEditable={isEditable}
                 />
 
