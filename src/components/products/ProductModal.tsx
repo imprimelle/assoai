@@ -49,6 +49,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!isOpen) return;
     let next: ProductFormData;
     if (product) {
       next = {
@@ -73,7 +74,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
     }
     setFormData(next);
     formDataRef.current = next;
-  }, [product, isOpen]);
+  }, [isOpen]);
 
   const handleFieldChange = (field: string, value: any) => {
     if (field === 'variants') {

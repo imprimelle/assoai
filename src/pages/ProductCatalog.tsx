@@ -69,12 +69,12 @@ const ProductCatalog = () => {
     setIsModalOpen(true);
   };
   
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
-  };
+  }, []);
   
   // Gestionnaire pour la création/mise à jour de produit
-  const handleSaveProduct = async (formData: ProductFormData) => {
+  const handleSaveProduct = useCallback(async (formData: ProductFormData) => {
     try {
       if (modalMode === 'create') {
         // Ajouter les informations sur l'utilisateur et la session
@@ -102,7 +102,7 @@ const ProductCatalog = () => {
       }
       
       // Fermer le modal après la sauvegarde
-      handleCloseModal();
+      setIsModalOpen(false);
     } catch (error) {
       console.error('Error saving product:', error);
       toast({
@@ -112,7 +112,7 @@ const ProductCatalog = () => {
         className: "bg-white rounded-md shadow-md"
       });
     }
-  };
+  }, [modalMode, selectedProduct, createProduct, updateProduct, currentUser, toast]);
   
   // Gestionnaires pour la suppression
   const handleDeleteRequest = (id: string) => {
