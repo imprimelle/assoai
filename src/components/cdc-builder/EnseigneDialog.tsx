@@ -1,10 +1,11 @@
 // src/components/cdc-builder/EnseigneDialog.tsx
 // Dialogue modal pour créer ou modifier une enseigne :
-// nom, image (upload Supabase Storage), dimensions L/H/P, technique.
+// nom, image (upload), recherche produit catalogue, dimensions L/H/P, technique.
 
-import React, { useState, useEffect } from "react";
-import { X, Upload, Image as ImageIcon } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { X } from "lucide-react";
 import ImageUpload from "@/components/templates/shared/ImageUpload";
+import ProductSuggestions from "@/components/shared/ProductSuggestions";
 import { createEmptyEnseigne } from "@/types/cdcBuilder";
 import type { CdcBuilderEnseigne } from "@/types/cdcBuilder";
 
@@ -50,8 +51,19 @@ const EnseigneDialog: React.FC<EnseigneDialogProps> = ({
     handleChange("technique", { ...form.technique, [field]: value });
   };
 
+  // Sélection d'un produit depuis le catalogue
+  const handleProductSelect = useCallback(
+    (product: { description: string; prixUnitaire: number; image_url?: string | null }) => {
+      setForm((prev) => ({
+        ...prev,
+        nom: product.description || prev.nom,
+        image_url: product.image_url || prev.image_url,
+      }));
+    },
+    [],
+  );
+
   const handleSave = () => {
-    // Validation
     if (!form.nom.trim()) return;
     if (form.dimensions.largeur <= 0 || form.dimensions.hauteur <= 0) return;
     onSave(form);
@@ -90,6 +102,20 @@ const EnseigneDialog: React.FC<EnseigneDialogProps> = ({
 
           {/* Body */}
           <div className="px-6 py-4 space-y-5">
+            {/* Recherche produit catalogue */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                🔍 Rechercher dans le catalogue produits
+              </label>
+              <ProductSuggestions
+                onSelectProduct={handleProductSelect}
+                placeholder="Chercher une enseigne/produit…"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Sélectionnez un produit pour pré-remplir le nom et l'image
+              </p>
+            </div>
+
             {/* Nom */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

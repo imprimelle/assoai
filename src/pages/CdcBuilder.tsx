@@ -121,40 +121,18 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
       {/* Contenu dépliable */}
       {isOpen && (
         <div className="p-4 pt-3">
-          {/* Dimensions inline */}
-          <div className="flex flex-wrap items-center gap-3 mb-4 text-sm">
-            <span className="text-gray-400">📏</span>
-            <span className="text-xs text-gray-500">
-              {enseigne.dimensions.largeur} × {enseigne.dimensions.hauteur}
-              {enseigne.dimensions.profondeur ? ` × ${enseigne.dimensions.profondeur}` : ""} cm
-            </span>
-            {enseigne.technique.type_structure && (
-              <>
-                <span className="text-gray-300">|</span>
-                <span className="text-xs text-gray-500">
-                  🔧 {enseigne.technique.type_structure}
-                </span>
-              </>
-            )}
-            <div className="ml-auto flex items-center gap-2">
-              {!isChatActive && (
-                <button
-                  type="button"
-                  onClick={onSetChatActive}
-                  className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
-                >
-                  💬 Définir pour le chat
-                </button>
-              )}
+          {/* Lien chat */}
+          {!isChatActive && (
+            <div className="mb-3">
               <button
                 type="button"
-                onClick={onEdit}
-                className="text-xs text-gray-500 hover:text-indigo-600 font-medium transition-colors"
+                onClick={onSetChatActive}
+                className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
               >
-                ✏️ Éditer les détails
+                💬 Définir comme enseigne active pour le chat Brico
               </button>
             </div>
-          </div>
+          )}
 
           {/* Tableau matériaux */}
           <CdcBuilderTable
