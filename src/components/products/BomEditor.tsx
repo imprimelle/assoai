@@ -386,7 +386,9 @@ const BomRow: React.FC<BomRowProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-16 gap-2 px-3 py-2 items-center text-sm hover:bg-gray-50/50 transition-colors">
+    <div
+      style={{ gridTemplateColumns: '5fr 3fr 2fr 1fr 2fr 2fr 2fr 1fr' }}
+      className="grid gap-2 px-3 py-2 items-center text-sm hover:bg-gray-50/50 transition-colors">
       {/* Matériau — colonne principale */}
       <div className="col-span-5 relative">
         {isEditable ? (
@@ -541,6 +543,38 @@ const BomRow: React.FC<BomRowProps> = ({
             <span className="text-[10px] text-purple-600 truncate block">
               {item.profile_group}={item.profile_value}
             </span>
+          )
+        )}
+      </div>
+
+      {/* Méta-variables (optionnel) */}
+      <div className="col-span-2">
+        {isEditable ? (
+          <Input
+            value={item.meta_variables ? JSON.stringify(item.meta_variables) : ""}
+            onChange={(e) => {
+              const v = e.target.value.trim();
+              try {
+                onUpdate({ meta_variables: v ? JSON.parse(v) : null });
+              } catch {
+                // Laisse l'utilisateur taper sans casser
+              }
+            }}
+            placeholder='{"nb_lettres":null}'
+            className="h-8 text-[10px] font-mono border-gray-200"
+          />
+        ) : (
+          item.meta_variables && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-[10px] text-gray-500 font-mono truncate block cursor-default">
+                  {JSON.stringify(item.meta_variables)}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-[10px] font-mono max-w-xs whitespace-pre-wrap">
+                {JSON.stringify(item.meta_variables, null, 2)}
+              </TooltipContent>
+            </Tooltip>
           )
         )}
       </div>
