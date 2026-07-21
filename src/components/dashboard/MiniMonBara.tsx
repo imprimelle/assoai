@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ClipboardCheck, Clock, Folder, ChevronDown } from "lucide-react";
+import { ClipboardCheck, Clock, Folder, ChevronDown, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface MiniMonBaraProps {
@@ -23,9 +23,10 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName }) => {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
 
-  const { data: tasks, isLoading } = useQuery({
+  const { data: tasks, isLoading, isError, error } = useQuery({
     queryKey: ["mini-monbara", userRole],
     queryFn: async (): Promise<TaskRow[]> => {
+      // Étape 1 : fetch checklists avec project_tasks (un seul !inner)
       let query = supabase
         .from("checklists")
         .select(
@@ -33,13 +34,13 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName }) => {
           id,
           title,
           project_id,
+          task_id,
           project_tasks!inner(
             kanban_column,
             active,
             assignee,
             title
-          ),
-          projects!inner(name)
+          )
         `
         )
         .not("task_id", "is", null)
@@ -50,18 +51,47 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName }) => {
         query = query.eq("project_tasks.assignee", userRole);
       }
 
-      const { data, error } = await query.order("project_tasks.due_date", {
-        ascending: true,
-        nullsFirst: false,
-      });
+      const { data: checklistsData, error: clError } = await query.order(
+        "project_tasks.due_date",
+        { ascending: true, nullsFirst: false }
+      );
 
-      if (error) throw error;
+      if (clError) throw new Error(clError.message);
+      if (!checklistsData || checklistsData.length === 0) return [];
 
-      return ((data || []) as any[]).map((row: any) => ({
+      // Étape 2 : récupérer les noms des projets en batch
+      const projectIds = [
+        ...new Set(
+          (checklistsData as any[])
+            .map((c: any) => c.project_id)
+            .filter(Boolean)
+        ),
+      ] as string[];
+
+      let projectNames: Record<string, string> = {};
+      if (projectIds.length > 0) {
+        const { data: projectsData, error: projError } = await supabase
+          .from("projects")
+          .select("id, name")
+          .in("id", projectIds);
+
+        if (!projError && projectsData) {
+          projectNames = (projectsData as any[]).reduce(
+            (acc: Record<string, string>, p: any) => {
+              acc[p.id] = p.name;
+              return acc;
+            },
+            {}
+          );
+        }
+      }
+
+      return (checklistsData as any[]).map((row: any) => ({
         checklistId: row.id,
-        taskTitle: row.title || row.project_tasks?.title || "Tâche sans titre",
+        taskTitle:
+          row.title || row.project_tasks?.title || "Tâche sans titre",
         projectId: row.project_id,
-        projectName: row.projects?.name || "Projet inconnu",
+        projectName: projectNames[row.project_id] || "Projet inconnu",
         kanbanColumn: row.project_tasks?.kanban_column || "a_faire",
       }));
     },
@@ -102,6 +132,23 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName }) => {
     );
   }
 
+  // ── Error state ──
+  if (isError) {
+    return (
+      <div className="bg-red-50 rounded-2xl border border-red-100 p-4 mb-6">
+        <div className="flex items-center gap-2 text-red-600">
+          <AlertCircle className="h-4 w-4" />
+          <span className="text-xs font-medium">
+            Erreur chargement Mon Bara
+          </span>
+        </div>
+        <p className="text-xs text-red-500 mt-1">
+          {(error as Error)?.message || "Erreur inconnue"}
+        </p>
+      </div>
+    );
+  }
+
   // ── Empty state (silencieux) ──
   if (!tasks || tasks.length === 0) return null;
 
@@ -116,9 +163,7 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName }) => {
           <div className="w-7 h-7 rounded-lg bg-brand-orange/10 flex items-center justify-center">
             <ClipboardCheck className="h-3.5 w-3.5 text-brand-orange" />
           </div>
-          <span className="text-sm font-semibold text-gray-700">
-            Mon Bara
-          </span>
+          <span className="text-sm font-semibold text-gray-700">Mon Bara</span>
           <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
             {tasks.length}
           </Badge>
@@ -140,7 +185,9 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName }) => {
                 <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">
                   À faire
                 </span>
-                <span className="text-[10px] text-gray-400">· {aFaire.length}</span>
+                <span className="text-[10px] text-gray-400">
+                  · {aFaire.length}
+                </span>
               </div>
               <div className="space-y-0.5">
                 {aFaire.map((task) => (
@@ -162,7 +209,9 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName }) => {
                 <span className="text-[10px] font-medium text-blue-500 uppercase tracking-wide">
                   En cours
                 </span>
-                <span className="text-[10px] text-blue-400">· {enCours.length}</span>
+                <span className="text-[10px] text-blue-400">
+                  · {enCours.length}
+                </span>
               </div>
               <div className="space-y-0.5">
                 {enCours.map((task) => (
