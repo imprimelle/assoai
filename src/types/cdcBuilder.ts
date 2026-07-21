@@ -1,0 +1,56 @@
+// src/types/cdcBuilder.ts
+// Types pour le CDC Builder — utilise exclusivement les types canoniques existants.
+// ZÉRO nouveau type pour les lignes — on réutilise MaterialItem + FlatMaterialRow.
+
+import type { MaterialItem, TeamMember, DeliveryAddress } from "./material";
+
+export interface CdcBuilderEnseigne {
+  id: string;
+  nom: string;
+  dimensions: {
+    largeur: number;
+    hauteur: number;
+    profondeur?: number;
+  };
+  image_url?: string;
+  technique: {
+    type_structure: string;
+    method_fabrication: string;
+  };
+  produits: { id: string; nom: string; image_url?: string }[];
+}
+
+export interface CdcBuilderState {
+  projectName: string;
+  cdcNumero: string;
+  commandeId: string;
+  enseignes: CdcBuilderEnseigne[];
+  activeEnseigneIndex: number;
+  materiauxByEnseigne: Record<string, Record<string, MaterialItem[]>>;
+  equipe: TeamMember[];
+  deliveryAddress?: DeliveryAddress;
+}
+
+export interface CdcBuilderFooterMessage {
+  role: "user" | "brico";
+  text: string;
+}
+
+export interface BricoAction {
+  type: "add" | "update" | "delete";
+  section: string;
+  index?: number;
+  item?: MaterialItem;
+  changes?: Partial<MaterialItem>;
+}
+
+/** Crée une enseigne vide avec un ID unique */
+export function createEmptyEnseigne(): CdcBuilderEnseigne {
+  return {
+    id: crypto.randomUUID?.() || `ens-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    nom: "Nouvelle enseigne",
+    dimensions: { largeur: 200, hauteur: 100 },
+    technique: { type_structure: "", method_fabrication: "" },
+    produits: [],
+  };
+}

@@ -54,6 +54,11 @@ export function detectPageContext(forcedAgent?: 'wari' | 'brico' | 'pm' | 'pia')
     return { route: path, pageType: 'general', forcedAgent: 'pia' };
   }
 
+  // CDC Builder
+  if (path.startsWith('/cdc-builder')) {
+    return { route: path, pageType: 'products', forcedAgent: 'brico' };
+  }
+
   // CRM Templates (lecture seule)
   if (path.startsWith('/templates')) {
     return { route: path, pageType: 'templates', forcedAgent };

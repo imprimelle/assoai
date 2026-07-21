@@ -25,6 +25,7 @@ import PublicChecklists from "./pages/PublicChecklists";
 import PublicDocument from "./pages/PublicDocument";
 import InfinityMirror from "./pages/InfinityMirror";
 import ConfigurateurPage from "./pages/ConfigurateurPage";
+import CdcBuilder from "./pages/CdcBuilder";
 import NotFound from "./pages/NotFound";
 import InstallBanner from "./components/pwa/InstallBanner";
 import UpdateNotification from "./components/pwa/UpdateNotification";
@@ -377,6 +378,19 @@ const AppContent = () => {
               element={
                 <RequireAuth persistentSessionId={persistentSessionId}>
                   <ConfigurateurPage />
+                </RequireAuth>
+              }
+            />
+
+            {/* 🆕 CDC Builder — construction manuelle de cahier des charges */}
+            <Route
+              path="/cdc-builder"
+              element={
+                <RequireAuth persistentSessionId={persistentSessionId}>
+                  <CdcBuilder
+                    user={currentUser!}
+                    persistentSessionId={persistentSessionId!}
+                  />
                 </RequireAuth>
               }
             />

@@ -12,3 +12,4 @@ export * from "./project";
 export * from "./project-task";
 export * from "./checklist";
 export * from "./notification";
+export * from "./cdcBuilder";

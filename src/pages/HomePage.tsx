@@ -19,6 +19,7 @@ import {
   BriefcaseBusiness,
   Settings,
   ChevronDown,
+  Hammer,
 } from "lucide-react";
 import { useHomeCounters, type HomeCounters } from "@/hooks/useHomeCounters";
 import { usePageVisit } from "@/hooks/usePageVisit";
@@ -140,13 +141,21 @@ const cardDefs: Record<string, HomeCard> = {
     path: "/infinity-mirror",
     color: "bg-cyan-100 text-cyan-700",
   },
+  cdcBuilder: {
+    id: "cdcBuilder",
+    title: "CDC Builder",
+    description: "Construire un cahier des charges manuellement",
+    icon: <Hammer className="h-8 w-8" />,
+    path: "/cdc-builder",
+    color: "bg-orange-100 text-orange-700",
+  },
 };
 
 const roleCards: Record<string, string[]> = {
-  directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle", "configurateur", "infinityMirror"],
-  directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "configurateur"],
+  directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle", "configurateur", "infinityMirror", "cdcBuilder"],
+  directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "configurateur", "cdcBuilder"],
   commerciale: ["projet", "demande", "wari", "monBara", "produit"],
-  chef_technique: ["demande", "monBara", "produit", "configurateur"],
+  chef_technique: ["demande", "monBara", "produit", "configurateur", "cdcBuilder"],
   technicien_adjoint: ["demande", "monBara"],
   superviseur_logistique: ["demande", "monBara", "materiaux"],
 };
@@ -191,7 +200,7 @@ const homeSections: {
     title: "Atelier",
     icon: <Wrench className="h-5 w-5" />,
     color: "from-amber-500 to-amber-600",
-    cardIds: ["configurateur", "infinityMirror"],
+    cardIds: ["configurateur", "cdcBuilder", "infinityMirror"],
   },
   {
     id: "parametres",
