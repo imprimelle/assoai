@@ -25,6 +25,7 @@ import PublicChecklists from "./pages/PublicChecklists";
 import PublicDocument from "./pages/PublicDocument";
 import InfinityMirror from "./pages/InfinityMirror";
 import ConfigurateurPage from "./pages/ConfigurateurPage";
+import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import InstallBanner from "./components/pwa/InstallBanner";
 import UpdateNotification from "./components/pwa/UpdateNotification";
@@ -234,6 +235,16 @@ const AppContent = () => {
                     user={currentUser}
                     onLogout={handleLogout}
                   />
+                </RequireAuth>
+              }
+            />
+
+            {/* Dashboard */}
+            <Route
+              path="/dashboard"
+              element={
+                <RequireAuth persistentSessionId={persistentSessionId}>
+                  <Dashboard user={currentUser} />
                 </RequireAuth>
               }
             />
