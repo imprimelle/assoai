@@ -52,8 +52,8 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName }) => {
       }
 
       const { data: checklistsData, error: clError } = await query.order(
-        "project_tasks.due_date",
-        { ascending: true, nullsFirst: false }
+        "due_date",
+        { foreignTable: "project_tasks", ascending: true, nullsFirst: false }
       );
 
       if (clError) throw new Error(clError.message);
