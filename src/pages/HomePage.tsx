@@ -149,6 +149,35 @@ const roleCards: Record<string, string[]> = {
 };
 
 /**
+ * Sections de la page d'accueil.
+ * Chaque section a un titre et une liste de cardIds.
+ * La section n'est visible que si au moins une carte est dans le roleCards de l'utilisateur.
+ * Les cartes défilent horizontalement (slidable).
+ */
+const homeSections: { id: string; title: string; cardIds: string[] }[] = [
+  {
+    id: "finance",
+    title: "Finance",
+    cardIds: ["finances", "demande", "wari"],
+  },
+  {
+    id: "catalogue",
+    title: "Catalogue",
+    cardIds: ["produit", "materiaux"],
+  },
+  {
+    id: "atelier",
+    title: "Atelier",
+    cardIds: ["configurateur", "infinityMirror", "monBara"],
+  },
+  {
+    id: "parametres",
+    title: "Paramètres",
+    cardIds: ["procedure", "agents"],
+  },
+];
+
+/**
  * Mapping page → clé de visite pour user_page_visits
  */
 const pageToVisitKey: Record<string, string> = {
@@ -158,6 +187,62 @@ const pageToVisitKey: Record<string, string> = {
   "/demande": "demandes",
 };
 
+/** IDs de cartes qui sont déjà dans une section — le reste s'affiche en grille classique */
+const sectionCardIds = new Set(homeSections.flatMap((s) => s.cardIds));
+
+// ── Composant carte bouton (réutilisé dans les sections et la grille) ──
+
+interface CardButtonProps {
+  card: HomeCard;
+  counters: HomeCounters | null;
+  onClick: () => void;
+  compact?: boolean;
+}
+
+const CardButton: React.FC<CardButtonProps> = ({ card, counters, onClick, compact = false }) => {
+  const badgeCount = card.counterKey && counters ? counters[card.counterKey] : 0;
+  const showBadge = badgeCount > 0;
+
+  return (
+    <button
+      onClick={onClick}
+      className={`group relative flex flex-col items-center justify-center rounded-2xl border-2 border-gray-100 bg-white shadow-sm hover:shadow-lg hover:border-brand-orange/30 transition-all duration-200 text-left ${
+        compact
+          ? "p-4 min-w-[140px] min-h-[130px]"
+          : "p-6 min-h-[160px]"
+      }`}
+    >
+      {/* Badge compteur */}
+      {showBadge && (
+        <div className="absolute -top-2 -right-2 z-10">
+          <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold shadow-md animate-in fade-in zoom-in duration-200">
+            {badgeCount > 99 ? "99+" : badgeCount}
+          </span>
+        </div>
+      )}
+
+      {/* Icône */}
+      <div
+        className={`p-4 rounded-xl mb-3 group-hover:scale-110 transition-transform duration-200 ${card.color}`}
+      >
+        {card.icon}
+      </div>
+
+      {/* Titre */}
+      <h2 className="text-lg font-semibold text-gray-800 group-hover:text-brand-orange transition-colors">
+        {card.title}
+      </h2>
+
+      {/* Description */}
+      <p className="text-sm text-gray-500 mt-1 text-center leading-tight">
+        {card.description}
+      </p>
+    </button>
+  );
+};
+
+// ── Composant principal ──
+
 const HomePage: React.FC<HomePageProps> = ({ user }) => {
   const navigate = useNavigate();
   const { data: counters } = useHomeCounters(user);
@@ -166,7 +251,7 @@ const HomePage: React.FC<HomePageProps> = ({ user }) => {
   if (!user) return null;
 
   const cardIds = roleCards[user.role] || ["wari", "projet", "monBara", "demande"];
-  const cards = cardIds.map((id) => cardDefs[id]).filter(Boolean);
+  const allowedCardIds = new Set(cardIds);
 
   const handleNavigate = (card: HomeCard) => {
     // Enregistrer la visite AVANT de naviguer
@@ -194,48 +279,69 @@ const HomePage: React.FC<HomePageProps> = ({ user }) => {
       {/* 🆕 Mini Kanban des projets en cours */}
       <HomeMiniKanban user={user} />
 
-      {/* Grille de cartes — 2 colonnes */}
-      <div className="grid grid-cols-2 gap-4">
-        {cards.map((card) => {
-          const badgeCount =
-            card.counterKey && counters ? counters[card.counterKey] : 0;
-          const showBadge = badgeCount > 0;
+      {/* Sections avec scroll horizontal */}
+      {homeSections.map((section) => {
+        // Filtrer : ne garder que les cartes autorisées pour ce rôle
+        const sectionCards = section.cardIds
+          .filter((id) => allowedCardIds.has(id))
+          .map((id) => cardDefs[id])
+          .filter(Boolean);
 
-          return (
-            <button
-              key={card.id}
-              onClick={() => handleNavigate(card)}
-              className="group relative flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-gray-100 bg-white shadow-sm hover:shadow-lg hover:border-brand-orange/30 transition-all duration-200 text-left min-h-[160px]"
-            >
-              {/* Badge compteur */}
-              {showBadge && (
-                <div className="absolute -top-2 -right-2 z-10">
-                  <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold shadow-md animate-in fade-in zoom-in duration-200">
-                    {badgeCount > 99 ? "99+" : badgeCount}
-                  </span>
-                </div>
-              )}
+        // Ne pas afficher la section si aucune carte n'est visible
+        if (sectionCards.length === 0) return null;
 
-              {/* Icône */}
-              <div
-                className={`p-4 rounded-xl mb-3 group-hover:scale-110 transition-transform duration-200 ${card.color}`}
-              >
-                {card.icon}
+        return (
+          <div key={section.id} className="mb-8">
+            {/* Titre de section */}
+            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 ml-1">
+              {section.title}
+            </h3>
+
+            {/* Conteneur scrollable horizontal */}
+            <div className="overflow-x-auto -mx-4 px-4 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+              <div className="flex gap-3 pb-2 min-w-min">
+                {sectionCards.map((card) => (
+                  <CardButton
+                    key={card.id}
+                    card={card}
+                    counters={counters ?? null}
+                    onClick={() => handleNavigate(card)}
+                    compact
+                  />
+                ))}
               </div>
+            </div>
+          </div>
+        );
+      })}
 
-              {/* Titre */}
-              <h2 className="text-lg font-semibold text-gray-800 group-hover:text-brand-orange transition-colors">
-                {card.title}
-              </h2>
+      {/* Cartes hors-section (projet, testCycle) — grille classique 2 colonnes */}
+      {(() => {
+        const otherCards = cardIds
+          .filter((id) => !sectionCardIds.has(id))
+          .map((id) => cardDefs[id])
+          .filter(Boolean);
 
-              {/* Description */}
-              <p className="text-sm text-gray-500 mt-1 text-center leading-tight">
-                {card.description}
-              </p>
-            </button>
-          );
-        })}
-      </div>
+        if (otherCards.length === 0) return null;
+
+        return (
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 ml-1">
+              Autres
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              {otherCards.map((card) => (
+                <CardButton
+                  key={card.id}
+                  card={card}
+                  counters={counters ?? null}
+                  onClick={() => handleNavigate(card)}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
