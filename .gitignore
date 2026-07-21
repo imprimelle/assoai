@@ -20,3 +20,4 @@ tail-logs.py
 .supabase-db-password
 dist.old/
 dist.root-old/
+dist.root-old2/
