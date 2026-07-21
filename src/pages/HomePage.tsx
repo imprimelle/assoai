@@ -19,7 +19,6 @@ import {
   BriefcaseBusiness,
   Settings,
   ChevronDown,
-  LayoutDashboard,
 } from "lucide-react";
 import { useHomeCounters, type HomeCounters } from "@/hooks/useHomeCounters";
 import { usePageVisit } from "@/hooks/usePageVisit";
@@ -140,23 +139,15 @@ const cardDefs: Record<string, HomeCard> = {
     path: "/infinity-mirror",
     color: "bg-cyan-100 text-cyan-700",
   },
-  dashboard: {
-    id: "dashboard",
-    title: "Dashboard",
-    description: "Vue d'ensemble de ton activité",
-    icon: <LayoutDashboard className="h-8 w-8" />,
-    path: "/dashboard",
-    color: "bg-sky-100 text-sky-700",
-  },
 };
 
 const roleCards: Record<string, string[]> = {
-  directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle", "configurateur", "infinityMirror", "dashboard"],
-  directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "configurateur", "dashboard"],
-  commerciale: ["projet", "demande", "wari", "monBara", "produit", "dashboard"],
-  chef_technique: ["demande", "monBara", "produit", "configurateur", "dashboard"],
-  technicien_adjoint: ["demande", "monBara", "dashboard"],
-  superviseur_logistique: ["demande", "monBara", "materiaux", "dashboard"],
+  directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle", "configurateur", "infinityMirror"],
+  directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "configurateur"],
+  commerciale: ["projet", "demande", "wari", "monBara", "produit"],
+  chef_technique: ["demande", "monBara", "produit", "configurateur"],
+  technicien_adjoint: ["demande", "monBara"],
+  superviseur_logistique: ["demande", "monBara", "materiaux"],
 };
 
 /**
@@ -185,7 +176,7 @@ const homeSections: {
     title: "Travail",
     icon: <BriefcaseBusiness className="h-5 w-5" />,
     color: "from-blue-500 to-blue-600",
-    cardIds: ["projet", "monBara", "dashboard"],
+    cardIds: ["projet", "monBara"],
   },
   {
     id: "catalogue",
