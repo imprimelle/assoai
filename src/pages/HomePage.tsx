@@ -23,6 +23,7 @@ import {
 import { useHomeCounters, type HomeCounters } from "@/hooks/useHomeCounters";
 import { usePageVisit } from "@/hooks/usePageVisit";
 import HomeMiniKanban from "@/components/home/HomeMiniKanban";
+import MiniMonBara from "@/components/dashboard/MiniMonBara";
 
 interface HomePageProps {
   user: User | null;
@@ -340,6 +341,9 @@ const HomePage: React.FC<HomePageProps> = ({ user }) => {
         </h1>
         <p className="text-gray-500 mt-1">Que veux-tu faire ?</p>
       </div>
+
+      {/* 🆕 Mini Mon Bara — tâches à faire / en cours */}
+      <MiniMonBara userRole={user.role} userName={user.name} />
 
       {/* Mini Kanban des projets en cours */}
       <HomeMiniKanban user={user} />

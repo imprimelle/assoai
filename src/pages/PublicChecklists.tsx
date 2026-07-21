@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { ChecklistSlide, ChecklistMeta } from '@/components/checklist/ChecklistSlide';
-import MiniMonBara from '@/components/dashboard/MiniMonBara';
 import {
   Carousel,
   CarouselContent,
@@ -49,7 +48,7 @@ function countTab(list: ChecklistMeta[], tab: TabId): number {
 // ── Component ──────────────────────────────────────────────────────────────
 
 const PublicChecklists: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const userName = searchParams.get('user') || '';
   const role      = searchParams.get('role') || '';
   const startId   = searchParams.get('start') || '';
@@ -68,26 +67,6 @@ const PublicChecklists: React.FC = () => {
   const [footerCollapsed, setFooterCollapsed] = useState(true);
   const currentUser = useCurrentUser();
   const { recordVisit } = usePageVisit();
-
-  // ── Rester positioned quand startId change (clic depuis MiniMonBara) ──
-  const prevStartId = useRef(startId);
-  useEffect(() => {
-    if (startId && startId !== prevStartId.current) {
-      prevStartId.current = startId;
-      setPositioned(false);
-    }
-  }, [startId]);
-
-  // ── Mini Mon Bara : clic tâche → positionner le carousel ──
-  const handleMiniTaskClick = useCallback((checklistId: string, kanbanColumn: string) => {
-    // Switcher vers le bon onglet
-    if (kanbanColumn === 'a_faire') setSelectedTab('a_faire');
-    else if (kanbanColumn === 'en_cours') setSelectedTab('en_cours');
-    // Mettre à jour l'URL avec le nouveau start
-    const next = new URLSearchParams(searchParams);
-    next.set('start', checklistId);
-    setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
 
   // Enregistrer la visite pour les compteurs
   useEffect(() => {
@@ -323,11 +302,6 @@ const PublicChecklists: React.FC = () => {
           })}
         </div>
       </div>
-
-      {/* ▸ Mini Mon Bara — vue d'ensemble collapsible */}
-      {userName && role && (
-        <MiniMonBara userRole={role} userName={userName} onTaskClick={handleMiniTaskClick} />
-      )}
 
       {/* ▸ Content */}
       <div className="flex-1 relative">

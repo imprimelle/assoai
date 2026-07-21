@@ -9,8 +9,6 @@ import { Badge } from "@/components/ui/badge";
 interface MiniMonBaraProps {
   userRole: string;
   userName: string;
-  /** Si fourni, appelé au clic tâche (mode intégré). Sinon, navigate interne. */
-  onTaskClick?: (checklistId: string, kanbanColumn: string) => void;
 }
 
 interface TaskRow {
@@ -21,20 +19,7 @@ interface TaskRow {
   kanbanColumn: string;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  a_faire: {
-    label: "À faire",
-    color: "bg-gray-100 text-gray-600 border-gray-200",
-    icon: <ClipboardCheck className="h-3 w-3" />,
-  },
-  en_cours: {
-    label: "En cours",
-    color: "bg-blue-50 text-blue-600 border-blue-200",
-    icon: <Clock className="h-3 w-3" />,
-  },
-};
-
-const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName, onTaskClick }) => {
+const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName }) => {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -74,10 +59,7 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName, onTaskCli
 
       return ((data || []) as any[]).map((row: any) => ({
         checklistId: row.id,
-        taskTitle:
-          row.title ||
-          row.project_tasks?.title ||
-          "Tâche sans titre",
+        taskTitle: row.title || row.project_tasks?.title || "Tâche sans titre",
         projectId: row.project_id,
         projectName: row.projects?.name || "Projet inconnu",
         kanbanColumn: row.project_tasks?.kanban_column || "a_faire",
@@ -90,26 +72,25 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName, onTaskCli
   const aFaire = (tasks || []).filter((t) => t.kanbanColumn === "a_faire");
   const enCours = (tasks || []).filter((t) => t.kanbanColumn === "en_cours");
 
-  const handleTaskClick = (checklistId: string, kanbanColumn: string) => {
-    if (onTaskClick) {
-      onTaskClick(checklistId, kanbanColumn);
-    } else {
-      navigate(
-        `/public/checklists?user=${encodeURIComponent(userName)}&role=${encodeURIComponent(userRole)}&start=${checklistId}`
-      );
-    }
+  const handleTaskClick = (checklistId: string) => {
+    navigate(
+      `/public/checklists?user=${encodeURIComponent(userName)}&role=${encodeURIComponent(userRole)}&start=${checklistId}`
+    );
   };
 
   const handleProjectClick = (projectId: string) => {
     navigate(`/projects/${projectId}`);
   };
 
-  // ── Loading ──
+  // ── Loading skeleton ──
   if (isLoading) {
     return (
-      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-100 px-4 py-3">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+        </div>
         <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
+          {[1, 2].map((i) => (
             <div key={i} className="flex items-center gap-3">
               <div className="h-3 w-3 bg-gray-200 rounded animate-pulse" />
               <div className="h-4 flex-1 bg-gray-200 rounded animate-pulse" />
@@ -121,27 +102,25 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName, onTaskCli
     );
   }
 
-  // ── Empty ──
-  if (!tasks || tasks.length === 0) {
-    return null; // silencieux dans Mon Bara
-  }
-
-  const totalCount = tasks.length;
+  // ── Empty state (silencieux) ──
+  if (!tasks || tasks.length === 0) return null;
 
   return (
-    <div className="bg-white/80 backdrop-blur-sm border-b border-gray-100">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-6 overflow-hidden">
       {/* Header collapsible */}
       <button
         onClick={() => setCollapsed((p) => !p)}
-        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50/50 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <ClipboardCheck className="h-4 w-4 text-brand-orange" />
-          <span className="text-xs font-semibold text-gray-600">
-            Vue d'ensemble
+          <div className="w-7 h-7 rounded-lg bg-brand-orange/10 flex items-center justify-center">
+            <ClipboardCheck className="h-3.5 w-3.5 text-brand-orange" />
+          </div>
+          <span className="text-sm font-semibold text-gray-700">
+            Mon Bara
           </span>
-          <Badge variant="secondary" className="text-[10px] h-4 px-1">
-            {totalCount}
+          <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+            {tasks.length}
           </Badge>
         </div>
         <ChevronDown
@@ -153,9 +132,9 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName, onTaskCli
 
       {/* Contenu */}
       {!collapsed && (
-        <div className="px-4 pb-3 space-y-2 max-h-[40vh] overflow-y-auto">
+        <div className="px-4 pb-3 space-y-2 border-t border-gray-50">
           {aFaire.length > 0 && (
-            <div>
+            <div className="pt-2">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <ClipboardCheck className="h-3 w-3 text-gray-400" />
                 <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">
@@ -177,7 +156,7 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName, onTaskCli
           )}
 
           {enCours.length > 0 && (
-            <div>
+            <div className={aFaire.length > 0 ? "pt-1" : "pt-2"}>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Clock className="h-3 w-3 text-blue-500" />
                 <span className="text-[10px] font-medium text-blue-500 uppercase tracking-wide">
@@ -207,14 +186,14 @@ const MiniMonBara: React.FC<MiniMonBaraProps> = ({ userRole, userName, onTaskCli
 
 const TaskRow: React.FC<{
   task: TaskRow;
-  onTaskClick: (checklistId: string, kanbanColumn: string) => void;
+  onTaskClick: (checklistId: string) => void;
   onProjectClick: (projectId: string) => void;
 }> = ({ task, onTaskClick, onProjectClick }) => {
   return (
     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-100 transition-colors group">
-      {/* Titre tâche — cliquable */}
+      {/* Titre — cliquable → Mon Bara */}
       <button
-        onClick={() => onTaskClick(task.checklistId, task.kanbanColumn)}
+        onClick={() => onTaskClick(task.checklistId)}
         className="flex-1 text-left text-[13px] text-gray-700 group-hover:text-brand-orange transition-colors truncate"
         title={task.taskTitle}
       >
