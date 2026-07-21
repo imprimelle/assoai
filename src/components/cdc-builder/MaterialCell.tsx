@@ -1,8 +1,9 @@
 // src/components/cdc-builder/MaterialCell.tsx
 // Input éditable avec déclencheur @ → recherche catalogue matériaux.
 // Réutilise le hook useMaterials et le mapping canonique catalogToMaterialItem.
+// v2: dropdown avec z-index élevé, largeur minimale, gestion robuste du focus.
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Package, X, Loader2 } from "lucide-react";
 import { useMaterials } from "@/hooks/useMaterials";
 import { formatCFA } from "@/utils/format";
@@ -123,10 +124,19 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
     return () => document.removeEventListener("mousedown", handler);
   }, [showDropdown]);
 
+  // --- Scroll vers l'élément actif ---
+  useEffect(() => {
+    if (!showDropdown || materials.length === 0) return;
+    const el = document.getElementById(`mat-cell-opt-${materials[activeIdx]?.id}`);
+    if (el) {
+      el.scrollIntoView({ block: "nearest" });
+    }
+  }, [activeIdx, showDropdown, materials]);
+
   const hasValue = value.trim().length > 0;
 
   return (
-    <div ref={wrapperRef} className="relative">
+    <div ref={wrapperRef} className="relative min-w-[180px]">
       <div className="relative flex items-center">
         <input
           ref={inputRef}
@@ -134,6 +144,14 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
           value={value}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
+          onFocus={() => {
+            // Si la valeur contient déjà @, rouvrir le dropdown
+            const atIdx = value.lastIndexOf("@");
+            if (atIdx >= 0) {
+              setAtQuery(value.slice(atIdx + 1));
+              setShowDropdown(true);
+            }
+          }}
           disabled={disabled}
           placeholder="@ pour chercher dans le catalogue…"
           className="h-9 w-full border border-gray-200 rounded px-2 pr-8 bg-white text-sm
@@ -156,8 +174,8 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
       {/* --- Dropdown catalogue matériaux --- */}
       {showDropdown && (
         <div
-          className="absolute z-50 mt-1 w-full bg-white border border-gray-200
-                     rounded-lg shadow-lg max-h-56 overflow-y-auto"
+          className="absolute z-[100] mt-1 w-[320px] max-w-[90vw] bg-white border border-gray-200
+                     rounded-lg shadow-xl max-h-64 overflow-y-auto"
         >
           {isLoading ? (
             <div className="flex items-center gap-2 px-3 py-3 text-sm text-gray-400">
@@ -185,12 +203,10 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
                 return (
                   <li
                     key={entry.id}
+                    id={`mat-cell-opt-${entry.id}`}
                     role="option"
                     aria-selected={idx === activeIdx}
-                    onMouseDown={(e) => {
-                      e.preventDefault(); // empêche la fermeture au blur
-                      handleSelect(entry);
-                    }}
+                    onClick={() => handleSelect(entry)}
                     onMouseEnter={() => setActiveIdx(idx)}
                     className={`flex items-center gap-2 px-3 py-2 cursor-pointer text-sm transition-colors
                       ${idx === activeIdx
@@ -202,8 +218,8 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
                       size={14}
                       className={
                         idx === activeIdx
-                          ? "text-indigo-500"
-                          : "text-amber-500"
+                          ? "text-indigo-500 shrink-0"
+                          : "text-amber-500 shrink-0"
                       }
                     />
                     <div className="flex-1 min-w-0">

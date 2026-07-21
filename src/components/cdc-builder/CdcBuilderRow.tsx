@@ -1,6 +1,6 @@
 // src/components/cdc-builder/CdcBuilderRow.tsx
 // Ligne éditable inline du tableau CDC Builder — 3 colonnes adaptatives par section.
-// Réutilise MaterialCell, les constantes canoniques, et le type FlatMaterialRow.
+// v2: layout scrollable horizontalement, largeurs minimales pour mobile.
 
 import React from "react";
 import { Trash2 } from "lucide-react";
@@ -57,141 +57,139 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   const cellInput =
     "h-9 border border-gray-200 rounded px-2 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none";
 
-  const displayL =
-    item.largeur || defaultDimensions.largeur;
-  const displayH =
-    item.hauteur || defaultDimensions.hauteur;
-
   return (
-    <div className="flex items-start gap-3 py-2 border-b border-gray-100 last:border-b-0">
-      {/* Colonne 1 : Matériau (MaterialCell) */}
-      <div className="flex-1 min-w-0">
-        <MaterialCell
-          value={item.nom}
-          onChange={(nom) => onChange({ nom })}
-          onCatalogSelect={(preset) => onChange(preset)}
-          onClear={() => onChange({ nom: "" })}
-          disabled={disabled}
-        />
-      </div>
-
-      {/* Colonne 2 : Paramètres (L, H, Qté) */}
-      <div className="flex items-center gap-2 shrink-0">
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-gray-400">L</span>
-          <input
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step={0.1}
-            value={item.largeur ?? ""}
-            placeholder={String(defaultDimensions.largeur)}
-            onChange={(e) => handleNum("largeur", e.target.value)}
+    // Conteneur scrollable horizontalement
+    <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0">
+      <div className="flex items-start gap-3 min-w-[700px] md:min-w-0">
+        {/* Colonne 1 : Matériau (MaterialCell) */}
+        <div className="w-[200px] shrink-0">
+          <MaterialCell
+            value={item.nom}
+            onChange={(nom) => onChange({ nom })}
+            onCatalogSelect={(preset) => onChange(preset)}
+            onClear={() => onChange({ nom: "" })}
             disabled={disabled}
-            className={`${cellInput} w-16 text-center tabular-nums`}
           />
         </div>
 
-        {showHauteur(section) ? (
+        {/* Colonne 2 : Paramètres (L, H, Qté) */}
+        <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-400">H</span>
+            <span className="text-xs text-gray-400 w-3">L</span>
             <input
               type="number"
               inputMode="decimal"
               min={0}
               step={0.1}
-              value={item.hauteur ?? ""}
-              placeholder={String(defaultDimensions.hauteur)}
-              onChange={(e) => handleNum("hauteur", e.target.value)}
+              value={item.largeur ?? ""}
+              placeholder={String(defaultDimensions.largeur)}
+              onChange={(e) => handleNum("largeur", e.target.value)}
               disabled={disabled}
-              className={`${cellInput} w-16 text-center tabular-nums`}
+              className={`${cellInput} w-[72px] text-center tabular-nums`}
             />
           </div>
-        ) : (
-          <span className="text-gray-300 text-sm w-16 text-center">—</span>
-        )}
 
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-gray-400">×</span>
+          {showHauteur(section) ? (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-400 w-3">H</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step={0.1}
+                value={item.hauteur ?? ""}
+                placeholder={String(defaultDimensions.hauteur)}
+                onChange={(e) => handleNum("hauteur", e.target.value)}
+                disabled={disabled}
+                className={`${cellInput} w-[72px] text-center tabular-nums`}
+              />
+            </div>
+          ) : (
+            <span className="text-gray-300 text-sm w-[72px] text-center">—</span>
+          )}
+
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-gray-400">×</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={1}
+              value={item.quantite ?? 1}
+              onChange={(e) => handleNum("quantite", e.target.value)}
+              disabled={disabled}
+              className={`${cellInput} w-[56px] text-center tabular-nums`}
+            />
+          </div>
+
+          {/* Unité */}
           <input
-            type="number"
-            inputMode="decimal"
-            min={1}
-            value={item.quantite ?? 1}
-            onChange={(e) => handleNum("quantite", e.target.value)}
+            list={`unite-cdc-${item.id}`}
+            value={item.unite || ""}
+            onChange={(e) => onChange({ unite: e.target.value })}
             disabled={disabled}
-            className={`${cellInput} w-14 text-center tabular-nums`}
+            className={`${cellInput} w-[80px]`}
+            placeholder="unité"
           />
+          <datalist id={`unite-cdc-${item.id}`}>
+            {withCurrent(UNITES, item.unite).map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
         </div>
 
-        {/* Unité */}
-        <input
-          list={`unite-cdc-${item.id}`}
-          value={item.unite || ""}
-          onChange={(e) => onChange({ unite: e.target.value })}
-          disabled={disabled}
-          className={`${cellInput} w-20`}
-          placeholder="unité"
-        />
-        <datalist id={`unite-cdc-${item.id}`}>
-          {withCurrent(UNITES, item.unite).map((u) => (
-            <option key={u} value={u} />
-          ))}
-        </datalist>
-      </div>
+        {/* Colonne 3 : Détails (Épaisseur, Couleur) */}
+        <div className="flex items-center gap-2 shrink-0">
+          {showEpaisseur(section) ? (
+            <select
+              value={item.epaisseur || ""}
+              onChange={(e) => onChange({ epaisseur: e.target.value })}
+              disabled={disabled}
+              className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm focus:ring-2 focus:ring-indigo-500 w-[110px]"
+            >
+              <option value="">Épaisseur</option>
+              {withCurrent(EPAISSEURS, item.epaisseur).map((ep) => (
+                <option key={ep} value={ep}>
+                  {ep}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-gray-300 text-sm w-[110px] text-center">—</span>
+          )}
 
-      {/* Colonne 3 : Détails (Épaisseur, Couleur) */}
-      <div className="flex items-center gap-2 shrink-0">
-        {showEpaisseur(section) ? (
-          <select
-            value={item.epaisseur || ""}
-            onChange={(e) => onChange({ epaisseur: e.target.value })}
-            disabled={disabled}
-            className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="">Épaisseur</option>
-            {withCurrent(EPAISSEURS, item.epaisseur).map((ep) => (
-              <option key={ep} value={ep}>
-                {ep}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span className="text-gray-300 text-sm w-24 text-center">—</span>
-        )}
+          {showCouleur(section, item) ? (
+            <select
+              value={item.couleur || ""}
+              onChange={(e) => onChange({ couleur: e.target.value })}
+              disabled={disabled}
+              className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm focus:ring-2 focus:ring-indigo-500 w-[130px]"
+            >
+              <option value="">Couleur</option>
+              {withCurrent(
+                item.couleurs_dispo && item.couleurs_dispo.length > 0
+                  ? item.couleurs_dispo
+                  : COULEURS,
+                item.couleur,
+              ).map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          ) : null}
 
-        {showCouleur(section, item) ? (
-          <select
-            value={item.couleur || ""}
-            onChange={(e) => onChange({ couleur: e.target.value })}
-            disabled={disabled}
-            className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="">Couleur</option>
-            {withCurrent(
-              item.couleurs_dispo && item.couleurs_dispo.length > 0
-                ? item.couleurs_dispo
-                : COULEURS,
-              item.couleur,
-            ).map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        ) : null}
-
-        {/* Supprimer */}
-        {!disabled && (
-          <button
-            type="button"
-            onClick={onDelete}
-            className="text-red-400 hover:text-red-600 p-1 transition-colors"
-            title="Supprimer cette ligne"
-          >
-            <Trash2 size={16} />
-          </button>
-        )}
+          {/* Supprimer */}
+          {!disabled && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="text-red-400 hover:text-red-600 p-1 transition-colors shrink-0"
+              title="Supprimer cette ligne"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,9 +1,16 @@
 // src/pages/CdcBuilder.tsx
-// Page d'assemblage du CDC Builder — onglets slidables + tableau matériaux + footer Brico.
-// Gère l'état global CdcBuilderState et la sérialisation vers CahierDesChargesData.
+// Page d'assemblage du CDC Builder — accordéons d'enseignes + tableaux matériaux + footer Brico.
+// v2: accordéons collapsibles (comme EnseigneSection) au lieu d'onglets slidables.
+// Chaque enseigne est visible avec son propre CdcBuilderTable.
 
 import React, { useState, useCallback } from "react";
-import EnseigneSlidingTabs from "@/components/cdc-builder/EnseigneSlidingTabs";
+import {
+  ChevronDown,
+  ChevronUp,
+  Trash2,
+  Plus,
+  Pencil,
+} from "lucide-react";
 import EnseigneDialog from "@/components/cdc-builder/EnseigneDialog";
 import CdcBuilderTable, {
   sectionsToRows,
@@ -21,6 +28,148 @@ interface CdcBuilderProps {
   user: User;
   persistentSessionId: string;
 }
+
+// ── Section enseigne individuelle (accordéon) ──
+
+interface EnseigneAccordionProps {
+  enseigne: CdcBuilderEnseigne;
+  rows: FlatMaterialRow[];
+  isChatActive: boolean;
+  defaultOpen?: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onSetChatActive: () => void;
+  onRowsChange: (rows: FlatMaterialRow[]) => void;
+}
+
+const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
+  enseigne,
+  rows,
+  isChatActive,
+  defaultOpen = false,
+  onEdit,
+  onDelete,
+  onSetChatActive,
+  onRowsChange,
+}) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border border-gray-200 rounded-lg bg-white mb-4 overflow-hidden shadow-sm">
+      {/* Header cliquable */}
+      <button
+        type="button"
+        onClick={() => setIsOpen((p) => !p)}
+        className="flex justify-between items-center w-full p-4 text-left
+                   bg-gradient-to-r from-indigo-50 to-indigo-100
+                   hover:from-indigo-100 hover:to-indigo-150 transition-colors"
+      >
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <span className="text-lg">🏷️</span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-semibold text-gray-800 truncate">
+                {enseigne.nom}
+              </h3>
+              {isChatActive && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500 text-white font-medium shrink-0">
+                  Chat
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {enseigne.dimensions.largeur}×{enseigne.dimensions.hauteur}
+              {enseigne.dimensions.profondeur ? `×${enseigne.dimensions.profondeur}` : ""} cm
+              {enseigne.technique.type_structure
+                ? ` · ${enseigne.technique.type_structure}`
+                : ""}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-white/50 rounded transition-colors"
+            title="Éditer cette enseigne"
+          >
+            <Pencil size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-white/50 rounded transition-colors"
+            title="Supprimer cette enseigne"
+          >
+            <Trash2 size={15} />
+          </button>
+          {isOpen ? (
+            <ChevronUp size={18} className="text-gray-400" />
+          ) : (
+            <ChevronDown size={18} className="text-gray-400" />
+          )}
+        </div>
+      </button>
+
+      {/* Contenu dépliable */}
+      {isOpen && (
+        <div className="p-4 pt-3">
+          {/* Dimensions inline */}
+          <div className="flex flex-wrap items-center gap-3 mb-4 text-sm">
+            <span className="text-gray-400">📏</span>
+            <span className="text-xs text-gray-500">
+              {enseigne.dimensions.largeur} × {enseigne.dimensions.hauteur}
+              {enseigne.dimensions.profondeur ? ` × ${enseigne.dimensions.profondeur}` : ""} cm
+            </span>
+            {enseigne.technique.type_structure && (
+              <>
+                <span className="text-gray-300">|</span>
+                <span className="text-xs text-gray-500">
+                  🔧 {enseigne.technique.type_structure}
+                </span>
+              </>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              {!isChatActive && (
+                <button
+                  type="button"
+                  onClick={onSetChatActive}
+                  className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
+                >
+                  💬 Définir pour le chat
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onEdit}
+                className="text-xs text-gray-500 hover:text-indigo-600 font-medium transition-colors"
+              >
+                ✏️ Éditer les détails
+              </button>
+            </div>
+          </div>
+
+          {/* Tableau matériaux */}
+          <CdcBuilderTable
+            rows={rows}
+            defaultDimensions={enseigne.dimensions}
+            onRowsChange={onRowsChange}
+            enseigneNom={enseigne.nom}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Page principale ──
 
 const CdcBuilder: React.FC<CdcBuilderProps> = ({
   user,
@@ -42,11 +191,13 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   const [editingEnseigne, setEditingEnseigne] = useState<
     CdcBuilderEnseigne | undefined
   >();
+  // Tous les accordéons ouverts par défaut au début
+  const [allOpen, setAllOpen] = useState(true);
 
+  // Enseigne active pour le chat Brico
   const activeEnseigne = state.enseignes[state.activeEnseigneIndex];
-  const materiauxSections =
-    state.materiauxByEnseigne[activeEnseigne?.id] || {};
-  const rows: FlatMaterialRow[] = sectionsToRows(materiauxSections);
+  const setActiveEnseigne = (index: number) =>
+    setState((prev) => ({ ...prev, activeEnseigneIndex: index }));
 
   // --- Handlers enseigne ---
 
@@ -55,24 +206,29 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
     setDialogOpen(true);
   }, []);
 
-  const handleEditEnseigne = useCallback((index: number) => {
-    setEditingEnseigne(state.enseignes[index]);
-    setDialogOpen(true);
-  }, [state.enseignes]);
+  const handleEditEnseigne = useCallback(
+    (enseigne: CdcBuilderEnseigne) => {
+      setEditingEnseigne(enseigne);
+      setDialogOpen(true);
+    },
+    [],
+  );
 
   const handleSaveEnseigne = useCallback(
     (enseigne: CdcBuilderEnseigne) => {
       if (editingEnseigne) {
-        // Mode édition — remplacer l'enseigne existante
-        const newEnseignes = [...state.enseignes];
-        newEnseignes[state.activeEnseigneIndex] = enseigne;
-        setState({ ...state, enseignes: newEnseignes });
+        // Mode édition — remplacer dans le tableau
+        const idx = state.enseignes.findIndex((e) => e.id === editingEnseigne.id);
+        if (idx >= 0) {
+          const newEnseignes = [...state.enseignes];
+          newEnseignes[idx] = enseigne;
+          setState({ ...state, enseignes: newEnseignes });
+        }
       } else {
-        // Mode création — ajouter + initialiser materiauxByEnseigne
+        // Mode création
         setState({
           ...state,
           enseignes: [...state.enseignes, enseigne],
-          activeEnseigneIndex: state.enseignes.length,
           materiauxByEnseigne: {
             ...state.materiauxByEnseigne,
             [enseigne.id]: {},
@@ -85,19 +241,14 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   );
 
   const handleDeleteEnseigne = useCallback(
-    (index: number) => {
+    (enseigne: CdcBuilderEnseigne) => {
       if (state.enseignes.length <= 1) return;
-      const newEnseignes = state.enseignes.filter((_, i) => i !== index);
-      const deletedId = state.enseignes[index].id;
+      const newEnseignes = state.enseignes.filter((e) => e.id !== enseigne.id);
       const newMateriaux = { ...state.materiauxByEnseigne };
-      delete newMateriaux[deletedId];
+      delete newMateriaux[enseigne.id];
       setState({
         ...state,
         enseignes: newEnseignes,
-        activeEnseigneIndex: Math.min(
-          state.activeEnseigneIndex,
-          newEnseignes.length - 1,
-        ),
         materiauxByEnseigne: newMateriaux,
       });
     },
@@ -107,8 +258,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   // --- Handlers matériaux ---
 
   const handleRowsChange = useCallback(
-    (newRows: FlatMaterialRow[]) => {
-      // Reconstruire materiauxSections à partir des lignes
+    (enseigneId: string, newRows: FlatMaterialRow[]) => {
       const newSections: Record<string, any[]> = {};
       for (const row of newRows) {
         if (!newSections[row.section]) newSections[row.section] = [];
@@ -118,30 +268,11 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
         ...state,
         materiauxByEnseigne: {
           ...state.materiauxByEnseigne,
-          [activeEnseigne.id]: newSections,
+          [enseigneId]: newSections,
         },
       });
     },
-    [state, activeEnseigne],
-  );
-
-  // --- Handlers dimensions enseigne active ---
-
-  const handleDimChange = useCallback(
-    (field: "largeur" | "hauteur" | "profondeur", raw: string) => {
-      const num = raw === "" ? 0 : Number(raw);
-      if (Number.isNaN(num)) return;
-      const newEnseignes = [...state.enseignes];
-      newEnseignes[state.activeEnseigneIndex] = {
-        ...activeEnseigne,
-        dimensions: {
-          ...activeEnseigne.dimensions,
-          [field]: Math.max(0, num),
-        },
-      };
-      setState({ ...state, enseignes: newEnseignes });
-    },
-    [state, activeEnseigne],
+    [state],
   );
 
   const cellInput =
@@ -186,82 +317,56 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           </div>
         </div>
 
-        {/* Onglets slidables */}
-        <EnseigneSlidingTabs
-          enseignes={state.enseignes}
-          activeIndex={state.activeEnseigneIndex}
-          onSelect={(i) =>
-            setState({ ...state, activeEnseigneIndex: i })
-          }
-          onAdd={handleAddEnseigne}
-          onDelete={handleDeleteEnseigne}
-          onEdit={handleEditEnseigne}
-        />
-
-        {/* Dimensions inline de l'enseigne active */}
-        {activeEnseigne && (
-          <div className="flex items-center gap-3 mt-3 mb-4 text-sm">
-            <span className="text-gray-400">📏</span>
-            <label className="text-gray-500 text-xs">L</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={1}
-              value={activeEnseigne.dimensions.largeur || ""}
-              onChange={(e) =>
-                handleDimChange("largeur", e.target.value)
-              }
-              className={`${cellInput} w-20 text-center`}
-            />
-            <span className="text-xs text-gray-400">cm</span>
-
-            <label className="text-gray-500 text-xs ml-3">H</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={1}
-              value={activeEnseigne.dimensions.hauteur || ""}
-              onChange={(e) =>
-                handleDimChange("hauteur", e.target.value)
-              }
-              className={`${cellInput} w-20 text-center`}
-            />
-            <span className="text-xs text-gray-400">cm</span>
-
-            <label className="text-gray-500 text-xs ml-3">P</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              value={activeEnseigne.dimensions.profondeur || ""}
-              onChange={(e) =>
-                handleDimChange("profondeur", e.target.value)
-              }
-              className={`${cellInput} w-20 text-center`}
-            />
-            <span className="text-xs text-gray-400">cm</span>
-
+        {/* Barre d'actions enseignes */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-sm font-medium text-gray-600">
+            📋 {state.enseignes.length} enseigne{state.enseignes.length > 1 ? "s" : ""}
+          </div>
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => handleEditEnseigne(state.activeEnseigneIndex)}
-              className="ml-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+              onClick={() => setAllOpen((p) => !p)}
+              className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
             >
-              ✏️ Éditer
+              {allOpen ? "Tout replier" : "Tout déplier"}
+            </button>
+            <button
+              type="button"
+              onClick={handleAddEnseigne}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium
+                         bg-indigo-600 text-white rounded-lg hover:bg-indigo-700
+                         transition-colors shadow-sm"
+            >
+              <Plus size={16} />
+              Ajouter une enseigne
             </button>
           </div>
-        )}
+        </div>
 
-        {/* Tableau matériaux */}
-        {activeEnseigne && (
-          <div className="pb-24">
-            <CdcBuilderTable
-              rows={rows}
-              defaultDimensions={activeEnseigne.dimensions}
-              onRowsChange={handleRowsChange}
-              enseigneNom={activeEnseigne.nom}
-            />
-          </div>
-        )}
+        {/* Accordéons des enseignes */}
+        <div className="pb-24">
+          {state.enseignes.map((enseigne, index) => {
+            const materiauxSections =
+              state.materiauxByEnseigne[enseigne.id] || {};
+            const rows: FlatMaterialRow[] = sectionsToRows(materiauxSections);
+
+            return (
+              <EnseigneAccordion
+                key={enseigne.id}
+                enseigne={enseigne}
+                rows={rows}
+                isChatActive={index === state.activeEnseigneIndex}
+                defaultOpen={allOpen}
+                onEdit={() => handleEditEnseigne(enseigne)}
+                onDelete={() => handleDeleteEnseigne(enseigne)}
+                onSetChatActive={() => setActiveEnseigne(index)}
+                onRowsChange={(newRows) =>
+                  handleRowsChange(enseigne.id, newRows)
+                }
+              />
+            );
+          })}
+        </div>
 
         {/* Dialogue enseigne */}
         <EnseigneDialog
