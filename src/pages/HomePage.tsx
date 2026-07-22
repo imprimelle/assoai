@@ -146,7 +146,7 @@ const cardDefs: Record<string, HomeCard> = {
     title: "CDC Builder",
     description: "Construire un cahier des charges manuellement",
     icon: <Hammer className="h-8 w-8" />,
-    path: "/cdc-builder",
+    path: "/cdc-liste",
     color: "bg-orange-100 text-orange-700",
   },
 };

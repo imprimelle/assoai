@@ -26,6 +26,7 @@ import PublicDocument from "./pages/PublicDocument";
 import InfinityMirror from "./pages/InfinityMirror";
 import ConfigurateurPage from "./pages/ConfigurateurPage";
 import CdcBuilder from "./pages/CdcBuilder";
+import CdcListe from "./pages/CdcListe";
 import NotFound from "./pages/NotFound";
 import InstallBanner from "./components/pwa/InstallBanner";
 import UpdateNotification from "./components/pwa/UpdateNotification";
@@ -391,6 +392,16 @@ const AppContent = () => {
                     user={currentUser!}
                     persistentSessionId={persistentSessionId!}
                   />
+                </RequireAuth>
+              }
+            />
+
+            {/* 🆕 CDC Liste — listing des CDC existants (liés ou brouillons) */}
+            <Route
+              path="/cdc-liste"
+              element={
+                <RequireAuth persistentSessionId={persistentSessionId}>
+                  <CdcListe />
                 </RequireAuth>
               }
             />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { generatePDFClient } from '@/services/pdfGenerator';
 
 const PublicDocument: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [doc, setDoc] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
@@ -233,7 +234,13 @@ const PublicDocument: React.FC = () => {
               variant="outline"
               className="flex-1"
               size="lg"
-              onClick={() => setShowEdit(true)}
+              onClick={() => {
+                if (isCDC && doc?.id) {
+                  navigate(`/cdc-builder?cdcId=${doc.id}`);
+                } else {
+                  setShowEdit(true);
+                }
+              }}
             >
               <Pencil className="h-4 w-4 mr-2" />
               ✏️ Modifier

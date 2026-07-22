@@ -53,6 +53,8 @@ export interface CdcBuilderHeaderProps {
   loadingProjects?: boolean;
   /** Sélection d'un projet → recharge avec ?projectId=xxx */
   onSelectProject?: (projectId: string) => void;
+  /** Forcer les champs éditables même avec un projet (mode "Modifier" depuis CDC) */
+  alwaysEditable?: boolean;
 }
 
 // ── Géocodage Nominatim (OpenStreetMap) ──
@@ -100,6 +102,7 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   availableProjects,
   loadingProjects,
   onSelectProject,
+  alwaysEditable = false,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [addressInput, setAddressInput] = useState(data.deliveryAddress?.label || "");
@@ -110,7 +113,7 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   const mapInstance = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
 
-  const isLocked = !!project;
+  const isLocked = !!project && !alwaysEditable;
   const hasAddress = !!(data.deliveryAddress?.lat && data.deliveryAddress?.lng);
 
   // Sync addressInput when data changes externally

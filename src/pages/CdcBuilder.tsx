@@ -276,10 +276,11 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
 }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const projectId = searchParams.get("projectId");
+  const cdcId = searchParams.get("cdcId");
 
-  // Charger les données initiales si un projet est spécifié
+  // Charger les données initiales si un projet ou un CDC est spécifié
   const { data: loaderResult, isLoading: isLoaderLoading } =
-    useCdcBuilderLoader(projectId);
+    useCdcBuilderLoader({ projectId, cdcId });
 
   // Liste des projets disponibles pour le sélecteur
   const { data: availableProjects, isLoading: projectsLoading } = useQuery<
@@ -551,6 +552,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           availableProjects={availableProjects || []}
           loadingProjects={projectsLoading}
           onSelectProject={handleSelectProject}
+          alwaysEditable={!!cdcId}
         />
 
         {/* Barre d'actions enseignes */}
