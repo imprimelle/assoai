@@ -177,18 +177,12 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         const sectionRows = grouped.get(section) || [];
         return (
           <div key={section} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
-            <div className={`flex items-center justify-between px-4 py-2.5 ${sectionBadge[section] || "bg-gray-50 text-gray-600"}`}>
+            <div className={`flex items-center justify-between px-4 py-1.5 ${sectionBadge[section] || "bg-gray-50 text-gray-600"}`}>
               <div className="flex items-center gap-2">
                 <span className="text-sm">{sectionIcon[section]}</span>
-                <span className="text-sm font-semibold uppercase tracking-wide">{section}</span>
-                <span className="text-xs opacity-60">({sectionRows.length} ligne{sectionRows.length > 1 ? "s" : ""})</span>
+                <span className="text-xs font-semibold uppercase tracking-wide">{section}</span>
+                <span className="text-[10px] opacity-50">({sectionRows.length})</span>
               </div>
-              {!disabled && (
-                <button type="button" onClick={() => handleAddRow(section)}
-                  className="flex items-center gap-1 text-xs font-medium text-current opacity-70 hover:opacity-100 transition-opacity">
-                  <Plus size={12} /> Ajouter à {section}
-                </button>
-              )}
             </div>
 
             <div className="px-4 py-2">
@@ -210,6 +204,17 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                   flashType={highlights?.[`${section}-${r.index}`]}
                 />
               ))}
+              {/* Bouton Ajouter — après la dernière ligne */}
+              {!disabled && (
+                <button
+                  type="button"
+                  onClick={() => handleAddRow(section)}
+                  className="flex items-center gap-1 mt-1.5 text-xs text-indigo-400 hover:text-indigo-600 font-medium transition-colors w-full justify-center py-1 rounded-md hover:bg-indigo-50/50"
+                >
+                  <Plus size={12} />
+                  Ajouter à {section}
+                </button>
+              )}
             </div>
           </div>
         );

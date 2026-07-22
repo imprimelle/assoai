@@ -791,6 +791,18 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
                   />
                 );
               })}
+
+              {/* Bouton Ajouter une enseigne — après le dernier bloc */}
+              <button
+                type="button"
+                onClick={handleAddEnseigne}
+                className="flex items-center gap-2 w-full mt-2 py-3 border-2 border-dashed border-gray-300
+                           rounded-lg text-sm text-gray-400 hover:text-indigo-500 hover:border-indigo-300
+                           hover:bg-indigo-50/30 transition-all justify-center font-medium"
+              >
+                <Plus size={16} />
+                Ajouter une enseigne
+              </button>
             </div>
           </>
         )}
@@ -814,7 +826,6 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           onToggleConsolidated={() => setShowConsolidated((p) => !p)}
           allOpen={allOpen}
           onToggleAllOpen={() => setAllOpen((p) => !p)}
-          onAddEnseigne={handleAddEnseigne}
           onSave={handleSaveCdc}
           saving={saveStatus === "saving"}
           changeCount={changeCount}

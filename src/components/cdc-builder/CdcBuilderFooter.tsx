@@ -15,7 +15,6 @@ import {
   MicOff,
   Pencil,
   LayoutGrid,
-  Plus,
   Save,
 } from "lucide-react";
 import { routeMessage } from "@/services/hermesRouter";
@@ -42,7 +41,6 @@ export interface CdcBuilderFooterProps {
   onToggleConsolidated: () => void;
   allOpen: boolean;
   onToggleAllOpen: () => void;
-  onAddEnseigne: () => void;
   onSave: () => void;
   saving: boolean;
   changeCount: number;
@@ -75,7 +73,6 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   onToggleConsolidated,
   allOpen,
   onToggleAllOpen,
-  onAddEnseigne,
   onSave,
   saving,
   changeCount,
@@ -315,7 +312,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
   return (
     <>
       <div
-        style={{ height: expanded ? chatHeight + 10 : 120 }}
+        style={{ height: expanded ? chatHeight + 10 : 96 }}
         aria-hidden="true"
       />
 
@@ -408,20 +405,21 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
           </div>
         )}
 
-        {/* Barre d'actions compacte */}
-        <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-gray-900/50 backdrop-blur-lg border-b border-gray-700/20">
+        {/* Barre d'actions — icônes + labels compacts */}
+        <div className="flex items-center justify-center gap-1 px-3 py-1.5 bg-gradient-to-t from-gray-900/50 via-gray-900/30 to-transparent border-b border-gray-700/10">
           {/* Toggle Vue consolidée */}
           <button
             type="button"
             onClick={onToggleConsolidated}
-            className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
+            className={`flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all ${
               showConsolidated
-                ? "bg-indigo-500/30 text-indigo-300"
-                : "text-gray-500 hover:text-gray-300 hover:bg-gray-800/50"
+                ? "bg-indigo-500/25 text-indigo-300"
+                : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
             }`}
-            title={showConsolidated ? "Vue par enseigne" : "Vue consolidée"}
+            title={showConsolidated ? "Vue par enseigne" : "Vue consolidée (toutes les enseignes)"}
           >
-            <LayoutGrid size={15} />
+            <LayoutGrid size={13} />
+            <span className="hidden sm:inline">Tout</span>
           </button>
 
           {/* Tout replier/déplier */}
@@ -429,42 +427,39 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
             <button
               type="button"
               onClick={onToggleAllOpen}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-all"
               title={allOpen ? "Tout replier" : "Tout déplier"}
             >
-              <span className="text-sm">{allOpen ? "🔽" : "🔼"}</span>
+              <span className="text-xs">{allOpen ? "🔽" : "🔼"}</span>
+              <span className="hidden sm:inline">{allOpen ? "Replier" : "Déplier"}</span>
             </button>
           )}
 
-          {/* Compteur enseignes */}
-          <span className="text-xs text-gray-500 font-medium w-5 text-center select-none">
+          {/* Séparateur */}
+          <div className="w-px h-4 bg-gray-700/40 mx-0.5" />
+
+          {/* Compteur enseignes + ajout */}
+          <span className="text-xs text-gray-500 font-medium min-w-[20px] text-center select-none">
             {state.enseignes.length}
           </span>
-
-          {/* Ajouter une enseigne */}
-          <button
-            type="button"
-            onClick={onAddEnseigne}
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:text-indigo-400 hover:bg-gray-800/50 transition-colors"
-            title="Ajouter une enseigne"
-          >
-            <Plus size={16} />
-          </button>
 
           {/* Sauvegarde avec badge compteur */}
           <button
             type="button"
             onClick={onSave}
             disabled={saving}
-            className="relative flex items-center justify-center w-8 h-8 rounded-lg transition-colors
-                       text-gray-500 hover:text-emerald-400 hover:bg-gray-800/50 disabled:opacity-50"
-            title={state.savedMessageId ? "Mettre à jour" : "Sauvegarder"}
+            className="relative flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all
+                       text-gray-400 hover:text-emerald-400 hover:bg-white/5 disabled:opacity-50"
+            title={state.savedMessageId ? "Mettre à jour le CDC" : "Sauvegarder le CDC"}
           >
             {saving ? (
-              <Loader2 size={15} className="animate-spin" />
+              <Loader2 size={13} className="animate-spin" />
             ) : (
-              <Save size={15} />
+              <Save size={13} />
             )}
+            <span className="hidden sm:inline">
+              {state.savedMessageId ? "MàJ" : "Sauver"}
+            </span>
             {changeCount > 0 && !saving && (
               <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] flex items-center justify-center
                                bg-red-500 text-white text-[9px] font-bold rounded-full px-0.5 leading-none">
@@ -474,10 +469,10 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
           </button>
         </div>
 
-        {/* Barre de saisie compacte — toujours visible, translucide */}
-        <div className="bg-gray-900/60 backdrop-blur-lg border-t border-gray-700/20 shadow-2xl">
+        {/* Barre de saisie compacte — fond dégradé vers transparent, input blanc */}
+        <div className="bg-gradient-to-t from-gray-100/80 via-gray-50/60 to-transparent backdrop-blur-lg border-t border-gray-200/30">
           <div className="flex items-center gap-1.5 px-3 py-2.5 max-w-6xl mx-auto min-h-[56px]">
-            {/* Input pill avec micro intégré à gauche */}
+            {/* Input pill avec micro intégré à gauche — fond blanc */}
             <div className="flex-1 relative min-w-0">
               <input
                 ref={inputRef}
@@ -490,10 +485,10 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
                     ? "Poser une question…"
                     : "Décrire la modification…"
                 }
-                className="w-full h-10 pl-9 pr-4 rounded-full bg-gray-800/70 border border-gray-700/50
-                           text-sm text-white placeholder:text-gray-500
-                           focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 outline-none
-                           transition-shadow"
+                className="w-full h-10 pl-9 pr-4 rounded-full bg-white border border-gray-300
+                           text-sm text-gray-700 placeholder:text-gray-400
+                           focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400 outline-none
+                           shadow-sm transition-shadow"
               />
               {/* Micro dans l'input */}
               <button
@@ -501,8 +496,8 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
                 onClick={toggleListening}
                 className={`absolute left-1.5 top-1/2 -translate-y-1/2 p-1 rounded-full transition-all ${
                   isListening
-                    ? "text-red-400 animate-pulse"
-                    : "text-gray-500 hover:text-gray-300"
+                    ? "text-red-500 animate-pulse"
+                    : "text-gray-400 hover:text-gray-600"
                 }`}
                 title={isListening ? "Arrêter l'écoute" : "Dicter"}
               >
@@ -510,7 +505,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
               </button>
             </div>
 
-            {/* Toggle Modifier / Demander — cercle unique */}
+            {/* Toggle Modifier / Demander — cercle */}
             <button
               type="button"
               onClick={() =>
@@ -519,7 +514,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
               className={`flex items-center justify-center w-8 h-8 rounded-full transition-all shrink-0 ${
                 mode === "modifier"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25"
-                  : "bg-gray-800 text-gray-400 border border-gray-700/50 hover:text-gray-300"
+                  : "bg-white text-gray-400 border border-gray-300 hover:text-gray-600 hover:border-gray-400"
               }`}
               title={mode === "modifier" ? "Mode Modifier — clic pour Demander" : "Mode Demander — clic pour Modifier"}
             >
