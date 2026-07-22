@@ -6,8 +6,9 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   MapPin,
-  Search,
   Loader2,
 } from "lucide-react";
 import L from "leaflet";
@@ -106,17 +107,29 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   const [addressInput, setAddressInput] = useState(data.deliveryAddress?.label || "");
   const [geocoding, setGeocoding] = useState(false);
 
+  // Slider projets
+  const projectSliderRef = useRef<HTMLDivElement>(null);
+
   // Map refs
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
+
+  const isLocked = !!project;
+  const hasAddress = !!(data.deliveryAddress?.lat && data.deliveryAddress?.lng);
+
+  const scrollProjects = (direction: "left" | "right") => {
+    const el = projectSliderRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction === "left" ? -200 : 200, behavior: "smooth" });
+  };
 
   // Sync addressInput when data changes externally
   useEffect(() => {
     setAddressInput(data.deliveryAddress?.label || "");
   }, [data.deliveryAddress?.label]);
 
-  // Init map when expanded
+  // Init map when expanded — toujours afficher, centré sur l'adresse si dispo
   useEffect(() => {
     if (!expanded || !mapContainerRef.current) return;
 
@@ -129,9 +142,10 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
       mapInstance.current = L.map(mapContainerRef.current, {
         center,
         zoom: addr ? 15 : DEFAULT_ZOOM,
-        scrollWheelZoom: true,
+        scrollWheelZoom: !isLocked,
         attributionControl: false,
         zoomControl: true,
+        dragging: !isLocked,
       });
 
       L.tileLayer(
@@ -143,21 +157,39 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
         },
       ).addTo(mapInstance.current);
 
-      // Click pour placer/déplacer le marqueur
-      mapInstance.current.on("click", (e: L.LeafletMouseEvent) => {
-        placeMarker(e.latlng.lat, e.latlng.lng);
-      });
+      if (!isLocked) {
+        mapInstance.current.on("click", (e: L.LeafletMouseEvent) => {
+          placeMarker(e.latlng.lat, e.latlng.lng);
+        });
+      }
+    } else if (addr) {
+      mapInstance.current.setView([addr.lat, addr.lng], 15);
     }
 
-    // Placer le marqueur initial
-    if (addr && !markerRef.current) {
-      placeMarker(addr.lat, addr.lng, false);
+    // Nettoyer l'ancien marqueur et replacer
+    if (markerRef.current) {
+      mapInstance.current.removeLayer(markerRef.current);
+      markerRef.current = null;
     }
 
-    return () => {
-      // Cleanup au collapse
-    };
-  }, [expanded]);
+    if (addr) {
+      const marker = L.marker([addr.lat, addr.lng], {
+        draggable: !isLocked,
+      }).addTo(mapInstance.current!);
+      markerRef.current = marker;
+
+      if (!isLocked) {
+        marker.on("dragend", async () => {
+          const pos = marker.getLatLng();
+          const label = await reverseGeocode(pos.lat, pos.lng);
+          onChange({
+            deliveryAddress: { label, lat: pos.lat, lng: pos.lng },
+          });
+          setAddressInput(label);
+        });
+      }
+    }
+  }, [expanded, data.deliveryAddress?.lat, data.deliveryAddress?.lng, isLocked]);
 
   const placeMarker = useCallback(
     async (lat: number, lng: number, reverse = true) => {
@@ -220,7 +252,6 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
     }
   };
 
-  const hasAddress = !!(data.deliveryAddress?.lat && data.deliveryAddress?.lng);
   const summaryText = [
     data.projectName || "Sans titre",
     data.cdcNumero && `CDC ${data.cdcNumero}`,
@@ -282,33 +313,59 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
                     Chargement des projets...
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {availableProjects.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => onSelectProject(p.id)}
-                        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors text-left
-                          ${project?.id === p.id
-                            ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium"
-                            : "bg-white border-gray-200 text-gray-600 hover:border-indigo-200 hover:bg-indigo-50/50"
-                          }`}
-                      >
-                        <span className="flex items-center gap-1.5">
-                          {p.name}
-                          {p.hasCommande && (
-                            <span className="text-[9px] px-1 py-0.5 rounded bg-green-100 text-green-700 font-medium">
-                              CMD ✓
-                            </span>
-                          )}
-                          {p.hasCdc && (
-                            <span className="text-[9px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
-                              CDC
-                            </span>
-                          )}
-                        </span>
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => scrollProjects("left")}
+                      className="shrink-0 w-6 h-10 flex items-center justify-center text-gray-300 hover:text-gray-500 transition-colors"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <div
+                      ref={projectSliderRef}
+                      className="flex-1 overflow-x-auto scrollbar-hide"
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "6px",
+                        maxHeight: "68px",
+                        overflowY: "hidden",
+                      }}
+                    >
+                      {availableProjects.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => onSelectProject(p.id)}
+                          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors text-left whitespace-nowrap shrink-0 h-fit
+                            ${project?.id === p.id
+                              ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium ring-1 ring-indigo-200"
+                              : "bg-white border-gray-200 text-gray-600 hover:border-indigo-200 hover:bg-indigo-50/50"
+                            }`}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            {p.name}
+                            {p.hasCommande && (
+                              <span className="text-[9px] px-1 py-0.5 rounded bg-green-100 text-green-700 font-medium">
+                                CMD ✓
+                              </span>
+                            )}
+                            {p.hasCdc && (
+                              <span className="text-[9px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
+                                CDC
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => scrollProjects("right")}
+                      className="shrink-0 w-6 h-10 flex items-center justify-center text-gray-300 hover:text-gray-500 transition-colors"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
                   </div>
                 )}
                 {project && (
@@ -335,7 +392,8 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
                     value={data.projectName}
                     onChange={(e) => onChange({ projectName: e.target.value })}
                     placeholder="Nom du projet..."
-                    className={cellInput}
+                    disabled={isLocked}
+                    className={`${cellInput} ${isLocked ? "bg-gray-50 text-gray-600 cursor-default" : ""}`}
                   />
                 </div>
 
@@ -349,7 +407,8 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
                       value={data.cdcNumero}
                       onChange={(e) => onChange({ cdcNumero: e.target.value })}
                       placeholder="CDC-YYYY-NNN"
-                      className={cellInput}
+                      disabled={isLocked}
+                      className={`${cellInput} ${isLocked ? "bg-gray-50 text-gray-600 cursor-default" : ""}`}
                     />
                   </div>
                   <div>
@@ -361,47 +420,57 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
                       value={data.commandeId}
                       onChange={(e) => onChange({ commandeId: e.target.value })}
                       placeholder="CMD-YYYY-NNN"
-                      className={cellInput}
+                      disabled={isLocked}
+                      className={`${cellInput} ${isLocked ? "bg-gray-50 text-gray-600 cursor-default" : ""}`}
                     />
                   </div>
                 </div>
 
-                {/* Adresse de livraison */}
+                {/* Adresse de livraison — lecture seule si projet chargé */}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">
                     📍 Adresse de livraison
                   </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={addressInput}
-                      onChange={(e) => setAddressInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleGeocode();
-                        }
-                      }}
-                      placeholder="Ex: Abidjan, Cocody, Rue des Jardins..."
-                      className={cellInput}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleGeocode}
-                      disabled={geocoding || !addressInput.trim()}
-                      className="shrink-0 h-9 w-9 flex items-center justify-center
-                                 bg-indigo-600 text-white rounded-lg
-                                 hover:bg-indigo-700 transition-colors
-                                 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Rechercher l'adresse"
-                    >
-                      {geocoding ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Search size={16} />
-                      )}
-                    </button>
-                  </div>
+                  {isLocked ? (
+                    <div className={`${cellInput} bg-gray-50 text-gray-600 flex items-center cursor-default`}>
+                      <MapPin size={14} className="text-gray-400 mr-2 shrink-0" />
+                      <span className="truncate text-sm">
+                        {data.deliveryAddress?.label || "Aucune adresse"}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={addressInput}
+                        onChange={(e) => setAddressInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleGeocode();
+                          }
+                        }}
+                        placeholder="Ex: Abidjan, Cocody, Rue des Jardins..."
+                        className={cellInput}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleGeocode}
+                        disabled={geocoding || !addressInput.trim()}
+                        className="shrink-0 h-9 w-9 flex items-center justify-center
+                                   bg-indigo-600 text-white rounded-lg
+                                   hover:bg-indigo-700 transition-colors
+                                   disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Rechercher l'adresse"
+                      >
+                        {geocoding ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <span className="text-sm">🔍</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
                   {hasAddress && (
                     <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
                       <MapPin size={10} />
@@ -415,7 +484,7 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
               {/* Colonne droite : carte */}
               <div className="relative min-h-[200px]">
                 <div className="text-xs font-medium text-gray-500 mb-2">
-                  🗺️ Carte de livraison
+                  🗺️ Lieu de livraison
                 </div>
                 <div
                   ref={mapContainerRef}
@@ -423,10 +492,12 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
                   style={{ height: "240px" }}
                 />
                 {!hasAddress && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="text-center text-gray-400 text-sm bg-white/80 px-4 py-2 rounded-lg">
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none mt-6">
+                    <div className="text-center text-gray-400 text-sm bg-white/90 px-4 py-2 rounded-lg">
                       <MapPin size={20} className="mx-auto mb-1 opacity-50" />
-                      Recherchez une adresse ou cliquez sur la carte
+                      {isLocked
+                        ? "Aucune adresse de livraison"
+                        : "Recherchez une adresse ou cliquez sur la carte"}
                     </div>
                   </div>
                 )}
