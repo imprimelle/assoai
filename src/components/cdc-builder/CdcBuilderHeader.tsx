@@ -198,55 +198,39 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
 
       {/* Ligne 2 : Projet lié — input @ avec dropdown */}
       <div className="mb-3">
-        <div className="relative" ref={projectWrapperRef}>
-          <label className="block text-[11px] font-medium text-gray-400 mb-1">📂 Projet lié</label>
+        <label className="block text-[11px] font-medium text-gray-400 mb-1">📂 Projet lié</label>
 
-          {project ? (
-            /* Projet sélectionné → chip avec croix */
-            <div className="flex items-center gap-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
-                <span className="font-medium text-indigo-700">{project.name}</span>
-                {project.hasCommande && (
-                  <span className="text-[10px] px-1 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
-                    CMD ✓
-                  </span>
-                )}
-                {project.hasCdc && (
-                  <span className="text-[10px] px-1 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold">
-                    CDC
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    onUnlinkProject?.();
-                    setProjectInput("");
-                  }}
-                  className="ml-1 p-0.5 rounded-full text-indigo-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                  title="Délier le projet"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-              {/* Input pour chercher un autre projet */}
-              <input
-                ref={projectInputRef}
-                type="text"
-                value={projectInput}
-                onChange={handleProjectInputChange}
-                onFocus={handleProjectInputFocus}
-                onKeyDown={handleProjectKeyDown}
-                placeholder="ou @ pour changer…"
-                className="flex-1 h-8 border-0 border-b border-gray-200 bg-transparent text-xs text-gray-500 placeholder:text-gray-300 focus:border-indigo-300 focus:ring-0 outline-none"
-              />
-            </div>
-          ) : loadingProjects ? (
-            <div className="flex items-center gap-2 text-xs text-gray-400 py-1">
-              <Loader2 size={12} className="animate-spin" />
-              Chargement des projets…
-            </div>
-          ) : (
-            /* Pas de projet → input @ */
+        {project ? (
+          /* Projet sélectionné → chip avec croix, pleine largeur */
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
+            <span className="font-medium text-indigo-700">{project.name}</span>
+            {project.hasCommande && (
+              <span className="text-[10px] px-1 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
+                CMD ✓
+              </span>
+            )}
+            {project.hasCdc && (
+              <span className="text-[10px] px-1 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold">
+                CDC
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => onUnlinkProject?.()}
+              className="ml-1 p-0.5 rounded-full text-indigo-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+              title="Délier le projet"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ) : loadingProjects ? (
+          <div className="flex items-center gap-2 text-xs text-gray-400 py-1">
+            <Loader2 size={12} className="animate-spin" />
+            Chargement des projets…
+          </div>
+        ) : (
+          /* Pas de projet → input @ */
+          <div ref={projectWrapperRef}>
             <input
               ref={projectInputRef}
               type="text"
@@ -257,8 +241,8 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
               placeholder="@ Chercher un projet à lier…"
               className={`${cellInput} h-8 text-xs`}
             />
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Dropdown portal */}
         {showProjectDropdown &&
@@ -304,68 +288,58 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
           )}
       </div>
 
-      {/* Ligne 3 : CDC#, Commande#, Adresse */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div>
-          <label className="block text-[11px] font-medium text-gray-400 mb-1">
-            N° CDC
-          </label>
+      {/* Ligne 3 : CDC# + Commande# côte à côte, Adresse en dessous */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center gap-1.5">
+          <label className="text-[11px] font-medium text-gray-400">N° CDC</label>
+          <span className="text-xs font-mono text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-8 flex items-center min-w-[120px]">
+            {data.cdcNumero || "—"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <label className="text-[11px] font-medium text-gray-400">N° CMD</label>
+          <span className="text-xs font-mono text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-8 flex items-center min-w-[120px]">
+            {data.commandeId || "—"}
+          </span>
+        </div>
+      </div>
+
+      {/* Ligne 4 : Adresse */}
+      <div>
+        <label className="block text-[11px] font-medium text-gray-400 mb-1">
+          <MapPin size={11} className="inline mr-1 text-gray-300" />
+          Adresse de livraison
+        </label>
+        <div className="flex items-center gap-1.5">
           <input
             type="text"
-            value={data.cdcNumero}
-            onChange={(e) => onChange({ cdcNumero: e.target.value })}
-            placeholder="CDC-YYYY-NNN"
+            value={addressInput}
+            onChange={(e) => setAddressInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleGeocode();
+              }
+            }}
+            placeholder="Ex: Abidjan, Cocody…"
             className={cellInput}
           />
-        </div>
-        <div>
-          <label className="block text-[11px] font-medium text-gray-400 mb-1">
-            N° Commande
-          </label>
-          <input
-            type="text"
-            value={data.commandeId}
-            onChange={(e) => onChange({ commandeId: e.target.value })}
-            placeholder="CMD-YYYY-NNN"
-            className={cellInput}
-          />
-        </div>
-        <div>
-          <label className="block text-[11px] font-medium text-gray-400 mb-1">
-            <MapPin size={11} className="inline mr-1 text-gray-300" />
-            Adresse de livraison
-          </label>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="text"
-              value={addressInput}
-              onChange={(e) => setAddressInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleGeocode();
-                }
-              }}
-              placeholder="Ex: Abidjan, Cocody…"
-              className={cellInput}
-            />
-            <button
-              type="button"
-              onClick={handleGeocode}
-              disabled={geocoding || !addressInput.trim()}
-              className="shrink-0 h-9 w-9 flex items-center justify-center
-                         bg-indigo-600 text-white rounded-lg
-                         hover:bg-indigo-700 transition-colors
-                         disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Géocoder l'adresse"
-            >
-              {geocoding ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <span className="text-sm">🔍</span>
-              )}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleGeocode}
+            disabled={geocoding || !addressInput.trim()}
+            className="shrink-0 h-9 w-9 flex items-center justify-center
+                       bg-indigo-600 text-white rounded-lg
+                       hover:bg-indigo-700 transition-colors
+                       disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Géocoder l'adresse"
+          >
+            {geocoding ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <span className="text-sm">🔍</span>
+            )}
+          </button>
         </div>
       </div>
     </div>

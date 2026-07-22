@@ -306,6 +306,13 @@ function buildCdcPayload(state: CdcBuilderState) {
   };
 }
 
+/** Génère un nouveau numéro CDC (CDC-YYYY-NNN) */
+function generateCdcNumero(): string {
+  const year = new Date().getFullYear();
+  const seq = String(Math.floor(Math.random() * 900) + 100);
+  return `CDC-${year}-${seq}`;
+}
+
 const CdcBuilder: React.FC<CdcBuilderProps> = ({
   user,
   persistentSessionId,
@@ -371,7 +378,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
 
   const [state, setState] = useState<CdcBuilderState>({
     projectName: "",
-    cdcNumero: "",
+    cdcNumero: generateCdcNumero(),
     commandeId: "",
     enseignes: [emptyEnseigne],
     activeEnseigneIndex: 0,
@@ -737,7 +744,21 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           availableProjects={availableProjects || []}
           loadingProjects={projectsLoading}
           onSelectProject={handleSelectProject}
-          onUnlinkProject={() => setSearchParams({})}
+          onUnlinkProject={() => {
+            setSearchParams({});
+            const ens = createEmptyEnseigne();
+            const newState: CdcBuilderState = {
+              projectName: "",
+              cdcNumero: generateCdcNumero(),
+              commandeId: "",
+              enseignes: [ens],
+              activeEnseigneIndex: 0,
+              materiauxByEnseigne: { [ens.id]: {} },
+              equipe: [],
+            };
+            setState(newState);
+            try { localStorage.removeItem(LS_KEY); } catch {}
+          }}
         />
 
         {/* Vue consolidée : toutes enseignes groupées par section */}
