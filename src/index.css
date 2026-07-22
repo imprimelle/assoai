@@ -107,3 +107,22 @@
   }
 }
 
+/* Scrollbar subtile pour les tableaux */
+.scrollbar-subtle {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+.scrollbar-subtle::-webkit-scrollbar {
+  height: 4px;
+}
+.scrollbar-subtle::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-subtle::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
+.scrollbar-subtle::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+

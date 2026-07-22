@@ -1,10 +1,8 @@
 // src/components/cdc-builder/CdcBuilderRow.tsx
 // Ligne éditable inline du tableau CDC Builder — 3 colonnes adaptatives par section.
-// v3: routage automatique vers la bonne section si le matériau catalogue appartient
-//     à une catégorie différente de la section courante.
+// v4: scrollbar subtile, bouton suppression retiré (géré par poubelle ligne entière).
 
 import React from "react";
-import { Trash2 } from "lucide-react";
 import MaterialCell from "./MaterialCell";
 import {
   UNITES,
@@ -75,7 +73,9 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     "h-9 border border-gray-200 rounded px-2 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none";
 
   return (
-    <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0">
+    <div
+      className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle"
+    >
       <div className="flex items-start gap-3 min-w-[700px] md:min-w-0">
         {/* Colonne 1 : Matériau */}
         <div className="w-[200px] shrink-0">
@@ -169,14 +169,6 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
               ).map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           ) : null}
-
-          {!disabled && (
-            <button type="button" onClick={onDelete}
-              className="text-red-400 hover:text-red-600 p-1 transition-colors shrink-0"
-              title="Supprimer cette ligne">
-              <Trash2 size={16} />
-            </button>
-          )}
         </div>
       </div>
     </div>

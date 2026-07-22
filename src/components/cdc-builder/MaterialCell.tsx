@@ -1,9 +1,11 @@
 // src/components/cdc-builder/MaterialCell.tsx
 // Input éditable avec déclencheur @ → recherche catalogue matériaux.
-// v3: onCatalogSelect passe l'entry complète pour le routage section.
+// v4: dropdown rendu via portal (document.body) pour éviter le clipping
+//     par le overflow-x-auto du parent. Bouton X de clear supprimé.
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Package, X, Loader2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Package, Loader2 } from "lucide-react";
 import { useMaterials } from "@/hooks/useMaterials";
 import { formatCFA } from "@/utils/format";
 import type { MaterialItem } from "@/types";
@@ -98,6 +100,7 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
     [showDropdown, materials, activeIdx, handleSelect],
   );
 
+  // Click en dehors → fermer
   useEffect(() => {
     if (!showDropdown) return;
     const handler = (e: MouseEvent) => {
@@ -109,95 +112,99 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
     return () => document.removeEventListener("mousedown", handler);
   }, [showDropdown]);
 
+  // Scroll automatique vers l'élément actif
   useEffect(() => {
     if (!showDropdown || materials.length === 0) return;
     const el = document.getElementById(`mat-cell-opt-${materials[activeIdx]?.id}`);
     if (el) el.scrollIntoView({ block: "nearest" });
   }, [activeIdx, showDropdown, materials]);
 
-  const hasValue = value.trim().length > 0;
+  // Calculer la position du dropdown (portal vers document.body)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  useEffect(() => {
+    if (showDropdown && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: "fixed",
+        left: `${rect.left}px`,
+        top: `${rect.bottom + 4}px`,
+        minWidth: `${Math.max(rect.width, 280)}px`,
+        zIndex: 9999,
+      });
+    }
+  }, [showDropdown, atQuery]);
+
+  const dropdownNode = showDropdown ? (
+    <div
+      style={dropdownStyle}
+      className="bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-y-auto"
+    >
+      {isLoading ? (
+        <div className="flex items-center gap-2 px-3 py-3 text-sm text-gray-400">
+          <Loader2 size={14} className="animate-spin" /> Recherche…
+        </div>
+      ) : materials.length === 0 ? (
+        <div className="px-3 py-3 text-sm text-gray-400">
+          {atQuery.length > 0
+            ? `Aucun matériau trouvé pour « ${atQuery} »`
+            : "Tapez pour rechercher un matériau…"}
+        </div>
+      ) : (
+        <ul className="py-1">
+          {materials.map((entry, idx) => {
+            const cost = entry.cout_min != null
+              ? ` • ${formatCFA(entry.cout_min)}/${entry.unite}` : "";
+            const colors = entry.couleurs.length
+              ? ` • ${entry.couleurs.join(", ")}` : "";
+            const subtitle = `${entry.format_standard || entry.categorie}${colors}${cost}`;
+            return (
+              <li
+                key={entry.id}
+                id={`mat-cell-opt-${entry.id}`}
+                role="option"
+                aria-selected={idx === activeIdx}
+                onClick={() => handleSelect(entry)}
+                onMouseEnter={() => setActiveIdx(idx)}
+                className={`flex items-center gap-2 px-3 py-2 cursor-pointer text-sm transition-colors
+                  ${idx === activeIdx ? "bg-indigo-50 text-indigo-900" : "text-gray-700 hover:bg-gray-50"}`}
+              >
+                <Package size={14} className={idx === activeIdx ? "text-indigo-500 shrink-0" : "text-amber-500 shrink-0"} />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">
+                    {entry.materiau}{entry.epaisseur ? ` ${entry.epaisseur}` : ""}
+                  </div>
+                  {subtitle && <div className="text-xs text-gray-400 truncate">{subtitle}</div>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  ) : null;
 
   return (
-    <div ref={wrapperRef} className="relative min-w-[180px]">
-      <div className="relative flex items-center">
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onFocus={() => {
-            const atIdx = value.lastIndexOf("@");
-            if (atIdx >= 0) {
-              setAtQuery(value.slice(atIdx + 1));
-              setShowDropdown(true);
-            }
-          }}
-          disabled={disabled}
-          placeholder="@ pour chercher dans le catalogue…"
-          className="h-9 w-full border border-gray-200 rounded px-2 pr-8 bg-white text-sm
-                     focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none
-                     disabled:bg-gray-100 disabled:cursor-not-allowed"
-        />
-        {hasValue && !disabled && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="absolute right-1 top-1/2 -translate-y-1/2 p-1
-                       text-gray-400 hover:text-red-500 transition-colors"
-            title="Effacer"
-          >
-            <X size={14} />
-          </button>
-        )}
-      </div>
-
-      {showDropdown && (
-        <div className="absolute z-[100] mt-1 w-[320px] max-w-[90vw] bg-white border border-gray-200
-                     rounded-lg shadow-xl max-h-64 overflow-y-auto">
-          {isLoading ? (
-            <div className="flex items-center gap-2 px-3 py-3 text-sm text-gray-400">
-              <Loader2 size={14} className="animate-spin" /> Recherche…
-            </div>
-          ) : materials.length === 0 ? (
-            <div className="px-3 py-3 text-sm text-gray-400">
-              {atQuery.length > 0
-                ? `Aucun matériau trouvé pour « ${atQuery} »`
-                : "Tapez pour rechercher un matériau…"}
-            </div>
-          ) : (
-            <ul className="py-1">
-              {materials.map((entry, idx) => {
-                const cost = entry.cout_min != null
-                  ? ` • ${formatCFA(entry.cout_min)}/${entry.unite}` : "";
-                const colors = entry.couleurs.length
-                  ? ` • ${entry.couleurs.join(", ")}` : "";
-                const subtitle = `${entry.format_standard || entry.categorie}${colors}${cost}`;
-                return (
-                  <li
-                    key={entry.id}
-                    id={`mat-cell-opt-${entry.id}`}
-                    role="option"
-                    aria-selected={idx === activeIdx}
-                    onClick={() => handleSelect(entry)}
-                    onMouseEnter={() => setActiveIdx(idx)}
-                    className={`flex items-center gap-2 px-3 py-2 cursor-pointer text-sm transition-colors
-                      ${idx === activeIdx ? "bg-indigo-50 text-indigo-900" : "text-gray-700 hover:bg-gray-50"}`}
-                  >
-                    <Package size={14} className={idx === activeIdx ? "text-indigo-500 shrink-0" : "text-amber-500 shrink-0"} />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">
-                        {entry.materiau}{entry.epaisseur ? ` ${entry.epaisseur}` : ""}
-                      </div>
-                      {subtitle && <div className="text-xs text-gray-400 truncate">{subtitle}</div>}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      )}
+    <div ref={wrapperRef} className="min-w-[180px]">
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
+        onFocus={() => {
+          const atIdx = value.lastIndexOf("@");
+          if (atIdx >= 0) {
+            setAtQuery(value.slice(atIdx + 1));
+            setShowDropdown(true);
+          }
+        }}
+        disabled={disabled}
+        placeholder="@ pour chercher dans le catalogue…"
+        className="h-9 w-full border border-gray-200 rounded px-2 bg-white text-sm
+                   focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none
+                   disabled:bg-gray-100 disabled:cursor-not-allowed"
+      />
+      {dropdownNode && createPortal(dropdownNode, document.body)}
     </div>
   );
 };
