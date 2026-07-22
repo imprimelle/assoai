@@ -27,6 +27,7 @@ interface CdcListItem {
   statut: string;
   timestamp: string;
   version: number;
+  enseigneImages: string[];
 }
 
 const CdcListe: React.FC = () => {
@@ -75,6 +76,11 @@ const CdcListe: React.FC = () => {
 
       return (messages || []).map((m: any) => {
         const data = m.template_data?.data || {};
+        // Extraire les images des 3 premières enseignes
+        const images: string[] = (data.enseignes || [])
+          .map((ens: any) => ens.details?.image_url || ens.image_url)
+          .filter((url: string | undefined): url is string => !!url)
+          .slice(0, 3);
         return {
           id: m.id,
           projectId: m.project_id || null,
@@ -84,6 +90,7 @@ const CdcListe: React.FC = () => {
           statut: data.statut || "Brouillon",
           timestamp: m.timestamp,
           version: m.template_data?.version || data.version || 1,
+          enseigneImages: images,
         };
       });
     },
@@ -255,6 +262,8 @@ const CdcCard: React.FC<{
     }
   };
 
+  const hasImages = cdc.enseigneImages.length > 0;
+
   return (
     <button
       onClick={onView}
@@ -262,7 +271,28 @@ const CdcCard: React.FC<{
                  hover:shadow-md hover:border-indigo-200 transition-all duration-150
                  active:scale-[0.99] cursor-pointer"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex gap-3">
+        {/* Miniatures d'enseignes (si disponibles) */}
+        {hasImages && (
+          <div className="shrink-0 flex -space-x-2">
+            {cdc.enseigneImages.map((img, i) => (
+              <div
+                key={i}
+                className="w-10 h-10 rounded-lg overflow-hidden border-2 border-white shadow-sm
+                           bg-gray-100"
+                style={{ zIndex: 3 - i }}
+              >
+                <img
+                  src={img}
+                  alt={`Enseigne ${i + 1}`}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
             <h4 className="font-semibold text-gray-800 text-sm truncate">
@@ -277,19 +307,21 @@ const CdcCard: React.FC<{
           <p className="text-xs text-indigo-600 font-mono mb-1">
             {cdc.cdcNumero}
           </p>
-          {cdc.projectName && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <LinkIcon className="h-3 w-3 text-gray-400 shrink-0" />
-              <span className="truncate">{cdc.projectName}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-3 text-xs text-gray-500">
+            {cdc.projectName && (
+              <span className="flex items-center gap-1">
+                <LinkIcon className="h-3 w-3 text-gray-400 shrink-0" />
+                <span className="truncate">{cdc.projectName}</span>
+              </span>
+            )}
+            <span className="flex items-center gap-1 text-gray-400">
+              <Calendar className="h-3 w-3" />
+              {formatDate(cdc.timestamp)}
+            </span>
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <ExternalLink className="h-4 w-4 text-gray-300 group-hover:text-indigo-400" />
-          <span className="text-[10px] text-gray-400 flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            {formatDate(cdc.timestamp)}
-          </span>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <ExternalLink className="h-4 w-4 text-gray-300" />
           <span className="text-[10px] text-gray-300">v{cdc.version}</span>
         </div>
       </div>

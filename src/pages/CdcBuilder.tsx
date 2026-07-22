@@ -4,7 +4,7 @@
 // Chaque enseigne est visible avec son propre CdcBuilderTable.
 
 import React, { useState, useCallback, useMemo, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Trash2,
   Plus,
@@ -14,6 +14,7 @@ import {
   Download,
   Upload,
   X,
+  ArrowLeft,
 } from "lucide-react";
 import EnseigneDialog from "@/components/cdc-builder/EnseigneDialog";
 import CdcBuilderTable, {
@@ -275,6 +276,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   persistentSessionId,
 }) => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const projectId = searchParams.get("projectId");
   const cdcId = searchParams.get("cdcId");
 
@@ -525,6 +527,20 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 pt-4">
+        {/* Barre de retour vers la liste */}
+        <div className="flex items-center mb-3">
+          <button
+            type="button"
+            onClick={() => navigate("/cdc-liste")}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600
+                       transition-colors px-2 py-1 -ml-2 rounded-lg hover:bg-indigo-50"
+            title="Retour à la liste des CDC"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Liste des CDC</span>
+          </button>
+        </div>
+
         {/* Header collapsible avec carte */}
         <CdcBuilderHeader
           data={{
