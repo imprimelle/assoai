@@ -50,6 +50,7 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { materials, isLoading } = useMaterials(atQuery);
 
@@ -75,7 +76,6 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
   const handleSelect = useCallback(
     (entry: MaterialCatalogEntry) => {
       const preset = catalogToMaterialItem(entry);
-      onChange(preset.nom!);  // met à jour le texte de l'input
       onCatalogSelect(preset, entry);
       setShowDropdown(false);
     },
@@ -101,11 +101,14 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
     [showDropdown, materials, activeIdx, handleSelect],
   );
 
-  // Click en dehors → fermer
+  // Click en dehors → fermer (vérifie aussi le dropdown portal)
   useEffect(() => {
     if (!showDropdown) return;
     const handler = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideWrapper = wrapperRef.current?.contains(target);
+      const insideDropdown = dropdownRef.current?.contains(target);
+      if (!insideWrapper && !insideDropdown) {
         setShowDropdown(false);
       }
     };
@@ -137,6 +140,7 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
 
   const dropdownNode = showDropdown ? (
     <div
+      ref={dropdownRef}
       style={dropdownStyle}
       className="bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-y-auto"
     >
