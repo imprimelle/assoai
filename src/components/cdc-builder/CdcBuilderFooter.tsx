@@ -234,6 +234,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
+    setExpanded(true); // Toujours expand pour montrer la réponse
 
     try {
       const prompt =
@@ -333,7 +334,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
     <>
       {/* Spacer pour éviter que le contenu passe sous le footer */}
       <div
-        style={{ height: expanded ? chatHeight + 10 : 60 }}
+        style={{ height: expanded ? chatHeight + 10 : 96 }}
         aria-hidden="true"
       />
 
@@ -347,7 +348,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
       >
         {/* Mode compact : input + send + toggles + micro */}
         {!expanded ? (
-          <div className="flex items-center gap-2 px-4 h-[60px] max-w-6xl mx-auto">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 sm:px-4 py-2 max-w-6xl mx-auto min-h-[60px]">
             {/* Input texte */}
             <input
               ref={inputRef}
@@ -360,7 +361,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
                   ? "Pose ta question…"
                   : "Décris la modification…"
               }
-              className="flex-1 h-10 border border-gray-300/60 bg-white/80 backdrop-blur rounded-xl px-4 text-sm
+              className="flex-1 min-w-[120px] h-10 border border-gray-300/60 bg-white/80 backdrop-blur rounded-xl px-4 text-sm
                          focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none
                          placeholder:text-gray-400"
             />
@@ -382,8 +383,8 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
               )}
             </button>
 
-            {/* Séparateur */}
-            <div className="w-px h-6 bg-gray-300/50 shrink-0" />
+            {/* Séparateur — masqué sur mobile */}
+            <div className="hidden sm:block w-px h-6 bg-gray-300/50 shrink-0" />
 
             {/* Mode Modifier */}
             <button
@@ -415,8 +416,8 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
               <span className="hidden sm:inline">Demander</span>
             </button>
 
-            {/* Séparateur */}
-            <div className="w-px h-6 bg-gray-300/50 shrink-0" />
+            {/* Séparateur — masqué sur mobile */}
+            <div className="hidden sm:block w-px h-6 bg-gray-300/50 shrink-0" />
 
             {/* Microphone */}
             <button
