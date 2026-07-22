@@ -1,16 +1,15 @@
 // src/components/cdc-builder/MaterialCell.tsx
 // Input éditable avec déclencheur @ → recherche catalogue matériaux.
-// Réutilise le hook useMaterials et le mapping canonique catalogToMaterialItem.
-// v2: dropdown avec z-index élevé, largeur minimale, gestion robuste du focus.
+// v3: onCatalogSelect passe l'entry complète pour le routage section.
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Package, X, Loader2 } from "lucide-react";
 import { useMaterials } from "@/hooks/useMaterials";
 import { formatCFA } from "@/utils/format";
 import type { MaterialItem } from "@/types";
 import type { MaterialCatalogEntry } from "@/types/materialCatalog";
 
-// --- Mapping canonique (identique à MaterialTable.tsx:119-134) ---
+// --- Mapping canonique ---
 const catalogToMaterialItem = (
   entry: MaterialCatalogEntry,
 ): Partial<MaterialItem> => ({
@@ -19,8 +18,7 @@ const catalogToMaterialItem = (
   epaisseur: entry.epaisseur || undefined,
   largeur: entry.largeur_std ?? undefined,
   hauteur: entry.hauteur_std ?? undefined,
-  reference:
-    entry.external_id != null ? String(entry.external_id) : undefined,
+  reference: entry.external_id != null ? String(entry.external_id) : undefined,
   material_id: entry.id,
   format_standard: entry.format_standard || undefined,
   cout_unitaire: entry.cout_min ?? undefined,
@@ -31,7 +29,8 @@ const catalogToMaterialItem = (
 export interface MaterialCellProps {
   value: string;
   onChange: (nom: string) => void;
-  onCatalogSelect: (preset: Partial<MaterialItem>) => void;
+  /** preset + entry complète pour permettre le routage section */
+  onCatalogSelect: (preset: Partial<MaterialItem>, entry: MaterialCatalogEntry) => void;
   onClear: () => void;
   disabled?: boolean;
 }
@@ -50,10 +49,8 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Charger les matériaux filtrés par le terme après @
   const { materials, isLoading } = useMaterials(atQuery);
 
-  // --- Détecter @ dans l'input ---
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
@@ -73,13 +70,11 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
     [onChange],
   );
 
-  // --- Sélection dans le dropdown ---
   const handleSelect = useCallback(
     (entry: MaterialCatalogEntry) => {
       const preset = catalogToMaterialItem(entry);
-      onCatalogSelect(preset);
+      onCatalogSelect(preset, entry);
 
-      // Remplacer @query par le nom canonique dans l'input
       const atIdx = value.lastIndexOf("@");
       const beforeAt = atIdx >= 0 ? value.slice(0, atIdx) : value;
       onChange(beforeAt + (preset.nom || ""));
@@ -88,11 +83,9 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
     [value, onChange, onCatalogSelect],
   );
 
-  // --- Navigation clavier ---
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (!showDropdown || materials.length === 0) return;
-
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setActiveIdx((prev) => Math.min(prev + 1, materials.length - 1));
@@ -109,14 +102,10 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
     [showDropdown, materials, activeIdx, handleSelect],
   );
 
-  // --- Fermer au clic extérieur ---
   useEffect(() => {
     if (!showDropdown) return;
     const handler = (e: MouseEvent) => {
-      if (
-        wrapperRef.current &&
-        !wrapperRef.current.contains(e.target as Node)
-      ) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setShowDropdown(false);
       }
     };
@@ -124,13 +113,10 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
     return () => document.removeEventListener("mousedown", handler);
   }, [showDropdown]);
 
-  // --- Scroll vers l'élément actif ---
   useEffect(() => {
     if (!showDropdown || materials.length === 0) return;
     const el = document.getElementById(`mat-cell-opt-${materials[activeIdx]?.id}`);
-    if (el) {
-      el.scrollIntoView({ block: "nearest" });
-    }
+    if (el) el.scrollIntoView({ block: "nearest" });
   }, [activeIdx, showDropdown, materials]);
 
   const hasValue = value.trim().length > 0;
@@ -145,7 +131,6 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={() => {
-            // Si la valeur contient déjà @, rouvrir le dropdown
             const atIdx = value.lastIndexOf("@");
             if (atIdx >= 0) {
               setAtQuery(value.slice(atIdx + 1));
@@ -171,16 +156,12 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
         )}
       </div>
 
-      {/* --- Dropdown catalogue matériaux --- */}
       {showDropdown && (
-        <div
-          className="absolute z-[100] mt-1 w-[320px] max-w-[90vw] bg-white border border-gray-200
-                     rounded-lg shadow-xl max-h-64 overflow-y-auto"
-        >
+        <div className="absolute z-[100] mt-1 w-[320px] max-w-[90vw] bg-white border border-gray-200
+                     rounded-lg shadow-xl max-h-64 overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center gap-2 px-3 py-3 text-sm text-gray-400">
-              <Loader2 size={14} className="animate-spin" />
-              Recherche…
+              <Loader2 size={14} className="animate-spin" /> Recherche…
             </div>
           ) : materials.length === 0 ? (
             <div className="px-3 py-3 text-sm text-gray-400">
@@ -191,15 +172,11 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
           ) : (
             <ul className="py-1">
               {materials.map((entry, idx) => {
-                const cost =
-                  entry.cout_min != null
-                    ? ` • ${formatCFA(entry.cout_min)}/${entry.unite}`
-                    : "";
+                const cost = entry.cout_min != null
+                  ? ` • ${formatCFA(entry.cout_min)}/${entry.unite}` : "";
                 const colors = entry.couleurs.length
-                  ? ` • ${entry.couleurs.join(", ")}`
-                  : "";
+                  ? ` • ${entry.couleurs.join(", ")}` : "";
                 const subtitle = `${entry.format_standard || entry.categorie}${colors}${cost}`;
-
                 return (
                   <li
                     key={entry.id}
@@ -209,29 +186,14 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
                     onClick={() => handleSelect(entry)}
                     onMouseEnter={() => setActiveIdx(idx)}
                     className={`flex items-center gap-2 px-3 py-2 cursor-pointer text-sm transition-colors
-                      ${idx === activeIdx
-                        ? "bg-indigo-50 text-indigo-900"
-                        : "text-gray-700 hover:bg-gray-50"
-                      }`}
+                      ${idx === activeIdx ? "bg-indigo-50 text-indigo-900" : "text-gray-700 hover:bg-gray-50"}`}
                   >
-                    <Package
-                      size={14}
-                      className={
-                        idx === activeIdx
-                          ? "text-indigo-500 shrink-0"
-                          : "text-amber-500 shrink-0"
-                      }
-                    />
+                    <Package size={14} className={idx === activeIdx ? "text-indigo-500 shrink-0" : "text-amber-500 shrink-0"} />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">
-                        {entry.materiau}
-                        {entry.epaisseur ? ` ${entry.epaisseur}` : ""}
+                        {entry.materiau}{entry.epaisseur ? ` ${entry.epaisseur}` : ""}
                       </div>
-                      {subtitle && (
-                        <div className="text-xs text-gray-400 truncate">
-                          {subtitle}
-                        </div>
-                      )}
+                      {subtitle && <div className="text-xs text-gray-400 truncate">{subtitle}</div>}
                     </div>
                   </li>
                 );

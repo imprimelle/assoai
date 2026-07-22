@@ -1,12 +1,13 @@
 // src/components/cdc-builder/CdcBuilderTable.tsx
 // Tableau de matériaux groupé par section (Découpe, Éclairage, Outillage, Métal, Vinyl).
-// Sections vides masquées/grisées. Boutons d'ajout par section.
+// v3: retrait du "+ Ajouter une ligne" global, routage automatique section↔catégorie matériau.
 
 import React, { useMemo, useCallback } from "react";
 import { Plus } from "lucide-react";
 import CdcBuilderRow from "./CdcBuilderRow";
 import type { MaterialItem } from "@/types";
 import type { FlatMaterialRow } from "@/components/templates/shared/MaterialTable";
+import type { MaterialCatalogEntry } from "@/types/materialCatalog";
 
 const DEFAULT_SECTIONS = [
   "Découpe",
@@ -32,7 +33,7 @@ const sectionIcon: Record<string, string> = {
   Vinyl: "🎨",
 };
 
-// --- Conversion FlatMaterialRow[] ↔ Record<section, MaterialItem[]> ---
+// --- Conversion ---
 export function rowsToSections(
   rows: FlatMaterialRow[],
 ): Record<string, MaterialItem[]> {
@@ -70,12 +71,9 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
   enseigneNom,
   disabled = false,
 }) => {
-  // Grouper les lignes par section
   const grouped = useMemo(() => {
     const map = new Map<string, FlatMaterialRow[]>();
-    for (const section of DEFAULT_SECTIONS) {
-      map.set(section, []);
-    }
+    for (const section of DEFAULT_SECTIONS) map.set(section, []);
     for (const row of rows) {
       const existing = map.get(row.section) || [];
       existing.push(row);
@@ -87,17 +85,12 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
   const handleAddRow = useCallback(
     (section: string) => {
       const newItem: MaterialItem = {
-        id: crypto.randomUUID?.() ||
-          `mat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id: crypto.randomUUID?.() || `mat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         nom: "",
         quantite: 1,
         unite: "",
-        largeur: section === "Découpe" || section === "Vinyl"
-          ? defaultDimensions.largeur
-          : undefined,
-        hauteur: section === "Découpe" || section === "Vinyl"
-          ? defaultDimensions.hauteur
-          : undefined,
+        largeur: section === "Découpe" || section === "Vinyl" ? defaultDimensions.largeur : undefined,
+        hauteur: section === "Découpe" || section === "Vinyl" ? defaultDimensions.hauteur : undefined,
       };
       const newRows = [...rows, { section, index: rows.filter(r => r.section === section).length, item: newItem }];
       onRowsChange(newRows);
@@ -107,12 +100,11 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
 
   const handleChangeRow = useCallback(
     (section: string, index: number, changes: Partial<MaterialItem>) => {
-      const newRows = rows.map((r) => {
-        if (r.section === section && r.index === index) {
-          return { ...r, item: { ...r.item, ...changes } };
-        }
-        return r;
-      });
+      const newRows = rows.map((r) =>
+        r.section === section && r.index === index
+          ? { ...r, item: { ...r.item, ...changes } }
+          : r,
+      );
       onRowsChange(newRows);
     },
     [rows, onRowsChange],
@@ -123,11 +115,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       let filtered = rows.filter(
         (r) => !(r.section === section && r.index === index),
       );
-      // Réindexer les lignes de la section
       filtered = filtered.map((r) => {
-        if (r.section === section && r.index > index) {
-          return { ...r, index: r.index - 1 };
-        }
+        if (r.section === section && r.index > index) return { ...r, index: r.index - 1 };
         return r;
       });
       onRowsChange(filtered);
@@ -135,99 +124,81 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     [rows, onRowsChange],
   );
 
-  // Sections qui ont au moins 1 ligne
+  /** Routage : matériau catalogue dans mauvaise section → supprimer ici, créer là-bas */
+  const handleMoveToSection = useCallback(
+    (fromSection: string, fromIndex: number, toSection: string, preset: Partial<MaterialItem>) => {
+      // 1. Supprimer la ligne actuelle
+      let filtered = rows.filter(
+        (r) => !(r.section === fromSection && r.index === fromIndex),
+      );
+      filtered = filtered.map((r) => {
+        if (r.section === fromSection && r.index > fromIndex) return { ...r, index: r.index - 1 };
+        return r;
+      });
+
+      // 2. Ajouter dans la section cible
+      const newItem: MaterialItem = {
+        id: crypto.randomUUID?.() || `mat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        nom: preset.nom || "",
+        quantite: preset.quantite || 1,
+        unite: preset.unite || "",
+        largeur: preset.largeur,
+        hauteur: preset.hauteur,
+        couleur: preset.couleur,
+        epaisseur: preset.epaisseur,
+        reference: preset.reference,
+        material_id: preset.material_id,
+        format_standard: preset.format_standard,
+        cout_unitaire: preset.cout_unitaire,
+        couleurs_dispo: preset.couleurs_dispo,
+      };
+      const targetCount = filtered.filter(r => r.section === toSection).length;
+      filtered.push({ section: toSection, index: targetCount, item: newItem });
+
+      onRowsChange(filtered);
+    },
+    [rows, onRowsChange],
+  );
+
   const nonEmptySections = DEFAULT_SECTIONS.filter(
     (s) => (grouped.get(s) || []).length > 0,
   );
 
   return (
     <div className="space-y-4">
-      {/* Bouton [+ Ajouter] global — dropdown rapide pour choisir la section */}
-      {!disabled && (
-        <div className="flex items-center gap-2">
-          <div className="relative group">
-            <button
-              type="button"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium
-                         bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100
-                         transition-colors"
-            >
-              <Plus size={14} />
-              Ajouter une ligne
-            </button>
-
-            {/* Dropdown sections */}
-            <div
-              className="absolute left-0 top-full mt-1 z-40 bg-white border border-gray-200
-                         rounded-lg shadow-lg py-1 min-w-[180px]
-                         opacity-0 invisible group-hover:opacity-100 group-hover:visible
-                         transition-all duration-150"
-            >
-              {DEFAULT_SECTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => handleAddRow(s)}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left
-                             text-gray-700 hover:bg-indigo-50 hover:text-indigo-700
-                             transition-colors"
-                >
-                  <span>{sectionIcon[s]}</span>
-                  <span>{s}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Sections avec contenu */}
       {nonEmptySections.map((section) => {
         const sectionRows = grouped.get(section) || [];
         return (
-          <div
-            key={section}
-            className="border border-gray-200 rounded-lg bg-white overflow-hidden"
-          >
-            {/* Section header */}
-            <div
-              className={`flex items-center justify-between px-4 py-2.5
-                          ${sectionBadge[section] || "bg-gray-50 text-gray-600"}`}
-            >
+          <div key={section} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+            <div className={`flex items-center justify-between px-4 py-2.5 ${sectionBadge[section] || "bg-gray-50 text-gray-600"}`}>
               <div className="flex items-center gap-2">
                 <span className="text-sm">{sectionIcon[section]}</span>
-                <span className="text-sm font-semibold uppercase tracking-wide">
-                  {section}
-                </span>
-                <span className="text-xs opacity-60">
-                  ({sectionRows.length} ligne{sectionRows.length > 1 ? "s" : ""})
-                </span>
+                <span className="text-sm font-semibold uppercase tracking-wide">{section}</span>
+                <span className="text-xs opacity-60">({sectionRows.length} ligne{sectionRows.length > 1 ? "s" : ""})</span>
               </div>
               {!disabled && (
-                <button
-                  type="button"
-                  onClick={() => handleAddRow(section)}
-                  className="flex items-center gap-1 text-xs font-medium
-                             text-current opacity-70 hover:opacity-100
-                             transition-opacity"
-                >
-                  <Plus size={12} />
-                  Ajouter à {section}
+                <button type="button" onClick={() => handleAddRow(section)}
+                  className="flex items-center gap-1 text-xs font-medium text-current opacity-70 hover:opacity-100 transition-opacity">
+                  <Plus size={12} /> Ajouter à {section}
                 </button>
               )}
             </div>
 
-            {/* Lignes */}
             <div className="px-4 py-2">
               {sectionRows.map((r) => (
                 <CdcBuilderRow
                   key={`${section}-${r.item.id}`}
                   row={r}
                   defaultDimensions={defaultDimensions}
-                  onChange={(changes) =>
-                    handleChangeRow(section, r.index, changes)
-                  }
+                  onChange={(changes) => handleChangeRow(section, r.index, changes)}
                   onDelete={() => handleDeleteRow(section, r.index)}
+                  onMoveToSection={
+                    !disabled
+                      ? (targetSection, preset) =>
+                          handleMoveToSection(section, r.index, targetSection, preset)
+                      : undefined
+                  }
                   disabled={disabled}
                 />
               ))}
@@ -236,25 +207,16 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         );
       })}
 
-      {/* Sections vides — grisées, juste un indicateur */}
-      {DEFAULT_SECTIONS.filter(
-        (s) => (grouped.get(s) || []).length === 0,
-      ).map((section) => (
-        <div
-          key={section}
-          className="border border-dashed border-gray-200 rounded-lg px-4 py-3
-                     bg-gray-50/50 text-xs text-gray-400 flex items-center gap-2"
-        >
+      {/* Sections vides */}
+      {DEFAULT_SECTIONS.filter((s) => (grouped.get(s) || []).length === 0).map((section) => (
+        <div key={section}
+          className="border border-dashed border-gray-200 rounded-lg px-4 py-3 bg-gray-50/50 text-xs text-gray-400 flex items-center gap-2">
           <span>{sectionIcon[section]}</span>
           <span>{section}</span>
           <span className="italic">— vide</span>
           {!disabled && (
-            <button
-              type="button"
-              onClick={() => handleAddRow(section)}
-              className="ml-auto text-indigo-400 hover:text-indigo-600
-                         font-medium transition-colors"
-            >
+            <button type="button" onClick={() => handleAddRow(section)}
+              className="ml-auto text-indigo-400 hover:text-indigo-600 font-medium transition-colors">
               + Ajouter
             </button>
           )}
