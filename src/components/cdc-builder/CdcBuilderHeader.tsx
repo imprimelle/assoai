@@ -316,14 +316,14 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
                         key={p.id}
                         type="button"
                         onClick={() => onSelectProject(p.id)}
-                        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors text-left whitespace-nowrap
+                        className={`text-xs px-3 py-2 rounded-lg border transition-colors text-left max-w-[220px]
                           ${project?.id === p.id
                             ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium ring-1 ring-indigo-200"
                             : "bg-white border-gray-200 text-gray-600 hover:border-indigo-200 hover:bg-indigo-50/50"
                           }`}
                       >
-                        <span className="flex items-center gap-1.5">
-                          {p.name}
+                        <span className="inline-flex items-center gap-1.5 min-w-0">
+                          <span className="truncate">{p.name}</span>
                           {p.hasCommande && (
                             <span className="text-[9px] px-1 py-0.5 rounded bg-green-100 text-green-700 font-medium">
                               CMD ✓
