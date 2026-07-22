@@ -6,8 +6,6 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   ChevronDown,
   ChevronUp,
-  ChevronLeft,
-  ChevronRight,
   MapPin,
   Loader2,
 } from "lucide-react";
@@ -107,9 +105,6 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   const [addressInput, setAddressInput] = useState(data.deliveryAddress?.label || "");
   const [geocoding, setGeocoding] = useState(false);
 
-  // Slider projets
-  const projectSliderRef = useRef<HTMLDivElement>(null);
-
   // Map refs
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
@@ -117,12 +112,6 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
 
   const isLocked = !!project;
   const hasAddress = !!(data.deliveryAddress?.lat && data.deliveryAddress?.lng);
-
-  const scrollProjects = (direction: "left" | "right") => {
-    const el = projectSliderRef.current;
-    if (!el) return;
-    el.scrollBy({ left: direction === "left" ? -200 : 200, behavior: "smooth" });
-  };
 
   // Sync addressInput when data changes externally
   useEffect(() => {
@@ -313,59 +302,41 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
                     Chargement des projets...
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => scrollProjects("left")}
-                      className="shrink-0 w-6 h-10 flex items-center justify-center text-gray-300 hover:text-gray-500 transition-colors"
-                    >
-                      <ChevronLeft size={16} />
-                    </button>
-                    <div
-                      ref={projectSliderRef}
-                      className="flex-1 overflow-x-auto scrollbar-hide"
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "6px",
-                        maxHeight: "68px",
-                        overflowY: "hidden",
-                      }}
-                    >
-                      {availableProjects.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => onSelectProject(p.id)}
-                          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors text-left whitespace-nowrap shrink-0 h-fit
-                            ${project?.id === p.id
-                              ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium ring-1 ring-indigo-200"
-                              : "bg-white border-gray-200 text-gray-600 hover:border-indigo-200 hover:bg-indigo-50/50"
-                            }`}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            {p.name}
-                            {p.hasCommande && (
-                              <span className="text-[9px] px-1 py-0.5 rounded bg-green-100 text-green-700 font-medium">
-                                CMD ✓
-                              </span>
-                            )}
-                            {p.hasCdc && (
-                              <span className="text-[9px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
-                                CDC
-                              </span>
-                            )}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => scrollProjects("right")}
-                      className="shrink-0 w-6 h-10 flex items-center justify-center text-gray-300 hover:text-gray-500 transition-colors"
-                    >
-                      <ChevronRight size={16} />
-                    </button>
+                  <div
+                    className="overflow-x-auto scrollbar-hide"
+                    style={{
+                      display: "grid",
+                      gridAutoFlow: "column",
+                      gridTemplateRows: "repeat(2, auto)",
+                      gap: "6px",
+                    }}
+                  >
+                    {availableProjects.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => onSelectProject(p.id)}
+                        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors text-left whitespace-nowrap
+                          ${project?.id === p.id
+                            ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium ring-1 ring-indigo-200"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-indigo-200 hover:bg-indigo-50/50"
+                          }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          {p.name}
+                          {p.hasCommande && (
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-green-100 text-green-700 font-medium">
+                              CMD ✓
+                            </span>
+                          )}
+                          {p.hasCdc && (
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
+                              CDC
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 )}
                 {project && (
