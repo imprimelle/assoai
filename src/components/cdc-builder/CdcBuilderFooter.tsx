@@ -390,7 +390,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
 
         {/* Barre de saisie compacte — toujours visible, translucide */}
         <div className="bg-gray-900/60 backdrop-blur-lg border-t border-gray-700/20 shadow-2xl">
-          <div className="flex items-center gap-2.5 px-3 py-2.5 max-w-6xl mx-auto min-h-[56px]">
+          <div className="flex items-center gap-1.5 px-3 py-2.5 max-w-6xl mx-auto min-h-[56px]">
             {/* Input pill avec micro intégré à gauche */}
             <div className="flex-1 relative min-w-0">
               <input
@@ -430,7 +430,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
               onClick={() =>
                 setMode((prev) => (prev === "modifier" ? "demander" : "modifier"))
               }
-              className={`flex items-center justify-center w-10 h-10 rounded-full transition-all shrink-0 ${
+              className={`flex items-center justify-center w-8 h-8 rounded-full transition-all shrink-0 ${
                 mode === "modifier"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25"
                   : "bg-gray-800 text-gray-400 border border-gray-700/50 hover:text-gray-300"
@@ -438,9 +438,9 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
               title={mode === "modifier" ? "Mode Modifier — clic pour Demander" : "Mode Demander — clic pour Modifier"}
             >
               {mode === "modifier" ? (
-                <Pencil size={18} />
+                <Pencil size={15} />
               ) : (
-                <MessageCircle size={18} />
+                <MessageCircle size={15} />
               )}
             </button>
 
@@ -449,15 +449,15 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
               type="button"
               onClick={handleSend}
               disabled={loading || !input.trim()}
-              className="flex items-center justify-center w-10 h-10 rounded-full
+              className="flex items-center justify-center w-8 h-8 rounded-full
                          bg-indigo-600 text-white hover:bg-indigo-500 transition-all shrink-0
                          disabled:opacity-30 disabled:cursor-not-allowed shadow-md shadow-indigo-600/20"
               title="Envoyer"
             >
               {loading ? (
-                <Loader2 size={18} className="animate-spin" />
+                <Loader2 size={15} className="animate-spin" />
               ) : (
-                <Send size={18} />
+                <Send size={15} />
               )}
             </button>
           </div>
