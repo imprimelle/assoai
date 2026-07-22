@@ -3,7 +3,7 @@
 // v2: accordéons collapsibles (comme EnseigneSection) au lieu d'onglets slidables.
 // Chaque enseigne est visible avec son propre CdcBuilderTable.
 
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Trash2,
@@ -407,6 +407,20 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   // État de sauvegarde Supabase
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState("");
+  // Compteur de modifications non sauvegardées
+  const [changeCount, setChangeCount] = useState(0);
+  const prevStateHash = useRef("");
+
+  // Suivre les modifications du state (hors savedMessageId)
+  useEffect(() => {
+    const { savedMessageId, ...trackable } = state as any;
+    const hash = JSON.stringify(trackable);
+    if (prevStateHash.current && prevStateHash.current !== hash) {
+      setChangeCount((c) => c + 1);
+    }
+    prevStateHash.current = hash;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   // ── Persistance localStorage (debounce 500ms) ──
   useEffect(() => {
@@ -648,6 +662,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
       }
 
       setSaveStatus("saved");
+      setChangeCount(0);
       setTimeout(() => setSaveStatus("idle"), 3000);
     } catch (err: any) {
       setSaveStatus("error");
@@ -725,66 +740,6 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           alwaysEditable={!!cdcId}
         />
 
-        {/* Barre d'actions enseignes */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-sm font-medium text-gray-600">
-            📋 {state.enseignes.length} enseigne{state.enseignes.length > 1 ? "s" : ""}
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Toggle Vue d'ensemble */}
-            <button
-              type="button"
-              onClick={() => setShowConsolidated((p) => !p)}
-              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors border
-                ${showConsolidated
-                  ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                }`}
-              title={showConsolidated ? "Vue par enseigne" : "Vue consolidée par section"}
-            >
-              <LayoutGrid size={14} />
-              {showConsolidated ? "Par enseigne" : "Tout"}
-            </button>
-            {!showConsolidated && (
-              <button
-                type="button"
-                onClick={() => setAllOpen((p) => !p)}
-                className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                {allOpen ? "Tout replier" : "Tout déplier"}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleAddEnseigne}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium
-                         bg-indigo-600 text-white rounded-lg hover:bg-indigo-700
-                         transition-colors shadow-sm"
-            >
-              <Plus size={16} />
-              Ajouter une enseigne
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveCdc}
-              disabled={saveStatus === "saving"}
-              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium
-                         rounded-lg transition-colors shadow-sm
-                         ${state.savedMessageId
-                           ? "bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50"
-                           : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
-              title={state.savedMessageId ? "Mettre à jour le CDC existant" : "Sauvegarder comme nouveau CDC"}
-            >
-              {saveStatus === "saving" ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Save size={16} />
-              )}
-              {state.savedMessageId ? "Mettre à jour" : "Sauvegarder"}
-            </button>
-          </div>
-        </div>
-
         {/* Vue consolidée : toutes enseignes groupées par section */}
         {showConsolidated ? (
           <div className="pb-24">
@@ -839,6 +794,73 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
             </div>
           </>
         )}
+
+        {/* Barre d'actions compacte — au-dessus du footer */}
+        <div className="flex items-center justify-center gap-2 py-2">
+          {/* Toggle Vue d'ensemble / Par enseigne */}
+          <button
+            type="button"
+            onClick={() => setShowConsolidated((p) => !p)}
+            className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
+              showConsolidated
+                ? "bg-indigo-100 text-indigo-700"
+                : "bg-white text-gray-500 border border-gray-200 hover:bg-gray-50"
+            }`}
+            title={showConsolidated ? "Vue par enseigne" : "Vue consolidée"}
+          >
+            <LayoutGrid size={15} />
+          </button>
+
+          {/* Tout replier/déplier */}
+          {!showConsolidated && (
+            <button
+              type="button"
+              onClick={() => setAllOpen((p) => !p)}
+              className="flex items-center justify-center w-8 h-8 rounded-lg bg-white text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
+              title={allOpen ? "Tout replier" : "Tout déplier"}
+            >
+              <span className="text-sm">{allOpen ? "🔽" : "🔼"}</span>
+            </button>
+          )}
+
+          {/* Compteur enseignes */}
+          <span className="text-xs text-gray-400 font-medium px-1 select-none">
+            {state.enseignes.length}
+          </span>
+
+          {/* Ajouter une enseigne */}
+          <button
+            type="button"
+            onClick={handleAddEnseigne}
+            className="flex items-center justify-center w-8 h-8 rounded-lg bg-white text-gray-500 border border-gray-200 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors"
+            title="Ajouter une enseigne"
+          >
+            <Plus size={16} />
+          </button>
+
+          {/* Sauvegarde avec badge compteur */}
+          <button
+            type="button"
+            onClick={handleSaveCdc}
+            disabled={saveStatus === "saving"}
+            className="relative flex items-center justify-center w-8 h-8 rounded-lg transition-colors
+                       bg-white text-gray-500 border border-gray-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200
+                       disabled:opacity-50"
+            title={state.savedMessageId ? "Mettre à jour" : "Sauvegarder"}
+          >
+            {saveStatus === "saving" ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Save size={15} />
+            )}
+            {changeCount > 0 && saveStatus === "idle" && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center
+                               bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
+                {changeCount > 99 ? "99+" : changeCount}
+              </span>
+            )}
+          </button>
+        </div>
 
         {/* Dialogue enseigne */}
         <EnseigneDialog
