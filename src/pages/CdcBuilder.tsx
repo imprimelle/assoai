@@ -81,7 +81,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
   };
 
   return (
-    <div className="border border-gray-200 rounded-lg bg-white mb-4 overflow-hidden shadow-sm">
+    <div className="border border-gray-200 rounded-lg bg-gray-50 mb-4 overflow-hidden shadow-sm">
       {/* Header cliquable */}
       <button
         type="button"

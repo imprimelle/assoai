@@ -77,7 +77,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     <div
       className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle"
     >
-      <div className="flex items-start gap-3 min-w-[700px] md:min-w-0">
+      <div className="flex items-center gap-2 min-w-[620px] md:min-w-0">
         {/* Colonne 1 : Matériau */}
         <div className="w-[200px] shrink-0">
           {enseigneBadge && (
@@ -102,43 +102,44 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           />
         </div>
 
-        {/* Colonne 2 : Paramètres */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-400 w-3">L</span>
-            <input type="number" inputMode="decimal" min={0} step={0.1}
-              value={item.largeur ?? ""} placeholder={String(defaultDimensions.largeur)}
-              onChange={(e) => handleNum("largeur", e.target.value)}
-              disabled={disabled}
-              className={`${cellInput} w-[72px] text-center tabular-nums`} />
-          </div>
-
-          {showHauteur(section) ? (
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-400 w-3">H</span>
-              <input type="number" inputMode="decimal" min={0} step={0.1}
-                value={item.hauteur ?? ""} placeholder={String(defaultDimensions.hauteur)}
-                onChange={(e) => handleNum("hauteur", e.target.value)}
-                disabled={disabled}
-                className={`${cellInput} w-[72px] text-center tabular-nums`} />
-            </div>
-          ) : (
-            <span className="text-gray-300 text-sm w-[72px] text-center">—</span>
-          )}
-
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-400">×</span>
+        {/* Colonne 2 : Paramètres — Qté en premier */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Qté — discret, en premier */}
+          <div className="flex items-center gap-0.5">
+            <span className="text-[10px] text-gray-300">×</span>
             <input type="number" inputMode="decimal" min={1}
               value={item.quantite ?? 1}
               onChange={(e) => handleNum("quantite", e.target.value)}
               disabled={disabled}
-              className={`${cellInput} w-[56px] text-center tabular-nums`} />
+              className={`${cellInput} w-[44px] text-center tabular-nums text-xs`} />
           </div>
+
+          <div className="flex items-center gap-0.5">
+            <span className="text-[10px] text-gray-300 w-2">L</span>
+            <input type="number" inputMode="decimal" min={0} step={0.1}
+              value={item.largeur ?? ""} placeholder={String(defaultDimensions.largeur)}
+              onChange={(e) => handleNum("largeur", e.target.value)}
+              disabled={disabled}
+              className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
+          </div>
+
+          {showHauteur(section) ? (
+            <div className="flex items-center gap-0.5">
+              <span className="text-[10px] text-gray-300 w-2">H</span>
+              <input type="number" inputMode="decimal" min={0} step={0.1}
+                value={item.hauteur ?? ""} placeholder={String(defaultDimensions.hauteur)}
+                onChange={(e) => handleNum("hauteur", e.target.value)}
+                disabled={disabled}
+                className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
+            </div>
+          ) : (
+            <span className="text-gray-300 text-xs w-[52px] text-center">—</span>
+          )}
 
           <input list={`unite-cdc-${item.id}`} value={item.unite || ""}
             onChange={(e) => onChange({ unite: e.target.value })}
             disabled={disabled}
-            className={`${cellInput} w-[80px]`} placeholder="unité" />
+            className={`${cellInput} w-[72px] text-xs`} placeholder="unité" />
           <datalist id={`unite-cdc-${item.id}`}>
             {withCurrent(UNITES, item.unite).map((u) => <option key={u} value={u} />)}
           </datalist>
