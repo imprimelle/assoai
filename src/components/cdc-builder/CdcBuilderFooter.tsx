@@ -414,7 +414,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
             className={`flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all ${
               showConsolidated
                 ? "bg-indigo-500/25 text-indigo-300"
-                : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                : "text-white/80 hover:text-white hover:bg-white/10"
             }`}
             title={showConsolidated ? "Vue par enseigne" : "Vue consolidée (toutes les enseignes)"}
           >
@@ -427,7 +427,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
             <button
               type="button"
               onClick={onToggleAllOpen}
-              className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-all"
+              className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition-all"
               title={allOpen ? "Tout replier" : "Tout déplier"}
             >
               <span className="text-xs">{allOpen ? "🔽" : "🔼"}</span>
@@ -436,10 +436,10 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
           )}
 
           {/* Séparateur */}
-          <div className="w-px h-4 bg-gray-700/40 mx-0.5" />
+          <div className="w-px h-4 bg-white/15 mx-0.5" />
 
-          {/* Compteur enseignes + ajout */}
-          <span className="text-xs text-gray-500 font-medium min-w-[20px] text-center select-none">
+          {/* Compteur enseignes */}
+          <span className="text-xs text-white/60 font-medium min-w-[20px] text-center select-none">
             {state.enseignes.length}
           </span>
 
@@ -449,7 +449,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
             onClick={onSave}
             disabled={saving}
             className="relative flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all
-                       text-gray-400 hover:text-emerald-400 hover:bg-white/5 disabled:opacity-50"
+                       text-white/80 hover:text-emerald-300 hover:bg-white/10 disabled:opacity-50"
             title={state.savedMessageId ? "Mettre à jour le CDC" : "Sauvegarder le CDC"}
           >
             {saving ? (

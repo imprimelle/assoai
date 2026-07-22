@@ -1,26 +1,9 @@
 // src/components/cdc-builder/CdcBuilderHeader.tsx
-// Bloc d'information collapsible : infos CDC + carte Leaflet de livraison.
-// v1 : collapse/expand, map interactive avec marqueur draggable, géocodage.
+// v2 — Toujours visible, compact. Projet lié via @ dropdown. Pas de carte Leaflet.
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import {
-  ChevronDown,
-  ChevronUp,
-  MapPin,
-  Loader2,
-} from "lucide-react";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-
-// Fix icônes Leaflet (bug Vite)
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl:
-    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl:
-    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
+import React, { useState, useRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
+import { X, Loader2, MapPin } from "lucide-react";
 
 // ── Types ──
 
@@ -47,53 +30,31 @@ export interface CdcBuilderHeaderProps {
   onChange: (changes: Partial<CdcBuilderHeaderData>) => void;
   /** Projet courant (si chargé) */
   project?: ProjectOption | null;
-  /** Projets disponibles pour le sélecteur */
+  /** Projets disponibles pour le dropdown */
   availableProjects?: ProjectOption[];
   /** Chargement des projets */
   loadingProjects?: boolean;
   /** Sélection d'un projet → recharge avec ?projectId=xxx */
   onSelectProject?: (projectId: string) => void;
-  /** Forcer les champs éditables même avec un projet (mode "Modifier" depuis CDC) */
-  alwaysEditable?: boolean;
+  /** Délier le projet courant */
+  onUnlinkProject?: () => void;
 }
 
-// ── Géocodage Nominatim (OpenStreetMap) ──
+// ── Géocodage Nominatim (conservé, sans carte) ──
 
 async function geocode(query: string): Promise<{ lat: number; lng: number; label: string } | null> {
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-    const res = await fetch(url, {
-      headers: { "Accept-Language": "fr" },
-    });
+    const res = await fetch(url, { headers: { "Accept-Language": "fr" } });
     const data = await res.json();
     if (data.length > 0) {
-      return {
-        lat: parseFloat(data[0].lat),
-        lng: parseFloat(data[0].lon),
-        label: data[0].display_name,
-      };
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: data[0].display_name };
     }
   } catch {}
   return null;
 }
 
-async function reverseGeocode(lat: number, lng: number): Promise<string> {
-  try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
-    const res = await fetch(url, {
-      headers: { "Accept-Language": "fr" },
-    });
-    const data = await res.json();
-    return data.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-  } catch {
-    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-  }
-}
-
 // ── Composant ──
-
-const DEFAULT_CENTER: [number, number] = [5.36, -4.01]; // Abidjan
-const DEFAULT_ZOOM = 13;
 
 const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   data,
@@ -102,131 +63,106 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   availableProjects,
   loadingProjects,
   onSelectProject,
-  alwaysEditable = false,
+  onUnlinkProject,
 }) => {
-  const [expanded, setExpanded] = useState(false);
+  // -- Projet @ dropdown --
+  const [projectInput, setProjectInput] = useState("");
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const projectInputRef = useRef<HTMLInputElement>(null);
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
+  const projectWrapperRef = useRef<HTMLDivElement>(null);
+
+  // -- Adresse --
   const [addressInput, setAddressInput] = useState(data.deliveryAddress?.label || "");
   const [geocoding, setGeocoding] = useState(false);
 
-  // Map refs
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<L.Map | null>(null);
-  const markerRef = useRef<L.Marker | null>(null);
-
-  const isLocked = !!project && !alwaysEditable;
-  const hasAddress = !!(data.deliveryAddress?.lat && data.deliveryAddress?.lng);
-
-  // Sync addressInput when data changes externally
+  // Sync externe
   useEffect(() => {
     setAddressInput(data.deliveryAddress?.label || "");
   }, [data.deliveryAddress?.label]);
 
-  // Init map when expanded — toujours afficher, centré sur l'adresse si dispo
+  // Projets filtrés
+  const filteredProjects = useMemo(() => {
+    const query = projectInput.toLowerCase();
+    if (!query) return availableProjects || [];
+    return (availableProjects || []).filter((p) =>
+      p.name.toLowerCase().includes(query),
+    );
+  }, [availableProjects, projectInput]);
+
+  // Navigation clavier dropdown
   useEffect(() => {
-    if (!expanded || !mapContainerRef.current) return;
+    setActiveIdx(0);
+  }, [projectInput]);
 
-    const addr = data.deliveryAddress;
-    const center: [number, number] = addr
-      ? [addr.lat, addr.lng]
-      : DEFAULT_CENTER;
+  // Click outside → fermer dropdown
+  useEffect(() => {
+    if (!showProjectDropdown) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const insideWrapper = projectWrapperRef.current?.contains(target);
+      const insideDropdown = projectDropdownRef.current?.contains(target);
+      if (!insideWrapper && !insideDropdown) {
+        setShowProjectDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showProjectDropdown]);
 
-    if (!mapInstance.current) {
-      mapInstance.current = L.map(mapContainerRef.current, {
-        center,
-        zoom: addr ? 15 : DEFAULT_ZOOM,
-        scrollWheelZoom: !isLocked,
-        attributionControl: false,
-        zoomControl: true,
-        dragging: !isLocked,
+  // Position dropdown
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  useEffect(() => {
+    if (showProjectDropdown && projectInputRef.current) {
+      const rect = projectInputRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: "fixed",
+        left: `${rect.left}px`,
+        top: `${rect.bottom + 4}px`,
+        minWidth: `${Math.max(rect.width, 320)}px`,
+        zIndex: 9999,
       });
-
-      L.tileLayer(
-        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-          maxZoom: 19,
-        },
-      ).addTo(mapInstance.current);
-
-      if (!isLocked) {
-        mapInstance.current.on("click", (e: L.LeafletMouseEvent) => {
-          placeMarker(e.latlng.lat, e.latlng.lng);
-        });
-      }
-    } else if (addr) {
-      mapInstance.current.setView([addr.lat, addr.lng], 15);
     }
+  }, [showProjectDropdown, projectInput]);
 
-    // Nettoyer l'ancien marqueur et replacer
-    if (markerRef.current) {
-      mapInstance.current.removeLayer(markerRef.current);
-      markerRef.current = null;
+  const handleProjectInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setProjectInput(val);
+    setShowProjectDropdown(true);
+  };
+
+  const handleProjectInputFocus = () => {
+    if (availableProjects && availableProjects.length > 0) {
+      setShowProjectDropdown(true);
     }
+  };
 
-    if (addr) {
-      const marker = L.marker([addr.lat, addr.lng], {
-        draggable: !isLocked,
-      }).addTo(mapInstance.current!);
-      markerRef.current = marker;
+  const handleSelectProject = (p: ProjectOption) => {
+    setProjectInput("");
+    setShowProjectDropdown(false);
+    onSelectProject?.(p.id);
+  };
 
-      if (!isLocked) {
-        marker.on("dragend", async () => {
-          const pos = marker.getLatLng();
-          const label = await reverseGeocode(pos.lat, pos.lng);
-          onChange({
-            deliveryAddress: { label, lat: pos.lat, lng: pos.lng },
-          });
-          setAddressInput(label);
-        });
+  const handleProjectKeyDown = (e: React.KeyboardEvent) => {
+    if (!showProjectDropdown || filteredProjects.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx((prev) => (prev + 1) % filteredProjects.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx((prev) => (prev - 1 + filteredProjects.length) % filteredProjects.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (filteredProjects[activeIdx]) {
+        handleSelectProject(filteredProjects[activeIdx]);
       }
+    } else if (e.key === "Escape") {
+      setShowProjectDropdown(false);
     }
-  }, [expanded, data.deliveryAddress?.lat, data.deliveryAddress?.lng, isLocked]);
+  };
 
-  const placeMarker = useCallback(
-    async (lat: number, lng: number, reverse = true) => {
-      const map = mapInstance.current;
-      if (!map) return;
-
-      // Supprimer l'ancien marqueur
-      if (markerRef.current) {
-        map.removeLayer(markerRef.current);
-      }
-
-      // Créer nouveau marqueur draggable
-      const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
-      markerRef.current = marker;
-
-      // Drag → mettre à jour
-      marker.on("dragend", async () => {
-        const pos = marker.getLatLng();
-        const label = await reverseGeocode(pos.lat, pos.lng);
-        onChange({
-          deliveryAddress: { label, lat: pos.lat, lng: pos.lng },
-        });
-        setAddressInput(label);
-      });
-
-      // Reverse geocode pour avoir le label
-      if (reverse) {
-        const label = await reverseGeocode(lat, lng);
-        onChange({
-          deliveryAddress: { label, lat, lng },
-        });
-        setAddressInput(label);
-      } else {
-        onChange({
-          deliveryAddress: {
-            label: data.deliveryAddress?.label || "",
-            lat,
-            lng,
-          },
-        });
-      }
-    },
-    [onChange, data.deliveryAddress?.label],
-  );
-
+  // Adresse
   const handleGeocode = async () => {
     if (!addressInput.trim()) return;
     setGeocoding(true);
@@ -234,255 +170,204 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
     setGeocoding(false);
     if (result) {
       setAddressInput(result.label);
-      onChange({
-        deliveryAddress: { label: result.label, lat: result.lat, lng: result.lng },
-      });
-      if (mapInstance.current) {
-        mapInstance.current.setView([result.lat, result.lng], 15);
-        placeMarker(result.lat, result.lng, false);
-      }
+      onChange({ deliveryAddress: { label: result.label, lat: result.lat, lng: result.lng } });
     }
   };
 
-  const summaryText = [
-    data.projectName || "Sans titre",
-    data.cdcNumero && `CDC ${data.cdcNumero}`,
-    data.commandeId && `CMD ${data.commandeId}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
   const cellInput =
-    "h-9 border border-gray-200 rounded px-3 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm w-full";
+    "h-9 border border-gray-200 rounded-lg px-3 bg-white text-sm text-gray-700 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none w-full";
+
+  const statutTexte = project
+    ? project.hasCdc
+      ? "✅ CDC existant chargé"
+      : project.hasCommande
+        ? "📋 Commande validée trouvée"
+        : "🆕 Nouveau CDC"
+    : null;
 
   return (
-    <div className="mb-4">
-      {/* Barre résumée (toujours visible) */}
-      <button
-        type="button"
-        onClick={() => setExpanded((p) => !p)}
-        className="w-full flex items-center justify-between px-4 py-3
-                   bg-white border border-gray-200 rounded-lg shadow-sm
-                   hover:border-indigo-300 hover:shadow transition-all duration-150"
-      >
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <span className="text-xl">🏗️</span>
-          <div className="min-w-0 text-left">
-            <h1 className="text-lg font-bold text-gray-900 truncate">
-              CDC Builder
-            </h1>
-            <p className="text-xs text-gray-500 truncate">{summaryText}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0 ml-3">
-          {hasAddress && (
-            <span className="hidden sm:inline-flex items-center gap-1 text-xs text-gray-400">
-              <MapPin size={12} />
-              Livraison
-            </span>
-          )}
-          {expanded ? (
-            <ChevronUp size={18} className="text-gray-400" />
-          ) : (
-            <ChevronDown size={18} className="text-gray-400" />
-          )}
-        </div>
-      </button>
+    <div className="mb-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+      {/* Ligne 1 : Titre + statut */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-lg">🏗️</span>
+        <h1 className="text-sm font-bold text-gray-800">CDC Builder</h1>
+        {statutTexte && (
+          <span className="text-[11px] text-gray-400">{statutTexte}</span>
+        )}
+      </div>
 
-      {/* Contenu dépliable */}
-      {expanded && (
-        <div className="mt-3 bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-          <div className="p-4">
-            {/* Sélecteur de projet (si disponible) */}
-            {onSelectProject && availableProjects && availableProjects.length > 0 && (
-              <div className="mb-5 pb-4 border-b border-gray-100">
-                <label className="block text-xs font-medium text-gray-500 mb-2">
-                  📂 Projet lié
-                </label>
-                {loadingProjects ? (
-                  <div className="flex items-center gap-2 text-sm text-gray-400">
-                    <Loader2 size={14} className="animate-spin" />
-                    Chargement des projets...
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
-                    {availableProjects.map((p) => {
-                      const isSelected = project?.id === p.id;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => onSelectProject(p.id)}
-                          className={`shrink-0 text-xs px-3.5 py-2 rounded-xl border transition-all duration-200
-                            ${isSelected
-                              ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-200"
-                              : "bg-white border-gray-200 text-gray-700 hover:border-indigo-300 hover:shadow-sm hover:bg-gray-50"
-                            }`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span className="font-medium">{p.name}</span>
-                            {p.hasCommande && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold
-                                ${isSelected
-                                  ? "bg-indigo-500/30 text-white"
-                                  : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                }`}>
-                                CMD
-                              </span>
-                            )}
-                            {p.hasCdc && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold
-                                ${isSelected
-                                  ? "bg-indigo-500/30 text-white"
-                                  : "bg-violet-50 text-violet-700 border border-violet-200"
-                                }`}>
-                                CDC
-                              </span>
-                            )}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+      {/* Ligne 2 : Projet lié — input @ avec dropdown */}
+      <div className="mb-3">
+        <div className="relative" ref={projectWrapperRef}>
+          <label className="block text-[11px] font-medium text-gray-400 mb-1">📂 Projet lié</label>
+
+          {project ? (
+            /* Projet sélectionné → chip avec croix */
+            <div className="flex items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
+                <span className="font-medium text-indigo-700">{project.name}</span>
+                {project.hasCommande && (
+                  <span className="text-[10px] px-1 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
+                    CMD ✓
+                  </span>
                 )}
-                {project && (
-                  <p className="text-xs text-gray-400 mt-2">
-                    {project.hasCdc
-                      ? "✅ CDC existant chargé — enseignes et matériaux pré-remplis"
-                      : project.hasCommande
-                        ? "📋 Commande validée trouvée — enseignes créées depuis les items"
-                        : "🆕 Nouveau CDC — aucune commande validée liée"}
-                  </p>
+                {project.hasCdc && (
+                  <span className="text-[10px] px-1 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold">
+                    CDC
+                  </span>
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUnlinkProject?.();
+                    setProjectInput("");
+                  }}
+                  className="ml-1 p-0.5 rounded-full text-indigo-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  title="Délier le projet"
+                >
+                  <X size={12} />
+                </button>
               </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Colonne gauche : infos */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
-                    Nom du projet
-                  </label>
-                  <input
-                    type="text"
-                    value={data.projectName}
-                    onChange={(e) => onChange({ projectName: e.target.value })}
-                    placeholder="Nom du projet..."
-                    disabled={isLocked}
-                    className={`${cellInput} ${isLocked ? "bg-gray-50 text-gray-600 cursor-default" : ""}`}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                      N° CDC
-                    </label>
-                    <input
-                      type="text"
-                      value={data.cdcNumero}
-                      onChange={(e) => onChange({ cdcNumero: e.target.value })}
-                      placeholder="CDC-YYYY-NNN"
-                      disabled={isLocked}
-                      className={`${cellInput} ${isLocked ? "bg-gray-50 text-gray-600 cursor-default" : ""}`}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                      N° Commande
-                    </label>
-                    <input
-                      type="text"
-                      value={data.commandeId}
-                      onChange={(e) => onChange({ commandeId: e.target.value })}
-                      placeholder="CMD-YYYY-NNN"
-                      disabled={isLocked}
-                      className={`${cellInput} ${isLocked ? "bg-gray-50 text-gray-600 cursor-default" : ""}`}
-                    />
-                  </div>
-                </div>
-
-                {/* Adresse de livraison — lecture seule si projet chargé */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
-                    📍 Adresse de livraison
-                  </label>
-                  {isLocked ? (
-                    <div className={`${cellInput} bg-gray-50 text-gray-600 flex items-center cursor-default`}>
-                      <MapPin size={14} className="text-gray-400 mr-2 shrink-0" />
-                      <span className="truncate text-sm">
-                        {data.deliveryAddress?.label || "Aucune adresse"}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={addressInput}
-                        onChange={(e) => setAddressInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleGeocode();
-                          }
-                        }}
-                        placeholder="Ex: Abidjan, Cocody, Rue des Jardins..."
-                        className={cellInput}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleGeocode}
-                        disabled={geocoding || !addressInput.trim()}
-                        className="shrink-0 h-9 w-9 flex items-center justify-center
-                                   bg-indigo-600 text-white rounded-lg
-                                   hover:bg-indigo-700 transition-colors
-                                   disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Rechercher l'adresse"
-                      >
-                        {geocoding ? (
-                          <Loader2 size={16} className="animate-spin" />
-                        ) : (
-                          <span className="text-sm">🔍</span>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                  {hasAddress && (
-                    <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
-                      <MapPin size={10} />
-                      {data.deliveryAddress!.lat.toFixed(4)},{" "}
-                      {data.deliveryAddress!.lng.toFixed(4)}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Colonne droite : carte */}
-              <div className="relative min-h-[200px]">
-                <div className="text-xs font-medium text-gray-500 mb-2">
-                  🗺️ Lieu de livraison
-                </div>
-                <div
-                  ref={mapContainerRef}
-                  className="w-full rounded-lg border border-gray-200 bg-gray-100 overflow-hidden"
-                  style={{ height: "240px" }}
-                />
-                {!hasAddress && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none mt-6">
-                    <div className="text-center text-gray-400 text-sm bg-white/90 px-4 py-2 rounded-lg">
-                      <MapPin size={20} className="mx-auto mb-1 opacity-50" />
-                      {isLocked
-                        ? "Aucune adresse de livraison"
-                        : "Recherchez une adresse ou cliquez sur la carte"}
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* Input pour chercher un autre projet */}
+              <input
+                ref={projectInputRef}
+                type="text"
+                value={projectInput}
+                onChange={handleProjectInputChange}
+                onFocus={handleProjectInputFocus}
+                onKeyDown={handleProjectKeyDown}
+                placeholder="ou @ pour changer…"
+                className="flex-1 h-8 border-0 border-b border-gray-200 bg-transparent text-xs text-gray-500 placeholder:text-gray-300 focus:border-indigo-300 focus:ring-0 outline-none"
+              />
             </div>
+          ) : loadingProjects ? (
+            <div className="flex items-center gap-2 text-xs text-gray-400 py-1">
+              <Loader2 size={12} className="animate-spin" />
+              Chargement des projets…
+            </div>
+          ) : (
+            /* Pas de projet → input @ */
+            <input
+              ref={projectInputRef}
+              type="text"
+              value={projectInput}
+              onChange={handleProjectInputChange}
+              onFocus={handleProjectInputFocus}
+              onKeyDown={handleProjectKeyDown}
+              placeholder="@ Chercher un projet à lier…"
+              className={`${cellInput} h-8 text-xs`}
+            />
+          )}
+        </div>
+
+        {/* Dropdown portal */}
+        {showProjectDropdown &&
+          filteredProjects.length > 0 &&
+          createPortal(
+            <div
+              ref={projectDropdownRef}
+              style={dropdownStyle}
+              className="bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto py-1"
+            >
+              {filteredProjects.map((p, idx) => {
+                const isSelected = project?.id === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => handleSelectProject(p)}
+                    className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
+                      idx === activeIdx || isSelected
+                        ? "bg-indigo-50 text-indigo-700"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span className="font-medium flex-1 truncate">{p.name}</span>
+                    {p.hasCommande && (
+                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
+                        CMD ✓
+                      </span>
+                    )}
+                    {p.hasCdc && (
+                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold">
+                        CDC
+                      </span>
+                    )}
+                    {isSelected && (
+                      <span className="shrink-0 text-[10px] text-indigo-400">✓</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body,
+          )}
+      </div>
+
+      {/* Ligne 3 : CDC#, Commande#, Adresse */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-[11px] font-medium text-gray-400 mb-1">
+            N° CDC
+          </label>
+          <input
+            type="text"
+            value={data.cdcNumero}
+            onChange={(e) => onChange({ cdcNumero: e.target.value })}
+            placeholder="CDC-YYYY-NNN"
+            className={cellInput}
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-gray-400 mb-1">
+            N° Commande
+          </label>
+          <input
+            type="text"
+            value={data.commandeId}
+            onChange={(e) => onChange({ commandeId: e.target.value })}
+            placeholder="CMD-YYYY-NNN"
+            className={cellInput}
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-gray-400 mb-1">
+            <MapPin size={11} className="inline mr-1 text-gray-300" />
+            Adresse de livraison
+          </label>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={addressInput}
+              onChange={(e) => setAddressInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleGeocode();
+                }
+              }}
+              placeholder="Ex: Abidjan, Cocody…"
+              className={cellInput}
+            />
+            <button
+              type="button"
+              onClick={handleGeocode}
+              disabled={geocoding || !addressInput.trim()}
+              className="shrink-0 h-9 w-9 flex items-center justify-center
+                         bg-indigo-600 text-white rounded-lg
+                         hover:bg-indigo-700 transition-colors
+                         disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Géocoder l'adresse"
+            >
+              {geocoding ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <span className="text-sm">🔍</span>
+              )}
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

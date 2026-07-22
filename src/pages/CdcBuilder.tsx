@@ -710,7 +710,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           </button>
         </div>
 
-        {/* Header collapsible avec carte */}
+        {/* Header — toujours visible, compact */}
         <CdcBuilderHeader
           data={{
             projectName: state.projectName,
@@ -737,7 +737,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           availableProjects={availableProjects || []}
           loadingProjects={projectsLoading}
           onSelectProject={handleSelectProject}
-          alwaysEditable={!!cdcId}
+          onUnlinkProject={() => setSearchParams({})}
         />
 
         {/* Vue consolidée : toutes enseignes groupées par section */}
