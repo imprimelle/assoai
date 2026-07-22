@@ -795,73 +795,6 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           </>
         )}
 
-        {/* Barre d'actions compacte — au-dessus du footer */}
-        <div className="flex items-center justify-center gap-2 py-2">
-          {/* Toggle Vue d'ensemble / Par enseigne */}
-          <button
-            type="button"
-            onClick={() => setShowConsolidated((p) => !p)}
-            className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
-              showConsolidated
-                ? "bg-indigo-100 text-indigo-700"
-                : "bg-white text-gray-500 border border-gray-200 hover:bg-gray-50"
-            }`}
-            title={showConsolidated ? "Vue par enseigne" : "Vue consolidée"}
-          >
-            <LayoutGrid size={15} />
-          </button>
-
-          {/* Tout replier/déplier */}
-          {!showConsolidated && (
-            <button
-              type="button"
-              onClick={() => setAllOpen((p) => !p)}
-              className="flex items-center justify-center w-8 h-8 rounded-lg bg-white text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
-              title={allOpen ? "Tout replier" : "Tout déplier"}
-            >
-              <span className="text-sm">{allOpen ? "🔽" : "🔼"}</span>
-            </button>
-          )}
-
-          {/* Compteur enseignes */}
-          <span className="text-xs text-gray-400 font-medium px-1 select-none">
-            {state.enseignes.length}
-          </span>
-
-          {/* Ajouter une enseigne */}
-          <button
-            type="button"
-            onClick={handleAddEnseigne}
-            className="flex items-center justify-center w-8 h-8 rounded-lg bg-white text-gray-500 border border-gray-200 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors"
-            title="Ajouter une enseigne"
-          >
-            <Plus size={16} />
-          </button>
-
-          {/* Sauvegarde avec badge compteur */}
-          <button
-            type="button"
-            onClick={handleSaveCdc}
-            disabled={saveStatus === "saving"}
-            className="relative flex items-center justify-center w-8 h-8 rounded-lg transition-colors
-                       bg-white text-gray-500 border border-gray-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200
-                       disabled:opacity-50"
-            title={state.savedMessageId ? "Mettre à jour" : "Sauvegarder"}
-          >
-            {saveStatus === "saving" ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <Save size={15} />
-            )}
-            {changeCount > 0 && saveStatus === "idle" && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center
-                               bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
-                {changeCount > 99 ? "99+" : changeCount}
-              </span>
-            )}
-          </button>
-        </div>
-
         {/* Dialogue enseigne */}
         <EnseigneDialog
           open={dialogOpen}
@@ -877,6 +810,14 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           user={user}
           persistentSessionId={persistentSessionId}
           onHighlightsChange={setHighlights}
+          showConsolidated={showConsolidated}
+          onToggleConsolidated={() => setShowConsolidated((p) => !p)}
+          allOpen={allOpen}
+          onToggleAllOpen={() => setAllOpen((p) => !p)}
+          onAddEnseigne={handleAddEnseigne}
+          onSave={handleSaveCdc}
+          saving={saveStatus === "saving"}
+          changeCount={changeCount}
         />
       </div>
     </div>

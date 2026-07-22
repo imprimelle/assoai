@@ -14,6 +14,9 @@ import {
   Mic,
   MicOff,
   Pencil,
+  LayoutGrid,
+  Plus,
+  Save,
 } from "lucide-react";
 import { routeMessage } from "@/services/hermesRouter";
 import { rowsToSections, sectionsToRows } from "./CdcBuilderTable";
@@ -34,6 +37,15 @@ export interface CdcBuilderFooterProps {
   onHighlightsChange?: (
     highlights: Record<string, "added" | "modified">,
   ) => void;
+  // ── Action bar props ──
+  showConsolidated: boolean;
+  onToggleConsolidated: () => void;
+  allOpen: boolean;
+  onToggleAllOpen: () => void;
+  onAddEnseigne: () => void;
+  onSave: () => void;
+  saving: boolean;
+  changeCount: number;
 }
 
 /** Parse la réponse texte de Brico pour extraire les actions JSON */
@@ -59,6 +71,14 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   user,
   persistentSessionId,
   onHighlightsChange,
+  showConsolidated,
+  onToggleConsolidated,
+  allOpen,
+  onToggleAllOpen,
+  onAddEnseigne,
+  onSave,
+  saving,
+  changeCount,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<"modifier" | "demander">("modifier");
@@ -295,7 +315,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
   return (
     <>
       <div
-        style={{ height: expanded ? chatHeight + 10 : 72 }}
+        style={{ height: expanded ? chatHeight + 10 : 120 }}
         aria-hidden="true"
       />
 
@@ -387,6 +407,72 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
             </div>
           </div>
         )}
+
+        {/* Barre d'actions compacte */}
+        <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-gray-900/50 backdrop-blur-lg border-b border-gray-700/20">
+          {/* Toggle Vue consolidée */}
+          <button
+            type="button"
+            onClick={onToggleConsolidated}
+            className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
+              showConsolidated
+                ? "bg-indigo-500/30 text-indigo-300"
+                : "text-gray-500 hover:text-gray-300 hover:bg-gray-800/50"
+            }`}
+            title={showConsolidated ? "Vue par enseigne" : "Vue consolidée"}
+          >
+            <LayoutGrid size={15} />
+          </button>
+
+          {/* Tout replier/déplier */}
+          {!showConsolidated && (
+            <button
+              type="button"
+              onClick={onToggleAllOpen}
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-colors"
+              title={allOpen ? "Tout replier" : "Tout déplier"}
+            >
+              <span className="text-sm">{allOpen ? "🔽" : "🔼"}</span>
+            </button>
+          )}
+
+          {/* Compteur enseignes */}
+          <span className="text-xs text-gray-500 font-medium w-5 text-center select-none">
+            {state.enseignes.length}
+          </span>
+
+          {/* Ajouter une enseigne */}
+          <button
+            type="button"
+            onClick={onAddEnseigne}
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:text-indigo-400 hover:bg-gray-800/50 transition-colors"
+            title="Ajouter une enseigne"
+          >
+            <Plus size={16} />
+          </button>
+
+          {/* Sauvegarde avec badge compteur */}
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="relative flex items-center justify-center w-8 h-8 rounded-lg transition-colors
+                       text-gray-500 hover:text-emerald-400 hover:bg-gray-800/50 disabled:opacity-50"
+            title={state.savedMessageId ? "Mettre à jour" : "Sauvegarder"}
+          >
+            {saving ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Save size={15} />
+            )}
+            {changeCount > 0 && !saving && (
+              <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] flex items-center justify-center
+                               bg-red-500 text-white text-[9px] font-bold rounded-full px-0.5 leading-none">
+                {changeCount > 99 ? "99+" : changeCount}
+              </span>
+            )}
+          </button>
+        </div>
 
         {/* Barre de saisie compacte — toujours visible, translucide */}
         <div className="bg-gray-900/60 backdrop-blur-lg border-t border-gray-700/20 shadow-2xl">
