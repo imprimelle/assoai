@@ -34,6 +34,8 @@ export interface CdcBuilderRowProps {
   /** Appelé quand un matériau catalogue est sélectionné mais sa catégorie ≠ section courante */
   onMoveToSection?: (targetSection: string, preset: Partial<MaterialItem>, entry: MaterialCatalogEntry) => void;
   disabled?: boolean;
+  /** Badge optionnel affiché avant le nom du matériau (ex: nom de l'enseigne en vue consolidée) */
+  enseigneBadge?: { nom: string; color?: string };
 }
 
 const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
@@ -43,6 +45,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   onDelete,
   onMoveToSection,
   disabled = false,
+  enseigneBadge,
 }) => {
   const { section, item } = row;
 
@@ -76,6 +79,19 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
       <div className="flex items-start gap-3 min-w-[700px] md:min-w-0">
         {/* Colonne 1 : Matériau */}
         <div className="w-[200px] shrink-0">
+          {enseigneBadge && (
+            <span
+              className="inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium mb-1 truncate max-w-full"
+              style={{
+                backgroundColor: enseigneBadge.color ? `${enseigneBadge.color}20` : '#EEF2FF',
+                color: enseigneBadge.color || '#4F46E5',
+                border: `1px solid ${enseigneBadge.color ? `${enseigneBadge.color}40` : '#C7D2FE'}`,
+              }}
+              title={enseigneBadge.nom}
+            >
+              🏷️ {enseigneBadge.nom}
+            </span>
+          )}
           <MaterialCell
             value={item.nom}
             onChange={(nom) => onChange({ nom })}

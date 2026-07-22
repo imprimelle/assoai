@@ -62,6 +62,8 @@ export interface CdcBuilderTableProps {
   onRowsChange: (rows: FlatMaterialRow[]) => void;
   enseigneNom: string;
   disabled?: boolean;
+  /** Métadonnées par ligne (clé = `${section}-${item.id}`). Utilisé pour les badges enseigne en vue consolidée. */
+  rowMeta?: Record<string, { enseigneBadge?: { nom: string; color?: string } }>;
 }
 
 const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
@@ -70,6 +72,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
   onRowsChange,
   enseigneNom,
   disabled = false,
+  rowMeta,
 }) => {
   const grouped = useMemo(() => {
     const map = new Map<string, FlatMaterialRow[]>();
@@ -200,6 +203,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                       : undefined
                   }
                   disabled={disabled}
+                  enseigneBadge={rowMeta?.[`${section}-${r.item.id}`]?.enseigneBadge}
                 />
               ))}
             </div>
