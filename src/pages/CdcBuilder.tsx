@@ -4,6 +4,7 @@
 // Chaque enseigne est visible avec son propre CdcBuilderTable.
 
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Trash2,
   Plus,
@@ -27,6 +28,10 @@ import {
 } from "@/types/cdcBuilder";
 import type { FlatMaterialRow } from "@/components/templates/shared/MaterialTable";
 import type { User } from "@/types/user";
+import { useCdcBuilderLoader } from "@/hooks/useCdcBuilderLoader";
+import type { ProjectOption as HeaderProjectOption } from "@/components/cdc-builder/CdcBuilderHeader";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CdcBuilderProps {
   user: User;
@@ -269,6 +274,61 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   user,
   persistentSessionId,
 }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const projectId = searchParams.get("projectId");
+
+  // Charger les données initiales si un projet est spécifié
+  const { data: loaderResult, isLoading: isLoaderLoading } =
+    useCdcBuilderLoader(projectId);
+
+  // Liste des projets disponibles pour le sélecteur
+  const { data: availableProjects, isLoading: projectsLoading } = useQuery<
+    HeaderProjectOption[]
+  >({
+    queryKey: ["cdcBuilderProjects"],
+    queryFn: async () => {
+      const { data: projects, error } = await supabase
+        .from("projects")
+        .select("id, name")
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (error || !projects) return [];
+
+      // Pour chaque projet, vérifier s'il a une commande validée et/ou un CDC
+      const enriched: HeaderProjectOption[] = [];
+      for (const p of projects) {
+        const { data: msgs } = await supabase
+          .from("messages")
+          .select("template_type, template_data")
+          .eq("project_id", p.id)
+          .not("template_data", "is", null);
+
+        const hasCommande = msgs?.some(
+          (m: any) =>
+            m.template_type === "commande" &&
+            ["Validée", "Confirmée", "En cours"].includes(
+              m.template_data?.data?.statut,
+            ),
+        );
+        const hasCdc = msgs?.some(
+          (m: any) => m.template_type === "cahier_des_charges",
+        );
+
+        enriched.push({
+          id: p.id,
+          name: p.name,
+          hasCommande: !!hasCommande,
+          hasCdc: !!hasCdc,
+        });
+      }
+
+      return enriched;
+    },
+    staleTime: 30_000,
+  });
+
+  // État initial par défaut
   const emptyEnseigne = createEmptyEnseigne();
 
   const [state, setState] = useState<CdcBuilderState>({
@@ -280,6 +340,21 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
     materiauxByEnseigne: { [emptyEnseigne.id]: {} },
     equipe: [],
   });
+
+  // Appliquer les données chargées du loader quand elles arrivent
+  useEffect(() => {
+    if (loaderResult?.initialState) {
+      setState(loaderResult.initialState);
+    }
+  }, [loaderResult?.initialState]);
+
+  // Sélection de projet → naviguer avec le paramètre
+  const handleSelectProject = useCallback(
+    (newProjectId: string) => {
+      setSearchParams({ projectId: newProjectId });
+    },
+    [setSearchParams],
+  );
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEnseigne, setEditingEnseigne] = useState<
@@ -458,6 +533,24 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
             deliveryAddress: state.deliveryAddress,
           }}
           onChange={handleHeaderChange}
+          project={
+            loaderResult?.project
+              ? {
+                  ...loaderResult.project,
+                  hasCommande:
+                    availableProjects?.find(
+                      (p) => p.id === loaderResult.project?.id,
+                    )?.hasCommande || false,
+                  hasCdc:
+                    availableProjects?.find(
+                      (p) => p.id === loaderResult.project?.id,
+                    )?.hasCdc || false,
+                }
+              : null
+          }
+          availableProjects={availableProjects || []}
+          loadingProjects={projectsLoading}
+          onSelectProject={handleSelectProject}
         />
 
         {/* Barre d'actions enseignes */}

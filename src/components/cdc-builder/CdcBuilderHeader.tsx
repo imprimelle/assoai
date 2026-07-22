@@ -25,6 +25,13 @@ L.Icon.Default.mergeOptions({
 
 // ── Types ──
 
+export interface ProjectOption {
+  id: string;
+  name: string;
+  hasCommande: boolean;
+  hasCdc?: boolean;
+}
+
 export interface CdcBuilderHeaderData {
   projectName: string;
   cdcNumero: string;
@@ -39,6 +46,14 @@ export interface CdcBuilderHeaderData {
 export interface CdcBuilderHeaderProps {
   data: CdcBuilderHeaderData;
   onChange: (changes: Partial<CdcBuilderHeaderData>) => void;
+  /** Projet courant (si chargé) */
+  project?: ProjectOption | null;
+  /** Projets disponibles pour le sélecteur */
+  availableProjects?: ProjectOption[];
+  /** Chargement des projets */
+  loadingProjects?: boolean;
+  /** Sélection d'un projet → recharge avec ?projectId=xxx */
+  onSelectProject?: (projectId: string) => void;
 }
 
 // ── Géocodage Nominatim (OpenStreetMap) ──
@@ -82,6 +97,10 @@ const DEFAULT_ZOOM = 13;
 const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   data,
   onChange,
+  project,
+  availableProjects,
+  loadingProjects,
+  onSelectProject,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [addressInput, setAddressInput] = useState(data.deliveryAddress?.label || "");
@@ -251,6 +270,59 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
       {expanded && (
         <div className="mt-3 bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
           <div className="p-4">
+            {/* Sélecteur de projet (si disponible) */}
+            {onSelectProject && availableProjects && availableProjects.length > 0 && (
+              <div className="mb-5 pb-4 border-b border-gray-100">
+                <label className="block text-xs font-medium text-gray-500 mb-2">
+                  📂 Projet lié
+                </label>
+                {loadingProjects ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <Loader2 size={14} className="animate-spin" />
+                    Chargement des projets...
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {availableProjects.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => onSelectProject(p.id)}
+                        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors text-left
+                          ${project?.id === p.id
+                            ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-indigo-200 hover:bg-indigo-50/50"
+                          }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          {p.name}
+                          {p.hasCommande && (
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-green-100 text-green-700 font-medium">
+                              CMD ✓
+                            </span>
+                          )}
+                          {p.hasCdc && (
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
+                              CDC
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {project && (
+                  <p className="text-xs text-gray-400 mt-2">
+                    {project.hasCdc
+                      ? "✅ CDC existant chargé — enseignes et matériaux pré-remplis"
+                      : project.hasCommande
+                        ? "📋 Commande validée trouvée — enseignes créées depuis les items"
+                        : "🆕 Nouveau CDC — aucune commande validée liée"}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Colonne gauche : infos */}
               <div className="space-y-4">
