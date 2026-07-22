@@ -1,19 +1,19 @@
 // src/components/cdc-builder/CdcBuilderFooter.tsx
 // Footer sticky avec widget chat Brico — modes Modifier/Demander.
-// v5: mode compact repensé (input + send + toggles + micro), transparence, chat réduit.
+// v6: redesign — fond sombre, input pill avec micro intégré, toggle ✏️/💬, chat compact.
 // Envoie le CDC state à Hermes Brico, parse la réponse JSON, applique les actions.
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Bot,
   MessageCircle,
-  ChevronUp,
+  ChevronDown,
   Send,
   Loader2,
   User as UserIcon,
   Mic,
   MicOff,
-  Wand2,
+  Pencil,
 } from "lucide-react";
 import { routeMessage } from "@/services/hermesRouter";
 import { rowsToSections, sectionsToRows } from "./CdcBuilderTable";
@@ -31,7 +31,6 @@ export interface CdcBuilderFooterProps {
   onStateChange: (state: CdcBuilderState) => void;
   user: User;
   persistentSessionId: string;
-  /** Callback après application d'actions Brico — passe les highlights pour flash animation */
   onHighlightsChange?: (
     highlights: Record<string, "added" | "modified">,
   ) => void;
@@ -41,7 +40,6 @@ export interface CdcBuilderFooterProps {
 function parseBricoResponse(
   text: string,
 ): { message: string; actions?: BricoAction[] } {
-  // Chercher un bloc JSON contenant "actions"
   const jsonMatch = text.match(/\{[\s\S]*"actions"[\s\S]*\}/);
   if (jsonMatch) {
     try {
@@ -50,9 +48,7 @@ function parseBricoResponse(
         message: text.replace(jsonMatch[0], "").trim(),
         actions: parsed.actions,
       };
-    } catch {
-      // JSON invalide — on retourne le texte brut
-    }
+    } catch {}
   }
   return { message: text };
 }
@@ -65,7 +61,7 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   onHighlightsChange,
 }) => {
   const [expanded, setExpanded] = useState(false);
-  const [mode, setMode] = useState<"modifier" | "demander" | null>(null);
+  const [mode, setMode] = useState<"modifier" | "demander">("modifier");
   const [messages, setMessages] = useState<CdcBuilderFooterMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -77,26 +73,16 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  // Autoscroll au nouveau message
+  // Autoscroll
   useEffect(() => {
     if (chatRef.current) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
   }, [messages]);
 
-  // Focus input quand on expand
-  useEffect(() => {
-    if (expanded && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [expanded]);
-
-  // Nettoyage reconnaissance vocale au démontage
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
+      recognitionRef.current?.abort();
     };
   }, []);
 
@@ -105,7 +91,7 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
     state.materiauxByEnseigne[activeEnseigne?.id] || {};
   const rows: FlatMaterialRow[] = sectionsToRows(materiauxSections);
 
-  /** Construire le prompt « Modifier » avec le CDC complet */
+  /** Prompt Modifier avec le CDC complet */
   const buildModifierPrompt = (message: string): string => {
     const materialsText = rows
       .map(
@@ -136,7 +122,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
 \`\`\``;
   };
 
-  /** Appliquer les actions Brico sur le state et émettre les highlights */
+  /** Appliquer les actions Brico */
   const applyActions = useCallback(
     (actions: BricoAction[]) => {
       if (!activeEnseigne) return;
@@ -214,73 +200,56 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
         }
       }
     },
-    [
-      activeEnseigne,
-      materiauxSections,
-      state,
-      onStateChange,
-      onHighlightsChange,
-    ],
+    [activeEnseigne, materiauxSections, state, onStateChange, onHighlightsChange],
   );
 
-  /** Envoyer un message à Brico */
+  /** Envoyer un message */
   const handleSend = async () => {
     const text = input.trim();
     if (!text || loading) return;
-
-    const effectiveMode = mode || "modifier";
 
     const userMsg: CdcBuilderFooterMessage = { role: "user", text };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
-    setExpanded(true); // Toujours expand pour montrer la réponse
+    setExpanded(true);
 
     try {
       const prompt =
-        effectiveMode === "modifier"
-          ? buildModifierPrompt(text)
-          : text;
+        mode === "modifier" ? buildModifierPrompt(text) : text;
 
       const payload = {
         userId: user.id,
         sessionId: persistentSessionId,
         timestamp: new Date().toISOString(),
-        message: {
-          type: "text" as const,
-          content: prompt,
-          attachments: [],
-        },
+        message: { type: "text" as const, content: prompt, attachments: [] },
       };
 
       const response = await routeMessage(payload, "brico");
       const responseText =
         response.response.textFallback || "Aucune réponse.";
 
-      if (effectiveMode === "modifier") {
+      if (mode === "modifier") {
         const parsed = parseBricoResponse(responseText);
-        const bricoMsg: CdcBuilderFooterMessage = {
-          role: "brico",
-          text: parsed.message || responseText,
-        };
-        setMessages((prev) => [...prev, bricoMsg]);
-
-        if (parsed.actions && parsed.actions.length > 0) {
-          applyActions(parsed.actions);
-        }
+        setMessages((prev) => [
+          ...prev,
+          { role: "brico", text: parsed.message || responseText },
+        ]);
+        if (parsed.actions?.length) applyActions(parsed.actions);
       } else {
-        const bricoMsg: CdcBuilderFooterMessage = {
-          role: "brico",
-          text: responseText,
-        };
-        setMessages((prev) => [...prev, bricoMsg]);
+        setMessages((prev) => [
+          ...prev,
+          { role: "brico", text: responseText },
+        ]);
       }
     } catch (err: any) {
-      const errorMsg: CdcBuilderFooterMessage = {
-        role: "brico",
-        text: `❌ Erreur: ${err.message || "Impossible de contacter Brico."}`,
-      };
-      setMessages((prev) => [...prev, errorMsg]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "brico",
+          text: `❌ Erreur: ${err.message || "Impossible de contacter Brico."}`,
+        },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -298,7 +267,6 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
-
     if (!SpeechRecognition) return;
 
     if (isListening) {
@@ -311,69 +279,179 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
     recognition.lang = "fr-FR";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
       setInput((prev) => (prev ? prev + " " + transcript : transcript));
     };
     recognition.onend = () => setIsListening(false);
     recognition.onerror = () => setIsListening(false);
-
     recognitionRef.current = recognition;
     recognition.start();
     setIsListening(true);
   }, [isListening]);
 
-  const handleCollapse = () => {
-    setExpanded(false);
-  };
-
-  const chatHeight = 220;
+  const chatHeight = 280;
 
   return (
     <>
-      {/* Spacer pour éviter que le contenu passe sous le footer */}
       <div
-        style={{ height: expanded ? chatHeight + 10 : 96 }}
+        style={{ height: expanded ? chatHeight + 10 : 72 }}
         aria-hidden="true"
       />
 
-      {/* Footer fixe — translucide */}
-      <div
-        className={`fixed bottom-0 left-0 right-0 z-40 border-t border-gray-300/50 shadow-lg transition-colors duration-200 ${
-          expanded
-            ? "bg-gray-100/95 backdrop-blur-md"
-            : "bg-gray-100/60 backdrop-blur-sm"
-        }`}
-      >
-        {/* Mode compact : input + send + toggles + micro */}
-        {!expanded ? (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 sm:px-4 py-2 max-w-6xl mx-auto min-h-[60px]">
-            {/* Input texte */}
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                mode === "demander"
-                  ? "Pose ta question…"
-                  : "Décris la modification…"
-              }
-              className="flex-1 min-w-[120px] h-10 border border-gray-300/60 bg-white/80 backdrop-blur rounded-xl px-4 text-sm
-                         focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none
-                         placeholder:text-gray-400"
-            />
+      {/* Footer fixe — fond sombre */}
+      <div className="fixed bottom-0 left-0 right-0 z-40">
+        {/* Chat expandé */}
+        {expanded && (
+          <div
+            className="max-w-6xl mx-auto flex flex-col bg-gray-900/95 backdrop-blur-md border-t border-gray-700/50 shadow-2xl"
+            style={{ height: chatHeight }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 h-9 border-b border-gray-700/50 shrink-0">
+              <div className="flex items-center gap-2 text-xs">
+                {mode === "modifier" ? (
+                  <>
+                    <Pencil size={13} className="text-indigo-400" />
+                    <span className="font-medium text-gray-300">
+                      Modifier — {activeEnseigne?.nom || "—"}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle size={13} className="text-gray-400" />
+                    <span className="font-medium text-gray-300">
+                      Discussion — {activeEnseigne?.nom || "—"}
+                    </span>
+                  </>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="text-gray-500 hover:text-gray-300 p-1"
+                title="Réduire"
+              >
+                <ChevronDown size={15} />
+              </button>
+            </div>
 
-            {/* Bouton Envoyer */}
+            {/* Messages */}
+            <div
+              ref={chatRef}
+              className="flex-1 overflow-y-auto px-4 py-2.5 space-y-2.5"
+            >
+              {messages.length === 0 && (
+                <div className="text-center text-xs text-gray-500 py-3">
+                  {mode === "modifier"
+                    ? "Demande à Brico de modifier le CDC."
+                    : "Pose une question à Brico."}
+                </div>
+              )}
+              {messages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex gap-1.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  {msg.role === "brico" && (
+                    <div className="w-6 h-6 rounded-full bg-indigo-900/50 flex items-center justify-center shrink-0 mt-0.5">
+                      <Bot size={12} className="text-indigo-400" />
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-[82%] px-2.5 py-1.5 rounded-lg text-xs whitespace-pre-wrap leading-relaxed ${
+                      msg.role === "user"
+                        ? "bg-indigo-600 text-white rounded-br-sm"
+                        : "bg-gray-800 border border-gray-700 text-gray-200 rounded-bl-sm"
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                  {msg.role === "user" && (
+                    <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <UserIcon size={12} className="text-gray-400" />
+                    </div>
+                  )}
+                </div>
+              ))}
+              {loading && (
+                <div className="flex gap-1.5 justify-start">
+                  <div className="w-6 h-6 rounded-full bg-indigo-900/50 flex items-center justify-center shrink-0 mt-0.5">
+                    <Loader2 size={12} className="text-indigo-400 animate-spin" />
+                  </div>
+                  <div className="px-2.5 py-1.5 rounded-lg text-xs bg-gray-800 border border-gray-700 text-gray-500 rounded-bl-sm">
+                    Brico réfléchit…
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Barre de saisie compacte — toujours visible */}
+        <div className="bg-gray-900/90 backdrop-blur-md border-t border-gray-700/30 shadow-2xl">
+          <div className="flex items-center gap-2.5 px-3 py-2.5 max-w-6xl mx-auto min-h-[56px]">
+            {/* Input pill avec micro intégré à gauche */}
+            <div className="flex-1 relative min-w-0">
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  mode === "demander"
+                    ? "Poser une question…"
+                    : "Décrire la modification…"
+                }
+                className="w-full h-10 pl-9 pr-4 rounded-full bg-gray-800/70 border border-gray-700/50
+                           text-sm text-white placeholder:text-gray-500
+                           focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 outline-none
+                           transition-shadow"
+              />
+              {/* Micro dans l'input */}
+              <button
+                type="button"
+                onClick={toggleListening}
+                className={`absolute left-1.5 top-1/2 -translate-y-1/2 p-1 rounded-full transition-all ${
+                  isListening
+                    ? "text-red-400 animate-pulse"
+                    : "text-gray-500 hover:text-gray-300"
+                }`}
+                title={isListening ? "Arrêter l'écoute" : "Dicter"}
+              >
+                {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+              </button>
+            </div>
+
+            {/* Toggle Modifier / Demander — cercle unique */}
+            <button
+              type="button"
+              onClick={() =>
+                setMode((prev) => (prev === "modifier" ? "demander" : "modifier"))
+              }
+              className={`flex items-center justify-center w-10 h-10 rounded-full transition-all shrink-0 ${
+                mode === "modifier"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25"
+                  : "bg-gray-800 text-gray-400 border border-gray-700/50 hover:text-gray-300"
+              }`}
+              title={mode === "modifier" ? "Mode Modifier — clic pour Demander" : "Mode Demander — clic pour Modifier"}
+            >
+              {mode === "modifier" ? (
+                <Pencil size={18} />
+              ) : (
+                <MessageCircle size={18} />
+              )}
+            </button>
+
+            {/* Envoyer — cercle */}
             <button
               type="button"
               onClick={handleSend}
               disabled={loading || !input.trim()}
-              className="flex items-center justify-center w-10 h-10 rounded-xl
-                         bg-indigo-600 text-white hover:bg-indigo-700 transition-colors
-                         disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+              className="flex items-center justify-center w-10 h-10 rounded-full
+                         bg-indigo-600 text-white hover:bg-indigo-500 transition-all shrink-0
+                         disabled:opacity-30 disabled:cursor-not-allowed shadow-md shadow-indigo-600/20"
               title="Envoyer"
             >
               {loading ? (
@@ -382,191 +460,8 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
                 <Send size={18} />
               )}
             </button>
-
-            {/* Séparateur — masqué sur mobile */}
-            <div className="hidden sm:block w-px h-6 bg-gray-300/50 shrink-0" />
-
-            {/* Mode Modifier */}
-            <button
-              type="button"
-              onClick={() => setMode("modifier")}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl transition-all shrink-0 ${
-                mode === "modifier" || mode === null
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "bg-white/70 text-gray-600 border border-gray-200/50 hover:bg-white"
-              }`}
-              title="Brico modifie le CDC selon tes instructions"
-            >
-              <Wand2 size={14} />
-              <span className="hidden sm:inline">Modifier</span>
-            </button>
-
-            {/* Mode Demander */}
-            <button
-              type="button"
-              onClick={() => setMode("demander")}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl transition-all shrink-0 ${
-                mode === "demander"
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "bg-white/70 text-gray-600 border border-gray-200/50 hover:bg-white"
-              }`}
-              title="Pose une question à Brico"
-            >
-              <MessageCircle size={14} />
-              <span className="hidden sm:inline">Demander</span>
-            </button>
-
-            {/* Séparateur — masqué sur mobile */}
-            <div className="hidden sm:block w-px h-6 bg-gray-300/50 shrink-0" />
-
-            {/* Microphone */}
-            <button
-              type="button"
-              onClick={toggleListening}
-              className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all shrink-0 ${
-                isListening
-                  ? "bg-red-500 text-white animate-pulse shadow-sm shadow-red-200"
-                  : "bg-white/70 text-gray-500 border border-gray-200/50 hover:text-indigo-600 hover:bg-white"
-              }`}
-              title={isListening ? "Arrêter l'écoute" : "Dicter"}
-            >
-              {isListening ? <MicOff size={18} /> : <Mic size={18} />}
-            </button>
           </div>
-        ) : (
-          /* Mode expanded */
-          <div
-            className="max-w-6xl mx-auto flex flex-col"
-            style={{ height: chatHeight }}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 h-10 border-b border-gray-300/50 bg-white/50 shrink-0">
-              <div className="flex items-center gap-2 text-sm">
-                {mode === "modifier" ? (
-                  <>
-                    <Wand2 size={15} className="text-indigo-600" />
-                    <span className="font-medium text-indigo-900 text-xs">
-                      ✨ Modifier — Brico modifie le CDC
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <MessageCircle size={15} className="text-gray-600" />
-                    <span className="font-medium text-gray-700 text-xs">
-                      💬 Discussion — {activeEnseigne?.nom || "—"}
-                    </span>
-                  </>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={handleCollapse}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-1"
-                title="Réduire"
-              >
-                <ChevronUp size={16} />
-              </button>
-            </div>
-
-            {/* Messages */}
-            <div
-              ref={chatRef}
-              className="flex-1 overflow-y-auto px-4 py-2.5 space-y-2.5 bg-gray-50/30"
-            >
-              {messages.length === 0 && (
-                <div className="text-center text-xs text-gray-400 py-3">
-                  {mode === "modifier"
-                    ? "Demande à Brico de modifier le CDC — il peut ajouter, modifier ou supprimer des matériaux."
-                    : "Pose une question à Brico sur le CDC en cours."}
-                </div>
-              )}
-
-              {messages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex gap-1.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  {msg.role === "brico" && (
-                    <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5">
-                      <Bot size={12} className="text-indigo-600" />
-                    </div>
-                  )}
-                  <div
-                    className={`max-w-[82%] px-2.5 py-1.5 rounded-lg text-xs whitespace-pre-wrap leading-relaxed
-                      ${msg.role === "user"
-                        ? "bg-indigo-600 text-white rounded-br-sm"
-                        : "bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm"
-                      }`}
-                  >
-                    {msg.text}
-                  </div>
-                  {msg.role === "user" && (
-                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center shrink-0 mt-0.5">
-                      <UserIcon size={12} className="text-gray-600" />
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              {loading && (
-                <div className="flex gap-1.5 justify-start">
-                  <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5">
-                    <Loader2 size={12} className="text-indigo-600 animate-spin" />
-                  </div>
-                  <div className="px-2.5 py-1.5 rounded-lg text-xs bg-white border border-gray-200 text-gray-400 rounded-bl-sm">
-                    Brico réfléchit…
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Input bar en mode expanded */}
-            <div className="flex items-center gap-2 px-4 h-11 border-t border-gray-300/50 bg-white/50 shrink-0">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={loading}
-                placeholder={
-                  mode === "modifier"
-                    ? "Ex: Ajoute 2m de LED 6000K…"
-                    : "Pose ta question…"
-                }
-                className="flex-1 h-8 border border-gray-200 rounded-lg px-3 bg-white text-sm
-                           focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none
-                           disabled:bg-gray-50"
-              />
-              <button
-                type="button"
-                onClick={toggleListening}
-                className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all shrink-0 ${
-                  isListening
-                    ? "bg-red-500 text-white animate-pulse"
-                    : "text-gray-400 hover:text-indigo-600"
-                }`}
-                title={isListening ? "Arrêter" : "Dicter"}
-              >
-                {isListening ? <MicOff size={15} /> : <Mic size={15} />}
-              </button>
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={loading || !input.trim()}
-                className="flex items-center justify-center w-8 h-8 rounded-lg
-                           bg-indigo-600 text-white hover:bg-indigo-700 transition-colors
-                           disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <Loader2 size={15} className="animate-spin" />
-                ) : (
-                  <Send size={15} />
-                )}
-              </button>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </>
   );
