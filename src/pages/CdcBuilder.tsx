@@ -10,6 +10,9 @@ import {
   Pencil,
   Image as ImageIcon,
   LayoutGrid,
+  Download,
+  Upload,
+  X,
 } from "lucide-react";
 import EnseigneDialog from "@/components/cdc-builder/EnseigneDialog";
 import CdcBuilderTable, {
@@ -40,6 +43,7 @@ interface EnseigneAccordionProps {
   onDelete: () => void;
   onSetChatActive: () => void;
   onRowsChange: (rows: FlatMaterialRow[]) => void;
+  onUpdateEnseigne: (changes: Partial<CdcBuilderEnseigne>) => void;
 }
 
 const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
@@ -51,13 +55,23 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
   onDelete,
   onSetChatActive,
   onRowsChange,
+  onUpdateEnseigne,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
 
   // Synchroniser avec le toggle global "Tout replier/déplier"
   useEffect(() => {
     setIsOpen(defaultOpen);
   }, [defaultOpen]);
+
+  const handleDownloadImage = () => {
+    if (!enseigne.image_url) return;
+    const a = document.createElement("a");
+    a.href = enseigne.image_url;
+    a.download = `${enseigne.nom.replace(/\\s+/g, "_")}.jpg`;
+    a.click();
+  };
 
   return (
     <div className="border border-gray-200 rounded-lg bg-white mb-4 overflow-hidden shadow-sm">
@@ -72,28 +86,28 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {/* Miniature de l'enseigne */}
           {enseigne.image_url ? (
-            <a
-              href={enseigne.image_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setImageModalOpen(true);
+              }}
               className="shrink-0 w-10 h-10 rounded-lg overflow-hidden border-2 border-white shadow-sm
-                         hover:shadow-md hover:scale-105 transition-all duration-200 group"
-              title="Voir l'image en grand"
+                         hover:shadow-md hover:scale-105 transition-all duration-200 cursor-pointer"
+              title="Voir l'image"
             >
               <img
                 src={enseigne.image_url}
                 alt={enseigne.nom}
                 className="w-full h-full object-cover"
               />
-            </a>
+            </button>
           ) : (
             <div className="shrink-0 w-10 h-10 rounded-lg bg-gray-100 border border-gray-200
                             flex items-center justify-center">
               <ImageIcon size={16} className="text-gray-400" />
             </div>
           )}
-          <span className="text-lg">🏷️</span>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="text-base font-semibold text-gray-800 truncate">
@@ -164,6 +178,73 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
             onRowsChange={onRowsChange}
             enseigneNom={enseigne.nom}
           />
+        </div>
+      )}
+      {/* Modal image */}
+      {imageModalOpen && enseigne.image_url && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setImageModalOpen(false)}
+        >
+          <div
+            className="relative bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Barre d'actions */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50 shrink-0">
+              <span className="text-sm font-medium text-gray-700 truncate max-w-[60%]">
+                {enseigne.nom}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleDownloadImage}
+                  className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                  title="Télécharger"
+                >
+                  <Download size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImageModalOpen(false);
+                    onEdit();
+                  }}
+                  className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                  title="Changer l'image"
+                >
+                  <Upload size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdateEnseigne({ image_url: "" } as Partial<CdcBuilderEnseigne>);
+                    setImageModalOpen(false);
+                  }}
+                  className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Supprimer l'image"
+                >
+                  <Trash2 size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImageModalOpen(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors ml-2"
+                  title="Fermer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            {/* Image */}
+            <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-gray-900/5">
+              <img
+                src={enseigne.image_url}
+                alt={enseigne.nom}
+                className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-md"
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -265,6 +346,16 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
         enseignes: newEnseignes,
         materiauxByEnseigne: newMateriaux,
       });
+    },
+    [state],
+  );
+
+  const handleUpdateEnseigne = useCallback(
+    (enseigneId: string, changes: Partial<CdcBuilderEnseigne>) => {
+      const newEnseignes = state.enseignes.map((e) =>
+        e.id === enseigneId ? { ...e, ...changes } : e,
+      );
+      setState({ ...state, enseignes: newEnseignes });
     },
     [state],
   );
@@ -468,6 +559,9 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
                     onSetChatActive={() => setActiveEnseigne(index)}
                     onRowsChange={(newRows) =>
                       handleRowsChange(enseigne.id, newRows)
+                    }
+                    onUpdateEnseigne={(changes) =>
+                      handleUpdateEnseigne(enseigne.id, changes)
                     }
                   />
                 );
