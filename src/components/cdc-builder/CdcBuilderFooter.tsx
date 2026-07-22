@@ -304,7 +304,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
         {/* Chat expandé */}
         {expanded && (
           <div
-            className="max-w-6xl mx-auto flex flex-col bg-gray-900/95 backdrop-blur-md border-t border-gray-700/50 shadow-2xl"
+            className="max-w-6xl mx-auto flex flex-col bg-gray-900/70 backdrop-blur-lg border-t border-gray-700/20 shadow-2xl"
             style={{ height: chatHeight }}
           >
             {/* Header */}
@@ -388,8 +388,8 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
           </div>
         )}
 
-        {/* Barre de saisie compacte — toujours visible */}
-        <div className="bg-gray-900/90 backdrop-blur-md border-t border-gray-700/30 shadow-2xl">
+        {/* Barre de saisie compacte — toujours visible, translucide */}
+        <div className="bg-gray-900/60 backdrop-blur-lg border-t border-gray-700/20 shadow-2xl">
           <div className="flex items-center gap-2.5 px-3 py-2.5 max-w-6xl mx-auto min-h-[56px]">
             {/* Input pill avec micro intégré à gauche */}
             <div className="flex-1 relative min-w-0">
