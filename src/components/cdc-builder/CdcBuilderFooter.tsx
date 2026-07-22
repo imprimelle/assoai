@@ -16,6 +16,8 @@ export interface CdcBuilderFooterProps {
   onStateChange: (state: CdcBuilderState) => void;
   user: User;
   persistentSessionId: string;
+  /** Callback après application d'actions Brico — passe les highlights pour flash animation */
+  onHighlightsChange?: (highlights: Record<string, "added" | "modified">) => void;
 }
 
 /** Parse la réponse texte de Brico pour extraire les actions JSON */
@@ -43,6 +45,7 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   onStateChange,
   user,
   persistentSessionId,
+  onHighlightsChange,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<"faire" | "demander" | null>(null);
@@ -103,12 +106,13 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
 \`\`\``;
   };
 
-  /** Appliquer les actions Brico sur le state */
+  /** Appliquer les actions Brico sur le state et émettre les highlights */
   const applyActions = useCallback(
     (actions: BricoAction[]) => {
       if (!activeEnseigne) return;
 
       const currentSections = { ...materiauxSections };
+      const highlights: Record<string, "added" | "modified"> = {};
       let modified = false;
 
       for (const action of actions) {
@@ -135,6 +139,8 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
                 couleurs_dispo: action.item.couleurs_dispo,
               };
               currentSections[action.section] = [...section, newItem];
+              // Highlight la nouvelle ligne (index = taille actuelle de la section)
+              highlights[`${action.section}-${section.length}`] = "added";
               modified = true;
             }
             break;
@@ -148,6 +154,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
               currentSections[action.section] = section.map((item, i) =>
                 i === action.index ? { ...item, ...action.changes } : item,
               );
+              highlights[`${action.section}-${action.index}`] = "modified";
               modified = true;
             }
             break;
@@ -172,9 +179,15 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
             [activeEnseigne.id]: currentSections,
           },
         });
+        // Émettre les highlights pour flash animation
+        if (onHighlightsChange && Object.keys(highlights).length > 0) {
+          onHighlightsChange(highlights);
+          // Auto-clean après 2s
+          setTimeout(() => onHighlightsChange({}), 2200);
+        }
       }
     },
-    [activeEnseigne, materiauxSections, state, onStateChange],
+    [activeEnseigne, materiauxSections, state, onStateChange, onHighlightsChange],
   );
 
   /** Envoyer un message à Brico */
@@ -294,8 +307,10 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
               </button>
             </div>
 
-            <div className="text-xs text-gray-400">
-              🤖 Brico — assistant CDC
+            <div className="text-xs text-gray-400 flex items-center gap-2">
+              <span>📝 {activeEnseigne?.nom || "Aucune enseigne"}</span>
+              <span className="text-gray-300">|</span>
+              <span>🤖 Brico</span>
             </div>
           </div>
         ) : (

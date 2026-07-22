@@ -15,6 +15,10 @@ import {
   Upload,
   X,
   ArrowLeft,
+  Save,
+  Check,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import EnseigneDialog from "@/components/cdc-builder/EnseigneDialog";
 import CdcBuilderTable, {
@@ -26,6 +30,7 @@ import {
   createEmptyEnseigne,
   type CdcBuilderState,
   type CdcBuilderEnseigne,
+  type HighlightMap,
 } from "@/types/cdcBuilder";
 import type { FlatMaterialRow } from "@/components/templates/shared/MaterialTable";
 import type { User } from "@/types/user";
@@ -51,6 +56,7 @@ interface EnseigneAccordionProps {
   onSetChatActive: () => void;
   onRowsChange: (rows: FlatMaterialRow[]) => void;
   onUpdateEnseigne: (changes: Partial<CdcBuilderEnseigne>) => void;
+  highlights?: HighlightMap;
 }
 
 const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
@@ -63,6 +69,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
   onSetChatActive,
   onRowsChange,
   onUpdateEnseigne,
+  highlights,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [imageModalOpen, setImageModalOpen] = useState(false);
@@ -184,6 +191,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
             defaultDimensions={enseigne.dimensions}
             onRowsChange={onRowsChange}
             enseigneNom={enseigne.nom}
+            highlights={highlights}
           />
         </div>
       )}
@@ -270,6 +278,33 @@ const ENSEIGNE_COLORS = [
   "#DB2777", // pink
   "#2563EB", // blue
 ];
+
+const LS_KEY = "assoai-cdc-builder-state";
+
+/** Transforme CdcBuilderState → CahierDesChargesData pour persistance Supabase */
+function buildCdcPayload(state: CdcBuilderState) {
+  return {
+    titre: `Cahier des Charges — ${state.projectName || "Sans titre"}`,
+    cdcNumero: state.cdcNumero,
+    commande_id: state.commandeId,
+    statut: "Brouillon",
+    enseignes: state.enseignes.map((ens) => ({
+      id: ens.id,
+      nom: ens.nom,
+      produits: ens.produits,
+      details: {
+        image_url: ens.image_url,
+        dimensions: ens.dimensions,
+        technique: ens.technique,
+      },
+      materiauxSections: state.materiauxByEnseigne[ens.id] || {},
+    })),
+    equipe: state.equipe,
+    deliveryAddress: state.deliveryAddress,
+    version: 1,
+    is_latest: true,
+  };
+}
 
 const CdcBuilder: React.FC<CdcBuilderProps> = ({
   user,
@@ -367,6 +402,49 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   const [allOpen, setAllOpen] = useState(true);
   // Vue consolidée (toutes enseignes groupées par section)
   const [showConsolidated, setShowConsolidated] = useState(false);
+  // Highlights temporaires après action Brico (flash animation)
+  const [highlights, setHighlights] = useState<HighlightMap>({});
+  // État de sauvegarde Supabase
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState("");
+
+  // ── Persistance localStorage (debounce 500ms) ──
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify(state));
+      } catch {
+        // localStorage plein → ignorer silencieusement
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [state]);
+
+  // Restauration depuis localStorage au mount (si pas de loader result)
+  useEffect(() => {
+    if (loaderResult?.initialState) return; // Le loader a priorité
+    try {
+      const saved = localStorage.getItem(LS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as CdcBuilderState;
+        if (parsed.enseignes?.length) {
+          setState(parsed);
+        }
+      }
+    } catch {
+      // Données corrompues → ignorer
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Nettoyage localStorage quand le state est chargé depuis le loader
+  useEffect(() => {
+    if (loaderResult?.initialState) {
+      try {
+        localStorage.removeItem(LS_KEY);
+      } catch {}
+    }
+  }, [loaderResult?.initialState]);
 
   // Enseigne active pour le chat Brico
   const activeEnseigne = state.enseignes[state.activeEnseigneIndex];
@@ -524,9 +602,85 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
     [],
   );
 
+  // ── Sauvegarde vers Supabase ──
+  const handleSaveCdc = useCallback(async () => {
+    if (saveStatus === "saving") return;
+    setSaveStatus("saving");
+    setSaveError("");
+
+    const payload = buildCdcPayload(state);
+    const templateData = { data: payload, version: (state as any)._version || 1 };
+
+    try {
+      const projectId = searchParams.get("projectId") || searchParams.get("cdcId")
+        ? (loaderResult?.project?.id || null)
+        : null;
+
+      if (state.savedMessageId) {
+        // UPDATE existant
+        const { error } = await supabase
+          .from("messages")
+          .update({
+            template_data: templateData,
+            timestamp: new Date().toISOString(),
+          })
+          .eq("id", state.savedMessageId);
+
+        if (error) throw error;
+      } else {
+        // INSERT nouveau
+        const { data, error } = await supabase
+          .from("messages")
+          .insert({
+            project_id: projectId,
+            template_type: "cahier_des_charges",
+            template_data: templateData,
+            timestamp: new Date().toISOString(),
+            session_id: persistentSessionId,
+          })
+          .select("id")
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          setState((prev) => ({ ...prev, savedMessageId: data.id }));
+        }
+      }
+
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 3000);
+    } catch (err: any) {
+      setSaveStatus("error");
+      setSaveError(err.message || "Échec de la sauvegarde");
+      setTimeout(() => setSaveStatus("idle"), 4000);
+    }
+  }, [state, saveStatus, persistentSessionId, searchParams, loaderResult?.project]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 pt-4">
+        {/* Toast de statut sauvegarde */}
+        {saveStatus !== "idle" && (
+          <div
+            className={`fixed top-4 right-4 z-[200] px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 toast-enter ${
+              saveStatus === "saving"
+                ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
+                : saveStatus === "saved"
+                  ? "bg-green-100 text-green-700 border border-green-200"
+                  : "bg-red-100 text-red-700 border border-red-200"
+            }`}
+          >
+            {saveStatus === "saving" && <Loader2 size={14} className="animate-spin" />}
+            {saveStatus === "saved" && <Check size={14} />}
+            {saveStatus === "error" && <AlertCircle size={14} />}
+            {saveStatus === "saving"
+              ? "Sauvegarde en cours…"
+              : saveStatus === "saved"
+                ? "✅ CDC sauvegardé !"
+                : `❌ ${saveError || "Erreur"}`}
+          </div>
+        )}
+
         {/* Barre de retour vers la liste */}
         <div className="flex items-center mb-3">
           <button
@@ -610,6 +764,24 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
               <Plus size={16} />
               Ajouter une enseigne
             </button>
+            <button
+              type="button"
+              onClick={handleSaveCdc}
+              disabled={saveStatus === "saving"}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium
+                         rounded-lg transition-colors shadow-sm
+                         ${state.savedMessageId
+                           ? "bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50"
+                           : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
+              title={state.savedMessageId ? "Mettre à jour le CDC existant" : "Sauvegarder comme nouveau CDC"}
+            >
+              {saveStatus === "saving" ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Save size={16} />
+              )}
+              {state.savedMessageId ? "Mettre à jour" : "Sauvegarder"}
+            </button>
           </div>
         </div>
 
@@ -631,6 +803,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
                 onRowsChange={handleConsolidatedChange}
                 enseigneNom="Toutes les enseignes"
                 rowMeta={consolidatedData.meta}
+                highlights={highlights}
               />
             )}
           </div>
@@ -659,6 +832,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
                     onUpdateEnseigne={(changes) =>
                       handleUpdateEnseigne(enseigne.id, changes)
                     }
+                    highlights={highlights}
                   />
                 );
               })}
@@ -680,6 +854,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           onStateChange={setState}
           user={user}
           persistentSessionId={persistentSessionId}
+          onHighlightsChange={setHighlights}
         />
       </div>
     </div>

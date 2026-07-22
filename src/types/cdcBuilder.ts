@@ -29,7 +29,12 @@ export interface CdcBuilderState {
   materiauxByEnseigne: Record<string, Record<string, MaterialItem[]>>;
   equipe: TeamMember[];
   deliveryAddress?: DeliveryAddress;
+  /** ID du message Supabase si le CDC a déjà été sauvegardé */
+  savedMessageId?: string;
 }
+
+/** Map clé `section-index`→ type de highlight pour animation flash (Brico) */
+export type HighlightMap = Record<string, "added" | "modified">;
 
 export interface CdcBuilderFooterMessage {
   role: "user" | "brico";

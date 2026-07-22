@@ -35,6 +35,8 @@ export interface CdcBuilderRowProps {
   disabled?: boolean;
   /** Badge optionnel affiché avant le nom du matériau (ex: nom de l'enseigne en vue consolidée) */
   enseigneBadge?: { nom: string; color?: string };
+  /** Type de highlight pour animation flash après action Brico */
+  flashType?: "added" | "modified";
 }
 
 const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
@@ -45,6 +47,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   onMoveToSection,
   disabled = false,
   enseigneBadge,
+  flashType,
 }) => {
   const { section, item } = row;
 
@@ -75,7 +78,9 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
 
   return (
     <div
-      className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle"
+      className={`overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
+        flashType ? `flash-${flashType}` : ""
+      }`}
     >
       <div className="flex items-center gap-2 min-w-[620px] md:min-w-0">
         {/* Colonne 1 : Matériau */}

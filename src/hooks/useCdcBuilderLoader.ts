@@ -119,6 +119,7 @@ async function loadFromCdcId(cdcId: string): Promise<CdcBuilderLoaderResult> {
     materiauxByEnseigne,
     equipe: cdcData.equipe || [],
     deliveryAddress: cdcData.deliveryAddress,
+    savedMessageId: cdcId,
   };
 
   return {
@@ -220,6 +221,7 @@ async function loadFromProjectId(projectId: string): Promise<CdcBuilderLoaderRes
       materiauxByEnseigne,
       equipe: cdcData.equipe || [],
       deliveryAddress: cdcData.deliveryAddress || commandeData?.deliveryAddress,
+      savedMessageId: cdcMsg?.[0]?.id,
     };
   } else if (commandeData?.items?.length > 0) {
     // ── Pas de CDC, mais commande validée → créer enseignes depuis les items ──
