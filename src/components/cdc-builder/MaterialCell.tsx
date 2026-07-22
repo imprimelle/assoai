@@ -75,6 +75,7 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
   const handleSelect = useCallback(
     (entry: MaterialCatalogEntry) => {
       const preset = catalogToMaterialItem(entry);
+      onChange(preset.nom!);  // met à jour le texte de l'input
       onCatalogSelect(preset, entry);
       setShowDropdown(false);
     },

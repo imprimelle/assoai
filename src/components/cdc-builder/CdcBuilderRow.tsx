@@ -3,6 +3,7 @@
 // v4: scrollbar subtile, bouton suppression retiré (géré par poubelle ligne entière).
 
 import React from "react";
+import { Trash2 } from "lucide-react";
 import MaterialCell from "./MaterialCell";
 import {
   UNITES,
@@ -169,6 +170,14 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
               ).map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           ) : null}
+
+          {!disabled && (
+            <button type="button" onClick={onDelete}
+              className="text-red-400 hover:text-red-600 p-1 transition-colors shrink-0"
+              title="Supprimer cette ligne">
+              <Trash2 size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>
