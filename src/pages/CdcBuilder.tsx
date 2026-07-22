@@ -19,6 +19,7 @@ import CdcBuilderTable, {
   sectionsToRows,
 } from "@/components/cdc-builder/CdcBuilderTable";
 import CdcBuilderFooter from "@/components/cdc-builder/CdcBuilderFooter";
+import CdcBuilderHeader from "@/components/cdc-builder/CdcBuilderHeader";
 import {
   createEmptyEnseigne,
   type CdcBuilderState,
@@ -433,47 +434,31 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
     [state, activeEnseigne, consolidatedData.itemToEnseigneId],
   );
 
-  const cellInput =
-    "h-8 border border-gray-200 rounded px-2 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm";
+  const handleHeaderChange = useCallback(
+    (changes: Partial<{
+      projectName: string;
+      cdcNumero: string;
+      commandeId: string;
+      deliveryAddress: CdcBuilderState["deliveryAddress"];
+    }>) => {
+      setState((prev) => ({ ...prev, ...changes }));
+    },
+    [],
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 pt-4">
-        {/* Header */}
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">🏗️ CDC Builder</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Construisez votre cahier des charges manuellement
-          </p>
-
-          {/* Infos projet */}
-          <div className="flex flex-wrap gap-3 mt-3">
-            <input
-              placeholder="Nom du projet..."
-              value={state.projectName}
-              onChange={(e) =>
-                setState({ ...state, projectName: e.target.value })
-              }
-              className={`${cellInput} w-56`}
-            />
-            <input
-              placeholder="CDC-YYYY-NNN"
-              value={state.cdcNumero}
-              onChange={(e) =>
-                setState({ ...state, cdcNumero: e.target.value })
-              }
-              className={`${cellInput} w-40`}
-            />
-            <input
-              placeholder="CMD-YYYY-NNN"
-              value={state.commandeId}
-              onChange={(e) =>
-                setState({ ...state, commandeId: e.target.value })
-              }
-              className={`${cellInput} w-40`}
-            />
-          </div>
-        </div>
+        {/* Header collapsible avec carte */}
+        <CdcBuilderHeader
+          data={{
+            projectName: state.projectName,
+            cdcNumero: state.cdcNumero,
+            commandeId: state.commandeId,
+            deliveryAddress: state.deliveryAddress,
+          }}
+          onChange={handleHeaderChange}
+        />
 
         {/* Barre d'actions enseignes */}
         <div className="flex items-center justify-between mb-4">

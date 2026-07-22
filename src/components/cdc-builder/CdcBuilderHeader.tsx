@@ -1,0 +1,370 @@
+// src/components/cdc-builder/CdcBuilderHeader.tsx
+// Bloc d'information collapsible : infos CDC + carte Leaflet de livraison.
+// v1 : collapse/expand, map interactive avec marqueur draggable, géocodage.
+
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import {
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+  Search,
+  Loader2,
+} from "lucide-react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+// Fix icônes Leaflet (bug Vite)
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+});
+
+// ── Types ──
+
+export interface CdcBuilderHeaderData {
+  projectName: string;
+  cdcNumero: string;
+  commandeId: string;
+  deliveryAddress?: {
+    label: string;
+    lat: number;
+    lng: number;
+  };
+}
+
+export interface CdcBuilderHeaderProps {
+  data: CdcBuilderHeaderData;
+  onChange: (changes: Partial<CdcBuilderHeaderData>) => void;
+}
+
+// ── Géocodage Nominatim (OpenStreetMap) ──
+
+async function geocode(query: string): Promise<{ lat: number; lng: number; label: string } | null> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+    const res = await fetch(url, {
+      headers: { "Accept-Language": "fr" },
+    });
+    const data = await res.json();
+    if (data.length > 0) {
+      return {
+        lat: parseFloat(data[0].lat),
+        lng: parseFloat(data[0].lon),
+        label: data[0].display_name,
+      };
+    }
+  } catch {}
+  return null;
+}
+
+async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+    const res = await fetch(url, {
+      headers: { "Accept-Language": "fr" },
+    });
+    const data = await res.json();
+    return data.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  } catch {
+    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  }
+}
+
+// ── Composant ──
+
+const DEFAULT_CENTER: [number, number] = [5.36, -4.01]; // Abidjan
+const DEFAULT_ZOOM = 13;
+
+const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
+  data,
+  onChange,
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const [addressInput, setAddressInput] = useState(data.deliveryAddress?.label || "");
+  const [geocoding, setGeocoding] = useState(false);
+
+  // Map refs
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+
+  // Sync addressInput when data changes externally
+  useEffect(() => {
+    setAddressInput(data.deliveryAddress?.label || "");
+  }, [data.deliveryAddress?.label]);
+
+  // Init map when expanded
+  useEffect(() => {
+    if (!expanded || !mapContainerRef.current) return;
+
+    const addr = data.deliveryAddress;
+    const center: [number, number] = addr
+      ? [addr.lat, addr.lng]
+      : DEFAULT_CENTER;
+
+    if (!mapInstance.current) {
+      mapInstance.current = L.map(mapContainerRef.current, {
+        center,
+        zoom: addr ? 15 : DEFAULT_ZOOM,
+        scrollWheelZoom: true,
+        attributionControl: false,
+        zoomControl: true,
+      });
+
+      L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+          maxZoom: 19,
+        },
+      ).addTo(mapInstance.current);
+
+      // Click pour placer/déplacer le marqueur
+      mapInstance.current.on("click", (e: L.LeafletMouseEvent) => {
+        placeMarker(e.latlng.lat, e.latlng.lng);
+      });
+    }
+
+    // Placer le marqueur initial
+    if (addr && !markerRef.current) {
+      placeMarker(addr.lat, addr.lng, false);
+    }
+
+    return () => {
+      // Cleanup au collapse
+    };
+  }, [expanded]);
+
+  const placeMarker = useCallback(
+    async (lat: number, lng: number, reverse = true) => {
+      const map = mapInstance.current;
+      if (!map) return;
+
+      // Supprimer l'ancien marqueur
+      if (markerRef.current) {
+        map.removeLayer(markerRef.current);
+      }
+
+      // Créer nouveau marqueur draggable
+      const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      markerRef.current = marker;
+
+      // Drag → mettre à jour
+      marker.on("dragend", async () => {
+        const pos = marker.getLatLng();
+        const label = await reverseGeocode(pos.lat, pos.lng);
+        onChange({
+          deliveryAddress: { label, lat: pos.lat, lng: pos.lng },
+        });
+        setAddressInput(label);
+      });
+
+      // Reverse geocode pour avoir le label
+      if (reverse) {
+        const label = await reverseGeocode(lat, lng);
+        onChange({
+          deliveryAddress: { label, lat, lng },
+        });
+        setAddressInput(label);
+      } else {
+        onChange({
+          deliveryAddress: {
+            label: data.deliveryAddress?.label || "",
+            lat,
+            lng,
+          },
+        });
+      }
+    },
+    [onChange, data.deliveryAddress?.label],
+  );
+
+  const handleGeocode = async () => {
+    if (!addressInput.trim()) return;
+    setGeocoding(true);
+    const result = await geocode(addressInput);
+    setGeocoding(false);
+    if (result) {
+      setAddressInput(result.label);
+      onChange({
+        deliveryAddress: { label: result.label, lat: result.lat, lng: result.lng },
+      });
+      if (mapInstance.current) {
+        mapInstance.current.setView([result.lat, result.lng], 15);
+        placeMarker(result.lat, result.lng, false);
+      }
+    }
+  };
+
+  const hasAddress = !!(data.deliveryAddress?.lat && data.deliveryAddress?.lng);
+  const summaryText = [
+    data.projectName || "Sans titre",
+    data.cdcNumero && `CDC ${data.cdcNumero}`,
+    data.commandeId && `CMD ${data.commandeId}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const cellInput =
+    "h-9 border border-gray-200 rounded px-3 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm w-full";
+
+  return (
+    <div className="mb-4">
+      {/* Barre résumée (toujours visible) */}
+      <button
+        type="button"
+        onClick={() => setExpanded((p) => !p)}
+        className="w-full flex items-center justify-between px-4 py-3
+                   bg-white border border-gray-200 rounded-lg shadow-sm
+                   hover:border-indigo-300 hover:shadow transition-all duration-150"
+      >
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <span className="text-xl">🏗️</span>
+          <div className="min-w-0 text-left">
+            <h1 className="text-lg font-bold text-gray-900 truncate">
+              CDC Builder
+            </h1>
+            <p className="text-xs text-gray-500 truncate">{summaryText}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 ml-3">
+          {hasAddress && (
+            <span className="hidden sm:inline-flex items-center gap-1 text-xs text-gray-400">
+              <MapPin size={12} />
+              Livraison
+            </span>
+          )}
+          {expanded ? (
+            <ChevronUp size={18} className="text-gray-400" />
+          ) : (
+            <ChevronDown size={18} className="text-gray-400" />
+          )}
+        </div>
+      </button>
+
+      {/* Contenu dépliable */}
+      {expanded && (
+        <div className="mt-3 bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="p-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Colonne gauche : infos */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Nom du projet
+                  </label>
+                  <input
+                    type="text"
+                    value={data.projectName}
+                    onChange={(e) => onChange({ projectName: e.target.value })}
+                    placeholder="Nom du projet..."
+                    className={cellInput}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      N° CDC
+                    </label>
+                    <input
+                      type="text"
+                      value={data.cdcNumero}
+                      onChange={(e) => onChange({ cdcNumero: e.target.value })}
+                      placeholder="CDC-YYYY-NNN"
+                      className={cellInput}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      N° Commande
+                    </label>
+                    <input
+                      type="text"
+                      value={data.commandeId}
+                      onChange={(e) => onChange({ commandeId: e.target.value })}
+                      placeholder="CMD-YYYY-NNN"
+                      className={cellInput}
+                    />
+                  </div>
+                </div>
+
+                {/* Adresse de livraison */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    📍 Adresse de livraison
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={addressInput}
+                      onChange={(e) => setAddressInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleGeocode();
+                        }
+                      }}
+                      placeholder="Ex: Abidjan, Cocody, Rue des Jardins..."
+                      className={cellInput}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGeocode}
+                      disabled={geocoding || !addressInput.trim()}
+                      className="shrink-0 h-9 w-9 flex items-center justify-center
+                                 bg-indigo-600 text-white rounded-lg
+                                 hover:bg-indigo-700 transition-colors
+                                 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Rechercher l'adresse"
+                    >
+                      {geocoding ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Search size={16} />
+                      )}
+                    </button>
+                  </div>
+                  {hasAddress && (
+                    <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
+                      <MapPin size={10} />
+                      {data.deliveryAddress!.lat.toFixed(4)},{" "}
+                      {data.deliveryAddress!.lng.toFixed(4)}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Colonne droite : carte */}
+              <div className="relative min-h-[200px]">
+                <div className="text-xs font-medium text-gray-500 mb-2">
+                  🗺️ Carte de livraison
+                </div>
+                <div
+                  ref={mapContainerRef}
+                  className="w-full rounded-lg border border-gray-200 bg-gray-100 overflow-hidden"
+                  style={{ height: "240px" }}
+                />
+                {!hasAddress && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="text-center text-gray-400 text-sm bg-white/80 px-4 py-2 rounded-lg">
+                      <MapPin size={20} className="mx-auto mb-1 opacity-50" />
+                      Recherchez une adresse ou cliquez sur la carte
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CdcBuilderHeader;
