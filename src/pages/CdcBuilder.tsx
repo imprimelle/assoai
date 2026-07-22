@@ -5,8 +5,6 @@
 
 import React, { useState, useCallback } from "react";
 import {
-  ChevronDown,
-  ChevronUp,
   Trash2,
   Plus,
   Pencil,
@@ -110,11 +108,6 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
           >
             <Trash2 size={15} />
           </button>
-          {isOpen ? (
-            <ChevronUp size={18} className="text-gray-400" />
-          ) : (
-            <ChevronDown size={18} className="text-gray-400" />
-          )}
         </div>
       </button>
 

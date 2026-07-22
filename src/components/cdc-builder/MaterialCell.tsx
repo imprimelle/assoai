@@ -74,13 +74,9 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
     (entry: MaterialCatalogEntry) => {
       const preset = catalogToMaterialItem(entry);
       onCatalogSelect(preset, entry);
-
-      const atIdx = value.lastIndexOf("@");
-      const beforeAt = atIdx >= 0 ? value.slice(0, atIdx) : value;
-      onChange(beforeAt + (preset.nom || ""));
       setShowDropdown(false);
     },
-    [value, onChange, onCatalogSelect],
+    [onChange, onCatalogSelect],
   );
 
   const handleKeyDown = useCallback(
