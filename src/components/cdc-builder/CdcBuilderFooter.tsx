@@ -31,6 +31,7 @@ import type {
 import type { MaterialItem } from "@/types";
 import type { FlatMaterialRow } from "@/components/templates/shared/MaterialTable";
 import type { User } from "@/types/user";
+import { supabase } from "@/integrations/supabase/client";
 
 /**
  * ⚠️ ZONE CRITIQUE — Contenteditable avec chips @enseigne
@@ -149,6 +150,116 @@ function parseBricoResponse(
   return { message: text };
 }
 
+// ── Enrichissement catalogue materials (post-processing des actions Brico) ──
+
+/** Mapping d'une entrée catalogue → MaterialItem partiel */
+function catalogToMaterialFields(entry: any): Partial<MaterialItem> {
+  return {
+    nom: `${entry.materiau}${entry.epaisseur ? ` ${entry.epaisseur}` : ""}`,
+    unite: entry.unite,
+    epaisseur: entry.epaisseur || undefined,
+    reference: entry.external_id != null ? String(entry.external_id) : undefined,
+    material_id: entry.id,
+    format_standard: entry.format_standard || undefined,
+    cout_unitaire: entry.cout_min ?? undefined,
+    couleurs_dispo: entry.couleurs?.length ? entry.couleurs : undefined,
+  };
+}
+
+/** Requête le catalogue materials pour un terme de recherche */
+async function searchCatalog(query: string): Promise<any[]> {
+  // Essayer d'abord par material_id (UUID exact)
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query)) {
+    const { data } = await supabase.from("materials").select("*").eq("id", query).limit(1);
+    if (data?.length) return data;
+  }
+  // Recherche par nom (premier mot, ilike)
+  const searchTerm = query.split(/\s+/)[0];
+  if (searchTerm.length < 2) return [];
+  const { data } = await supabase
+    .from("materials")
+    .select("*")
+    .ilike("materiau", `%${searchTerm}%`)
+    .limit(5);
+  return data || [];
+}
+
+/** Enrichit un MaterialItem avec les données du catalogue materials */
+function applyCatalogMatch(item: MaterialItem, entry: any): MaterialItem {
+  const fields = catalogToMaterialFields(entry);
+  return {
+    ...item,
+    material_id: item.material_id || fields.material_id,
+    reference: item.reference || fields.reference,
+    cout_unitaire: item.cout_unitaire ?? fields.cout_unitaire,
+    format_standard: item.format_standard || fields.format_standard,
+    epaisseur: item.epaisseur || fields.epaisseur,
+    unite: item.unite || fields.unite,
+    couleurs_dispo: item.couleurs_dispo || fields.couleurs_dispo,
+    // Ne pas écraser le nom s'il est déjà plus précis que le nom catalogue
+    nom: item.nom || fields.nom || item.nom,
+  };
+}
+
+/**
+ * Post-processing : enrichit les actions Brico avec les données réelles
+ * du catalogue materials (material_id, prix, formats, couleurs).
+ * Garantit que chaque item a un material_id valide même si Brico a « oublié »
+ * de consulter le catalogue.
+ */
+async function enrichActionsWithCatalog(
+  actions: BricoAction[],
+): Promise<BricoAction[]> {
+  // 1. Collecter les items à enrichir (add + update)
+  const itemsToEnrich: { actionIdx: number; item: MaterialItem }[] = [];
+  for (let i = 0; i < actions.length; i++) {
+    const a = actions[i];
+    if ((a.type === "add" || a.type === "update") && a.item?.nom) {
+      itemsToEnrich.push({ actionIdx: i, item: a.item });
+    }
+  }
+  if (itemsToEnrich.length === 0) return actions;
+
+  // 2. Requêter le catalogue pour chaque item (déduplication par material_id)
+  const cache = new Map<string, any>();
+  const enriched = [...actions];
+
+  for (const { actionIdx, item } of itemsToEnrich) {
+    const searchKey = item.material_id || item.nom;
+    if (!searchKey) continue;
+
+    if (!cache.has(searchKey)) {
+      const results = await searchCatalog(searchKey);
+      cache.set(searchKey, results.length > 0 ? results[0] : null);
+    }
+
+    const match = cache.get(searchKey);
+    if (match) {
+      const a = enriched[actionIdx];
+      if (a.type === "add") {
+        enriched[actionIdx] = { ...a, item: applyCatalogMatch(item, match) };
+      } else if (a.type === "update") {
+        enriched[actionIdx] = {
+          ...a,
+          changes: {
+            ...a.changes,
+            material_id: a.changes?.material_id || match.id,
+            reference: a.changes?.reference || String(match.external_id || ""),
+            cout_unitaire: a.changes?.cout_unitaire ?? match.cout_min,
+            format_standard: a.changes?.format_standard || match.format_standard,
+            unite: a.changes?.unite || match.unite,
+          },
+        };
+      }
+    }
+  }
+
+  console.log(
+    `[enrichCatalog] ${itemsToEnrich.length} items vérifiés, ${cache.size} requêtes catalogue`,
+  );
+  return enriched;
+}
+
 const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   state,
   onStateChange,
@@ -169,6 +280,7 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   const [mode, setMode] = useState<"modifier" | "demander">("modifier");
   const [messages, setMessages] = useState<CdcBuilderFooterMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(false); // enrichissement catalogue en cours
 
   // Micro
   const [isListening, setIsListening] = useState(false);
@@ -364,17 +476,23 @@ ${allEnseignesText}
   };
 
   /** Appliquer les actions Brico — support multi-enseignes via enseigneIndex.
+   * Enrichit automatiquement chaque item avec les données du catalogue materials.
    * @param isGeneration true = génération complète (CDC vierge → rempli), false = modification
    */
   const applyActions = useCallback(
-    (actions: BricoAction[], isGeneration = false) => {
+    async (actions: BricoAction[], isGeneration = false) => {
       if (state.enseignes.length === 0) return;
+
+      // 🆕 Enrichir avec le catalogue materials (material_id, prix, formats)
+      setCatalogLoading(true);
+      const enrichedActions = await enrichActionsWithCatalog(actions);
+      setCatalogLoading(false);
 
       const newMateriaux = { ...state.materiauxByEnseigne };
       const highlights: Record<string, "added" | "modified"> = {};
       let modified = false;
 
-      for (const action of actions) {
+      for (const action of enrichedActions) {
         // Déterminer l'enseigne cible (par défaut la 1ère enseigne)
         const ensIdx =
           (action as any).enseigneIndex != null
@@ -574,7 +692,7 @@ ${allEnseignesText}
           { role: "brico", text: parsed.message || responseText },
         ]);
         if (parsed.actions?.length) {
-          applyActions(parsed.actions, false);
+          await applyActions(parsed.actions, false);
         } else {
           console.warn(
             '[CdcBuilderFooter] Réponse Brico sans actions parsables:',
@@ -637,7 +755,7 @@ ${allEnseignesText}
       ]);
 
       if (parsed.actions?.length) {
-        applyActions(parsed.actions, true);
+        await applyActions(parsed.actions, true);
       }
     } catch (err: any) {
       setMessages((prev) => [
@@ -1022,7 +1140,7 @@ ${allEnseignesText}
                       <Loader2 size={12} className="text-indigo-400 animate-spin" />
                     </div>
                     <div className="px-2.5 py-1.5 rounded-lg text-xs bg-gray-800 border border-gray-700 text-gray-500 rounded-bl-sm">
-                      Brico réfléchit…
+                      {catalogLoading ? "Enrichissement catalogue…" : "Brico réfléchit…"}
                     </div>
                   </div>
                 )}
