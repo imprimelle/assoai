@@ -38,6 +38,8 @@ export interface CdcBuilderHeaderProps {
   onSelectProject?: (projectId: string) => void;
   /** Délier le projet courant */
   onUnlinkProject?: () => void;
+  /** Nombre d'enseignes (affiché dans le chip projet) */
+  enseigneCount?: number;
 }
 
 // ── Géocodage Nominatim (conservé, sans carte) ──
@@ -64,6 +66,7 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   loadingProjects,
   onSelectProject,
   onUnlinkProject,
+  enseigneCount = 0,
 }) => {
   // -- Projet @ dropdown --
   const [projectInput, setProjectInput] = useState("");
@@ -190,7 +193,9 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
       {/* Ligne 1 : Titre + statut */}
       <div className="flex items-center gap-2 mb-3">
         <span className="text-lg">🏗️</span>
-        <h1 className="text-sm font-bold text-gray-800">CDC Builder</h1>
+        <h1 className="text-sm font-bold text-gray-800">
+          {project ? project.name : "CDC Builder"}
+        </h1>
         {statutTexte && (
           <span className="text-[11px] text-gray-400">{statutTexte}</span>
         )}
@@ -204,6 +209,11 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
           /* Projet sélectionné → chip avec croix, pleine largeur */
           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
             <span className="font-medium text-indigo-700">{project.name}</span>
+            {enseigneCount > 0 && (
+              <span className="text-[10px] text-indigo-500 font-medium">
+                {enseigneCount} ens.
+              </span>
+            )}
             {project.hasCommande && (
               <span className="text-[10px] px-1 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
                 CMD ✓

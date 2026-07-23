@@ -136,9 +136,9 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
             <p className="text-xs text-gray-500 mt-0.5">
               {enseigne.dimensions.largeur}×{enseigne.dimensions.hauteur}
               {enseigne.dimensions.profondeur ? `×${enseigne.dimensions.profondeur}` : ""} cm
-              {enseigne.technique.type_structure
-                ? ` · ${enseigne.technique.type_structure}`
-                : ""}
+            </p>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {rows.length} matériau{rows.length > 1 ? "x" : ""}
             </p>
           </div>
         </div>
@@ -744,6 +744,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           availableProjects={availableProjects || []}
           loadingProjects={projectsLoading}
           onSelectProject={handleSelectProject}
+          enseigneCount={state.enseignes.length}
           onUnlinkProject={() => {
             setSearchParams({});
             const ens = createEmptyEnseigne();
