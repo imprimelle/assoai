@@ -482,9 +482,9 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
 ⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne appartient chaque matériau.`;
   };
 
-  /** Appliquer les actions Brico — séquentiel avec scroll automatique (v9).
-   * Chaque action est appliquée une par une avec un délai de 350ms.
-   * Les highlights sont accumulés (pas remplacés) et persistent jusqu'à interaction utilisateur.
+  /** Appliquer les actions Brico — application immédiate + scroll séquentiel (v9.1).
+   * Toutes les données sont appliquées en une fois, puis l'écran slide
+   * séquentiellement vers chaque ligne modifiée (1s entre chaque).
    * @param isGeneration true = génération complète (CDC vierge → rempli), false = modification
    */
   const applyActions = useCallback(
@@ -496,16 +496,16 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
       const enrichedActions = await enrichActionsWithCatalog(actions);
       setCatalogLoading(false);
 
-      // Tracker l'état localement (onStateChange est asynchrone, on ne peut pas relire state)
-      let currentMateriaux = JSON.parse(
+      // ── Phase 1 : appliquer toutes les actions immédiatement ──
+      const newMateriaux = JSON.parse(
         JSON.stringify(state.materiauxByEnseigne),
       ) as typeof state.materiauxByEnseigne;
-      const accumulatedHighlights: Record<string, "added" | "modified"> =
-        {};
+      const allHighlights: Record<string, "added" | "modified"> = {};
+      // Ordre de scroll : [ { ensId, highlightKey } ]
+      const scrollOrder: { ensId: string; key: string }[] = [];
       let anyModified = false;
 
       for (const action of enrichedActions) {
-        // Déterminer l'enseigne cible (par défaut la 1ère enseigne)
         const ensIdx =
           (action as any).enseigneIndex != null
             ? (action as any).enseigneIndex
@@ -514,12 +514,9 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
         if (!targetEns) continue;
 
         const ensId = targetEns.id;
-        const currentSections = {
-          ...(currentMateriaux[ensId] || {}),
-        };
+        const currentSections = { ...(newMateriaux[ensId] || {}) };
         const section = [...(currentSections[action.section] || [])];
         let highlightKey = "";
-        let flashType: "added" | "modified" = "modified";
 
         switch (action.type) {
           case "add": {
@@ -545,7 +542,7 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
               };
               currentSections[action.section] = [...section, newItem];
               highlightKey = `${action.section}-${section.length}`;
-              flashType = "added";
+              allHighlights[highlightKey] = "added";
               anyModified = true;
             }
             break;
@@ -562,7 +559,7 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
                   : item,
               );
               highlightKey = `${action.section}-${action.index}`;
-              flashType = "modified";
+              allHighlights[highlightKey] = "modified";
               anyModified = true;
             }
             break;
@@ -578,73 +575,70 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
           }
         }
 
-        currentMateriaux = {
-          ...currentMateriaux,
-          [ensId]: currentSections,
-        };
+        newMateriaux[ensId] = currentSections;
 
         if (highlightKey) {
-          // Accumuler les highlights (pas les remplacer)
-          accumulatedHighlights[highlightKey] = flashType;
+          scrollOrder.push({ ensId, key: highlightKey });
         }
+      }
 
-        // Appliquer le state mis à jour immédiatement
-        onStateChange({
-          ...state,
-          materiauxByEnseigne: currentMateriaux,
-        });
+      if (!anyModified) return;
 
-        // Émettre TOUS les highlights accumulés
-        if (
-          onHighlightsChange &&
-          Object.keys(accumulatedHighlights).length > 0
-        ) {
-          onHighlightsChange({ ...accumulatedHighlights });
-        }
+      // Appliquer tout le state d'un coup
+      const finalState = {
+        ...state,
+        materiauxByEnseigne: newMateriaux,
+      };
+      onStateChange(finalState);
 
-        // Attendre le render + scroll vers la ligne modifiée
-        if (highlightKey) {
-          await new Promise<void>((resolve) => {
-            requestAnimationFrame(() => {
-              setTimeout(resolve, 60);
-            });
-          });
-          const fullKey = `${ensId}-${highlightKey}`;
-          const el = document.querySelector(
-            `[data-highlight-key="${fullKey}"]`,
-          );
-          if (el) {
-            el.scrollIntoView({ behavior: "smooth", block: "center" });
-            // Si l'accordéon parent est replié, l'ouvrir
-            const accordion = el.closest(
-              '[data-enseigne-accordion]',
+      // Émettre tous les highlights d'un coup
+      if (onHighlightsChange && Object.keys(allHighlights).length > 0) {
+        onHighlightsChange({ ...allHighlights });
+      }
+
+      // Notifier pour génération complète
+      if (isGeneration && onCdcGenerated) {
+        onCdcGenerated(finalState);
+      }
+
+      // ── Phase 2 : scroll séquentiel avec 1s entre chaque ligne ──
+      // Attendre le render initial
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => setTimeout(resolve, 100));
+      });
+
+      for (const { ensId, key } of scrollOrder) {
+        const fullKey = `${ensId}-${key}`;
+        const el = document.querySelector(
+          `[data-highlight-key="${fullKey}"]`,
+        );
+        if (el) {
+          // Si l'accordéon parent est replié, l'ouvrir d'abord
+          const accordion = el.closest(
+            '[data-enseigne-accordion]',
+          ) as HTMLElement | null;
+          if (accordion) {
+            const content = accordion.querySelector(
+              '[data-accordion-content]',
             ) as HTMLElement | null;
-            if (accordion) {
+            if (!content) {
+              // Accordéon replié → cliquer pour l'ouvrir
               const btn = accordion.querySelector(
                 'button[data-toggle-accordion]',
               ) as HTMLButtonElement | null;
-              if (
-                btn &&
-                !accordion.querySelector(
-                  '[data-accordion-content]:not(.hidden)',
-                )
-              ) {
+              if (btn) {
                 btn.click();
+                // Attendre que l'accordéon s'ouvre
+                await new Promise<void>((resolve) =>
+                  setTimeout(resolve, 400),
+                );
               }
             }
           }
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
         }
-
-        // Pause entre chaque action (effet visuel séquentiel)
-        await new Promise<void>((resolve) => setTimeout(resolve, 350));
-      }
-
-      // Notifier le parent UNIQUEMENT pour une génération complète
-      if (anyModified && isGeneration && onCdcGenerated) {
-        onCdcGenerated({
-          ...state,
-          materiauxByEnseigne: currentMateriaux,
-        });
+        // Pause d'1 seconde entre chaque scroll
+        await new Promise<void>((resolve) => setTimeout(resolve, 1000));
       }
     },
     [state, onStateChange, onHighlightsChange, onCdcGenerated],
