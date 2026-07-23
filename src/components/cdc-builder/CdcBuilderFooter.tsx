@@ -427,14 +427,15 @@ ${focusBlock}
 
 Instruction de l'utilisateur: ${message}
 
-Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc JSON:
-\`\`\`json
+⚠️ RÈGLE ABSOLUE : Réponds UNIQUEMENT avec le JSON. Pas de markdown, pas de \`\`\`json, pas de texte avant/après.
+Ton message entier doit être :
+
 {"actions": [
   {"type":"add","section":"Découpe","enseigneIndex":0,"item":{"nom":"...","quantite":1,"unite":"plaque","largeur":400,"hauteur":150}},
   {"type":"update","section":"Découpe","enseigneIndex":0,"index":0,"changes":{"quantite":2}},
   {"type":"delete","section":"Éclairage","enseigneIndex":0,"index":0}
 ]}
-\`\`\`
+
 ⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne s'applique chaque action.`;
   };
 
@@ -461,16 +462,14 @@ ${allEnseignesText}
 1. Pour CHAQUE enseigne, remplis les 5 sections (Découpe, Éclairage, Outillage, Métal, Vinyl) avec des matériaux pertinents.
 2. Utilise tes connaissances des règles de fabrication (manufacturing-rules) pour déterminer les bons matériaux.
 3. Les quantités doivent respecter les dimensions de chaque enseigne.
-4. Produis UNIQUEMENT un bloc JSON avec TOUTES les actions pour TOUTES les enseignes :
+4. ⚠️ RÈGLE ABSOLUE : Réponds UNIQUEMENT avec le JSON. Pas de markdown, pas de \`\`\`json, pas de texte avant/après. Ton message entier doit être :
 
-\`\`\`json
 {"actions": [
   {"type":"add","section":"Découpe","enseigneIndex":0,"item":{"nom":"Plexiglass 5mm","quantite":1,"unite":"plaque","largeur":400,"hauteur":150}},
   {"type":"add","section":"Éclairage","enseigneIndex":0,"item":{"nom":"Bande LED 12V","quantite":12,"unite":"mètres"}},
   {"type":"add","section":"Outillage","enseigneIndex":0,"item":{"nom":"Kit visserie inox","quantite":1,"unite":"lot"}},
   ...
 ]}
-\`\`\`
 
 ⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne appartient chaque matériau.`;
   };
