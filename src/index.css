@@ -154,3 +154,10 @@
 .toast-enter { animation: toast-in 0.3s ease-out forwards; }
 .toast-exit { animation: toast-out 0.3s ease-in forwards; }
 
+/* ── Contenteditable placeholder CDC Builder ── */
+.cdc-input[data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+}
+

@@ -54,7 +54,42 @@ export interface CdcBuilderFooterProps {
   onCdcGenerated?: (state: CdcBuilderState) => void;
 }
 
-/** Parse la réponse texte de Brico pour extraire les actions JSON */
+/** Formate le nom d'une enseigne en version courte pour la chip : "Neon Tra..." */
+function formatChipName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 12) + (parts[0].length > 12 ? "…" : "");
+  return parts[0] + " " + parts[1].slice(0, 2) + "…";
+}
+
+/** Extrait le contenu du contenteditable : texte + chips */
+function extractContent(container: HTMLElement): {
+  text: string;
+  chips: { enseigneId: string; name: string; shortName: string }[];
+} {
+  const chips: { enseigneId: string; name: string; shortName: string }[] = [];
+  let text = "";
+
+  function walk(node: Node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      text += node.textContent || "";
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      if (el.hasAttribute("data-enseigne-id")) {
+        const eid = el.getAttribute("data-enseigne-id")!;
+        const ename = el.getAttribute("data-enseigne-name") || "";
+        chips.push({ enseigneId: eid, name: ename, shortName: el.textContent || "" });
+        text += " @" + ename + " ";
+      } else if (el.tagName === "BR") {
+        text += "\n";
+      } else {
+        el.childNodes.forEach(walk);
+      }
+    }
+  }
+
+  container.childNodes.forEach(walk);
+  return { text: text.replace(/\u00A0/g, " ").trim(), chips };
+}
 function parseBricoResponse(
   text: string,
 ): { message: string; actions?: BricoAction[] } {
@@ -90,14 +125,13 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<"modifier" | "demander">("modifier");
   const [messages, setMessages] = useState<CdcBuilderFooterMessage[]>([]);
-  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
   // Micro
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const contentEditableRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   // ── @enseigne dropdown ──
@@ -121,8 +155,8 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   // Position dropdown @enseigne
   const [enseigneDropdownStyle, setEnseigneDropdownStyle] = useState<React.CSSProperties>({});
   useEffect(() => {
-    if (showEnseigneDropdown && inputRef.current) {
-      const rect = inputRef.current.getBoundingClientRect();
+    if (showEnseigneDropdown && contentEditableRef.current) {
+      const rect = contentEditableRef.current.getBoundingClientRect();
       setEnseigneDropdownStyle({
         position: "fixed",
         left: `${rect.left}px`,
@@ -365,47 +399,90 @@ ${allEnseignesText}
     [state, onStateChange, onHighlightsChange, onCdcGenerated],
   );
 
-  /** Sélection d'une enseigne via @ */
+  /** Sélection d'une enseigne via @ → insère une chip dans le contenteditable */
   const handleSelectEnseigne = (ensIdx: number) => {
     setShowEnseigneDropdown(false);
     setEnseigneQuery("");
     const ens = state.enseignes[ensIdx];
-    // Définir l'enseigne ciblée pour le prochain message
-    setTargetedEnseigneId(ens?.id || null);
-    // Remplacer le @query dans l'input par le nom de l'enseigne
-    const atPos = input.lastIndexOf("@");
-    if (atPos >= 0) {
-      const before = input.slice(0, atPos);
-      // Garder le @nom pour le contexte
-      const afterAt = input.slice(atPos).replace(/@\S*/, `@${ens.nom}`);
-      setInput(before + afterAt + " ");
-    }
-    inputRef.current?.focus();
+    if (!ens || !contentEditableRef.current) return;
+
+    setTargetedEnseigneId(ens.id);
+
+    // Remplacer le @query dans le contenteditable par une chip
+    const sel = window.getSelection();
+    if (!sel?.rangeCount) return;
+
+    // Trouver le nœud texte contenant @ et le curseur
+    const range = sel.getRangeAt(0);
+    const textNode = range.startContainer;
+    if (textNode.nodeType !== Node.TEXT_NODE) return;
+
+    const text = textNode.textContent || "";
+    const cursorPos = range.startOffset;
+
+    // Chercher le @ le plus proche avant le curseur
+    const beforeCursor = text.slice(0, cursorPos);
+    const atIdx = beforeCursor.lastIndexOf("@");
+    if (atIdx < 0) return;
+
+    // Vérifier que @ est précédé d'un espace ou début
+    const charBeforeAt = atIdx > 0 ? text[atIdx - 1] : " ";
+    if (charBeforeAt !== " " && charBeforeAt !== "\n" && atIdx > 0) return;
+
+    // Supprimer @query du nœud texte
+    textNode.textContent = text.slice(0, atIdx) + text.slice(cursorPos);
+
+    // Créer la chip
+    const chip = document.createElement("span");
+    const shortName = formatChipName(ens.nom);
+    chip.textContent = shortName;
+    chip.setAttribute("data-enseigne-id", ens.id);
+    chip.setAttribute("data-enseigne-name", ens.nom);
+    chip.contentEditable = "false";
+    chip.className =
+      "inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded-md text-xs font-medium " +
+      "bg-indigo-100 text-indigo-700 border border-indigo-200 select-none cursor-default " +
+      "align-middle whitespace-nowrap";
+
+    // Insérer la chip + un espace après
+    const space = document.createTextNode("\u00A0"); // espace insécable
+    const newRange = document.createRange();
+    newRange.setStart(textNode, atIdx);
+    newRange.collapse(true);
+    newRange.insertNode(chip);
+    chip.after(space);
+
+    // Placer le curseur après l'espace
+    const afterRange = document.createRange();
+    afterRange.setStartAfter(space);
+    afterRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(afterRange);
+
+    contentEditableRef.current.focus();
   };
 
   /** Envoyer un message */
   const handleSend = async () => {
-    const text = input.trim();
-    if (!text || loading) return;
+    if (!contentEditableRef.current || loading) return;
 
-    const userMsg: CdcBuilderFooterMessage = { role: "user", text };
+    const { text, chips } = extractContent(contentEditableRef.current);
+    if (!text && chips.length === 0) return;
+
+    const userMsg: CdcBuilderFooterMessage = { role: "user", text: text || "(modifications demandées)" };
     setMessages((prev) => [...prev, userMsg]);
-    setInput("");
+
+    // Vider le contenteditable
+    if (contentEditableRef.current) {
+      contentEditableRef.current.innerHTML = "";
+    }
+
     setLoading(true);
     setExpanded(true);
+    setTargetedEnseigneId(null);
 
-    // Détecter si un @enseigne est présent pour cibler une enseigne spécifique
-    let targetEnseigneId: string | undefined;
-    const atMatch = text.match(/@(\S+)/);
-    if (atMatch) {
-      const refName = atMatch[1].toLowerCase();
-      const matched = state.enseignes.find((ens) =>
-        ens.nom.toLowerCase().includes(refName),
-      );
-      if (matched) {
-        targetEnseigneId = matched.id;
-      }
-    }
+    // L'enseigne ciblée = première chip trouvée, ou null si aucune
+    const targetEnseigneId = chips.length > 0 ? chips[0].enseigneId : undefined;
 
     try {
       const prompt =
@@ -529,6 +606,33 @@ ${allEnseignesText}
       }
     }
 
+    // Suppression d'une chip avec Backspace : si le curseur est juste après une chip
+    if (e.key === "Backspace") {
+      const sel = window.getSelection();
+      if (!sel?.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      if (range.collapsed && range.startContainer.nodeType === Node.TEXT_NODE) {
+        const textNode = range.startContainer;
+        const offset = range.startOffset;
+        // Si le curseur est au début du nœud texte, vérifier le nœud précédent
+        if (offset === 0) {
+          const prev = textNode.previousSibling;
+          if (prev && prev.nodeType === Node.ELEMENT_NODE) {
+            const el = prev as HTMLElement;
+            if (el.hasAttribute("data-enseigne-id")) {
+              e.preventDefault();
+              el.remove();
+              // Supprimer aussi l'espace après la chip
+              if (textNode.textContent?.startsWith("\u00A0")) {
+                textNode.textContent = textNode.textContent.slice(1);
+              }
+              return;
+            }
+          }
+        }
+      }
+    }
+
     // Envoi normal
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -536,19 +640,28 @@ ${allEnseignesText}
     }
   };
 
-  /** Gestion de l'input — détecte @ pour le dropdown enseigne */
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    setInput(raw);
+  /** Gestion du contenteditable — détecte @ pour le dropdown enseigne */
+  const handleContentEditableInput = useCallback(() => {
+    const sel = window.getSelection();
+    if (!sel?.rangeCount || !contentEditableRef.current) return;
+    const range = sel.getRangeAt(0);
+    const textNode = range.startContainer;
+    if (textNode.nodeType !== Node.TEXT_NODE) {
+      setShowEnseigneDropdown(false);
+      setEnseigneQuery("");
+      return;
+    }
 
-    // Détecter @ pour le dropdown enseigne
-    const atIdx = raw.lastIndexOf("@");
+    const text = textNode.textContent || "";
+    const cursorPos = range.startOffset;
+    const beforeCursor = text.slice(0, cursorPos);
+    const atIdx = beforeCursor.lastIndexOf("@");
+
     if (atIdx >= 0) {
-      const afterAt = raw.slice(atIdx + 1);
-      // Ne pas déclencher si c'est au milieu d'un mot (email, etc.)
-      const charBefore = atIdx > 0 ? raw[atIdx - 1] : "";
-      if (charBefore === "" || charBefore === " " || charBefore === "\n") {
-        setEnseigneQuery(afterAt.split(/\s/)[0]); // premier mot après @
+      const charBefore = atIdx > 0 ? beforeCursor[atIdx - 1] : " ";
+      if (charBefore === " " || charBefore === "\n" || atIdx === 0) {
+        const afterAt = beforeCursor.slice(atIdx + 1);
+        setEnseigneQuery(afterAt.split(/\s/)[0]);
         setShowEnseigneDropdown(true);
         setActiveEnseigneIdx(0);
         return;
@@ -556,7 +669,7 @@ ${allEnseignesText}
     }
     setShowEnseigneDropdown(false);
     setEnseigneQuery("");
-  };
+  }, []);
 
   // ── Reconnaissance vocale ──
   const toggleListening = useCallback(() => {
@@ -577,7 +690,23 @@ ${allEnseignesText}
     recognition.maxAlternatives = 1;
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      setInput((prev) => (prev ? prev + " " + transcript : transcript));
+      // Insérer le texte transcrit dans le contenteditable
+      if (contentEditableRef.current) {
+        const sel = window.getSelection();
+        if (sel?.rangeCount) {
+          const range = sel.getRangeAt(0);
+          range.deleteContents();
+          const textNode = document.createTextNode(transcript + " ");
+          range.insertNode(textNode);
+          range.setStartAfter(textNode);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        } else {
+          contentEditableRef.current.appendChild(document.createTextNode(transcript + " "));
+        }
+        contentEditableRef.current.focus();
+      }
     };
     recognition.onend = () => setIsListening(false);
     recognition.onerror = () => setIsListening(false);
@@ -894,35 +1023,45 @@ ${allEnseignesText}
           {/* ── Barre de saisie (TOUJOURS en bas) ── */}
           <div className="bg-gradient-to-t from-gray-100/80 via-gray-50/60 to-transparent backdrop-blur-lg border-t border-gray-200/30">
             <div className="flex items-center gap-1.5 px-3 py-2.5 max-w-6xl mx-auto min-h-[56px]">
-              {/* Input pill avec micro intégré à gauche — fond blanc */}
+              {/* Input pill — contenteditable avec chips enseigne */}
               <div className="flex-1 relative min-w-0" ref={enseigneWrapperRef}>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={input}
-                  onChange={handleInputChange}
+                <div
+                  ref={contentEditableRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={handleContentEditableInput}
                   onKeyDown={handleKeyDown}
                   onFocus={() => {
                     // Rouvrir le dropdown @enseigne si @ est déjà présent
-                    const atIdx = input.lastIndexOf("@");
+                    if (!contentEditableRef.current) return;
+                    const sel = window.getSelection();
+                    if (!sel?.rangeCount) return;
+                    const range = sel.getRangeAt(0);
+                    const textNode = range.startContainer;
+                    if (textNode.nodeType !== Node.TEXT_NODE) return;
+                    const text = textNode.textContent || "";
+                    const cursorPos = range.startOffset;
+                    const beforeCursor = text.slice(0, cursorPos);
+                    const atIdx = beforeCursor.lastIndexOf("@");
                     if (atIdx >= 0) {
-                      const charBefore = atIdx > 0 ? input[atIdx - 1] : "";
-                      if (charBefore === "" || charBefore === " " || charBefore === "\n") {
-                        const afterAt = input.slice(atIdx + 1).split(/\s/)[0];
+                      const charBefore = atIdx > 0 ? beforeCursor[atIdx - 1] : " ";
+                      if (charBefore === " " || charBefore === "\n" || atIdx === 0) {
+                        const afterAt = beforeCursor.slice(atIdx + 1).split(/\s/)[0];
                         setEnseigneQuery(afterAt);
                         setShowEnseigneDropdown(true);
                       }
                     }
                   }}
-                  placeholder={
+                  data-placeholder={
                     mode === "demander"
                       ? "Poser une question… (@ pour cibler une enseigne)"
                       : "Décrire la modification… (@ pour cibler une enseigne)"
                   }
-                  className="w-full h-10 pl-9 pr-4 rounded-full bg-white border border-gray-300
-                             text-sm text-gray-700 placeholder:text-gray-400
+                  className="cdc-input w-full min-h-[40px] max-h-[120px] overflow-y-auto pl-9 pr-4 py-2 rounded-[20px] bg-white border border-gray-300
+                             text-sm text-gray-700
                              focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400 outline-none
-                             shadow-sm transition-shadow"
+                             shadow-sm transition-shadow
+                             whitespace-pre-wrap break-words"
                 />
 
                 {/* Dropdown @enseigne — au-dessus de l'input */}
@@ -1039,7 +1178,7 @@ ${allEnseignesText}
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={loading || !input.trim()}
+                disabled={loading}
                 className="flex items-center justify-center w-8 h-8 rounded-full
                            bg-indigo-600 text-white hover:bg-indigo-500 transition-all shrink-0
                            disabled:opacity-30 disabled:cursor-not-allowed shadow-md shadow-indigo-600/20"
