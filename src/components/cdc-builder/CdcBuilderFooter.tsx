@@ -32,6 +32,20 @@ import type { MaterialItem } from "@/types";
 import type { FlatMaterialRow } from "@/components/templates/shared/MaterialTable";
 import type { User } from "@/types/user";
 
+/**
+ * ⚠️ ZONE CRITIQUE — Contenteditable avec chips @enseigne
+ *
+ * Ce composant manipule directement le DOM (contenteditable + chips contentEditable="false").
+ * Toute modification des handlers handleKeyDown / handleSelectEnseigne / handleContentEditableInput
+ * doit respecter ces contraintes :
+ *
+ * 1. Les chips sont des <span contentEditable="false" data-enseigne-id="...">
+ * 2. Backspace en position 0 d'un nœud texte suivant une chip → supprime la chip entière
+ * 3. @ n'est détecté QUE si précédé d'un espace ou début de ligne
+ * 4. Le dropdown @enseigne utilise onMouseDown (pas onClick) pour éviter le blur avant sélection
+ * 5. extractContent() traverse le DOM — ne pas utiliser innerText
+ */
+
 export interface CdcBuilderFooterProps {
   state: CdcBuilderState;
   onStateChange: (state: CdcBuilderState) => void;
@@ -91,18 +105,47 @@ function extractContent(container: HTMLElement): {
   return { text: text.replace(/\u00A0/g, " ").trim(), chips };
 }
 function parseBricoResponse(
-  text: string,
+  response: { textFallback?: string; cdcActions?: BricoAction[] }
 ): { message: string; actions?: BricoAction[] } {
-  const jsonMatch = text.match(/\{[\s\S]*"actions"[\s\S]*\}/);
-  if (jsonMatch) {
-    try {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        message: text.replace(jsonMatch[0], "").trim(),
-        actions: parsed.actions,
-      };
-    } catch {}
+  // Niveau 0 : le backend a déjà extrait les actions → pas de re-parsing
+  if (response.cdcActions?.length) {
+    return { message: response.textFallback || '', actions: response.cdcActions };
   }
+
+  const text = response.textFallback || '';
+  if (!text) return { message: text };
+
+  // Niveau 1 : la réponse entière est un JSON valide contenant "actions"
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed.actions && Array.isArray(parsed.actions)) {
+      return { message: '', actions: parsed.actions };
+    }
+  } catch {}
+
+  // Niveau 2 : extraction multi-patterns (```json, JSON inline)
+  const patterns: RegExp[] = [
+    /```(?:json)?\s*(\{[\s\S]*?"actions"\s*:\s*\[[\s\S]*?\]\s*[\s\S]*?\})\s*```/,
+    /\{[\s\S]*?"actions"\s*:\s*\[[\s\S]*?\][\s\S]*?\}/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const jsonStr = match[1] || match[0];
+      try {
+        const parsed = JSON.parse(jsonStr);
+        if (Array.isArray(parsed.actions)) {
+          return {
+            message: text.replace(match[0], '').trim(),
+            actions: parsed.actions,
+          };
+        }
+      } catch {}
+    }
+  }
+
+  // Niveau 3 : échec — retour texte brut, pas d'actions
   return { message: text };
 }
 
@@ -206,6 +249,23 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
     ? state.enseignes.find((e) => e.id === targetedEnseigneId)
     : null;
 
+  /** Filtre les matériaux valides (avec nom) pour éviter d'envoyer des lignes vides à Brico */
+  const filterValidMaterials = (
+    materiauxByEnseigne: Record<string, Record<string, MaterialItem[]>>,
+  ): Record<string, Record<string, MaterialItem[]>> => {
+    const filtered: Record<string, Record<string, MaterialItem[]>> = {};
+    for (const [ensId, sections] of Object.entries(materiauxByEnseigne)) {
+      filtered[ensId] = {};
+      for (const [section, items] of Object.entries(sections)) {
+        const valid = items.filter((item) => item.nom && item.nom.trim());
+        if (valid.length > 0) {
+          filtered[ensId][section] = valid;
+        }
+      }
+    }
+    return filtered;
+  };
+
   /** Construit le prompt Modifier — avec @ → focus + BOM, sans @ → toutes les enseignes */
   const buildModifierPrompt = (
     message: string,
@@ -216,11 +276,12 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
       ? state.enseignes.find((e) => e.id === targetId)
       : null;
 
-    // Contexte détaillé de TOUTES les enseignes (toujours inclus)
+    // Contexte détaillé de TOUTES les enseignes (toujours inclus, filtré des lignes vides)
+    const validMateriaux = filterValidMaterials(state.materiauxByEnseigne);
     const allEnseignesText = state.enseignes
       .map((ens) => {
         const mats = Object.values(
-          state.materiauxByEnseigne[ens.id] || {},
+          validMateriaux[ens.id] || {},
         ).flat();
         const matList =
           mats.length > 0
@@ -302,9 +363,11 @@ ${allEnseignesText}
 ⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne appartient chaque matériau.`;
   };
 
-  /** Appliquer les actions Brico — support multi-enseignes via enseigneIndex */
+  /** Appliquer les actions Brico — support multi-enseignes via enseigneIndex.
+   * @param isGeneration true = génération complète (CDC vierge → rempli), false = modification
+   */
   const applyActions = useCallback(
-    (actions: BricoAction[]) => {
+    (actions: BricoAction[], isGeneration = false) => {
       if (state.enseignes.length === 0) return;
 
       const newMateriaux = { ...state.materiauxByEnseigne };
@@ -387,8 +450,8 @@ ${allEnseignesText}
           onHighlightsChange(highlights);
           setTimeout(() => onHighlightsChange({}), 2200);
         }
-        // Notifier le parent (pour le callback onCdcGenerated)
-        if (onCdcGenerated) {
+        // Notifier le parent UNIQUEMENT pour une génération complète (pas pour une modification)
+        if (isGeneration && onCdcGenerated) {
           onCdcGenerated({
             ...state,
             materiauxByEnseigne: newMateriaux,
@@ -502,12 +565,22 @@ ${allEnseignesText}
         response.response.textFallback || "Aucune réponse.";
 
       if (mode === "modifier") {
-        const parsed = parseBricoResponse(responseText);
+        const parsed = parseBricoResponse({
+          textFallback: responseText,
+          cdcActions: (response.response as any).cdcActions,
+        });
         setMessages((prev) => [
           ...prev,
           { role: "brico", text: parsed.message || responseText },
         ]);
-        if (parsed.actions?.length) applyActions(parsed.actions);
+        if (parsed.actions?.length) {
+          applyActions(parsed.actions, false);
+        } else {
+          console.warn(
+            '[CdcBuilderFooter] Réponse Brico sans actions parsables:',
+            responseText.slice(0, 200),
+          );
+        }
       } else {
         setMessages((prev) => [
           ...prev,
@@ -554,14 +627,17 @@ ${allEnseignesText}
       const responseText =
         response.response.textFallback || "Aucune réponse.";
 
-      const parsed = parseBricoResponse(responseText);
+      const parsed = parseBricoResponse({
+        textFallback: responseText,
+        cdcActions: (response.response as any).cdcActions,
+      });
       setMessages((prev) => [
         ...prev,
         { role: "brico", text: parsed.message || responseText },
       ]);
 
       if (parsed.actions?.length) {
-        applyActions(parsed.actions);
+        applyActions(parsed.actions, true);
       }
     } catch (err: any) {
       setMessages((prev) => [
@@ -1086,10 +1162,8 @@ ${allEnseignesText}
                             key={ens.id}
                             type="button"
                             onMouseDown={(e) => {
-                              // preventDefault pour éviter que l'input perde le focus
+                              // preventDefault + sélection dans le même handler → avant blur
                               e.preventDefault();
-                            }}
-                            onClick={() => {
                               if (realIdx >= 0) handleSelectEnseigne(realIdx);
                             }}
                             className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs transition-colors ${

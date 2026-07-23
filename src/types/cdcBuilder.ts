@@ -48,6 +48,12 @@ export interface BricoAction {
   changes?: Partial<MaterialItem>;
 }
 
+/** Réponse structurée retournée par le backend après parsing des actions CDC */
+export interface CdcResponsePayload {
+  textFallback: string;
+  cdcActions?: BricoAction[];
+}
+
 /** Crée une enseigne vide avec un ID unique */
 export function createEmptyEnseigne(): CdcBuilderEnseigne {
   return {

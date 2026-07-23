@@ -83,6 +83,13 @@ const DOC_TYPE_MAP: Record<string, { docType: DocType; numeroKey: string; prefix
   'cahier_des_charges': { docType: 'cahier_des_charges', numeroKey: 'cdcNumero', prefix: 'CDC' },
 };
 
+// Skills déployés dans chaque profil → passables via --skills (chargement natif Hermes)
+const PROFILE_DEPLOYED_SKILLS: Record<string, string[]> = {
+  'hermes-brico': ['cdc-generate', 'manufacturing-rules', 'material-calculator', 'enseigne-dimensions', 'product-search'],
+  'hermes-pm': ['pm-queue-reader', 'kanban-manager', 'checklist-validator', 'phase-manager', 'communicator-bridge'],
+  'hermes-pia': ['pia-finance', 'pia-reporting'],
+};
+
 // Dérivation : si un template source est fourni, on détecte le type cible
 const DERIVATION_MAP: Record<string, DocType> = {
   'document-derivation': 'commande',  // facture→commande par défaut
@@ -527,13 +534,20 @@ app.post('/router', async (req, res) => {
       fullPrompt = `--- DOCUMENT CITÉ ---\n${JSON.stringify(attachedQuote, null, 2)}\n--- FIN CITATION ---\n\n${fullPrompt}`;
     }
 
-    // 🆕 Injecter les skills filesystem (non-bundled) en texte dans le prompt
-    // Le CLI --skills ne reconnaît que les skills du manifest bundle
+    // 🆕 Skills : passer via --skills (chargement natif Hermes) quand déployé dans le profil.
+    // Seuls les skills non déployés sont injectés en texte (≈ 0 KB pour Brico/PM/PIA).
     const allSkills = (skills || []).map(s => s.replace(/^assoai\//, ''));
-    const MANIFEST_SKILLS = ['assoai-development'];
-    const filesystemSkills = allSkills.filter(s => !MANIFEST_SKILLS.includes(s));
-    if (filesystemSkills.length > 0) {
-      const injected = injectSkillsIntoPrompt('', filesystemSkills);
+    const deployedSkills = PROFILE_DEPLOYED_SKILLS[profile] || [];
+    const skillsForCli = allSkills.filter(s =>
+      s === 'assoai-development' || deployedSkills.includes(s)
+    );
+    const skillsForInjection = allSkills.filter(s =>
+      s !== 'assoai-development' && !deployedSkills.includes(s)
+    );
+
+    // Injecter en texte UNIQUEMENT les skills non déployés dans le profil
+    if (skillsForInjection.length > 0) {
+      const injected = injectSkillsIntoPrompt('', skillsForInjection);
       fullPrompt = injected + fullPrompt;
     }
 
@@ -541,16 +555,12 @@ app.post('/router', async (req, res) => {
     fullPrompt = fullPrompt + '\n--- MESSAGE UTILISATEUR ---\n' + message;
 
     // --- Appeler Hermes ---
-    // Pattern : --skills pour les skills bundled (assoai-development uniquement),
-    // les skills filesystem (document-create-app, product-search, etc.) sont injectés en texte
     const hermesArgs = ['-p', profile, 'chat', '-q', fullPrompt, '--quiet'];
-    
-    const cliSafeSkills = allSkills.filter(s => MANIFEST_SKILLS.includes(s));
-    for (const skill of cliSafeSkills) {
+    for (const skill of skillsForCli) {
       hermesArgs.push('--skills', skill);
     }
     // Toujours ajouter assoai-development pour le contexte Supabase
-    if (!allSkills.includes('assoai-development')) {
+    if (!skillsForCli.includes('assoai-development')) {
       hermesArgs.push('--skills', 'assoai-development');
     }
 
@@ -1237,14 +1247,32 @@ function spawnHermes(args: string[], profile?: string): Promise<{
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
-          return resolve({
-            response: {
-              mode: parsed.mode || 'text',
-              textFallback: parsed.textFallback || cleaned,
-              templateType: parsed.templateType,
-              data: parsed.data,
-            },
-          });
+          const response: any = {
+            mode: parsed.mode || 'text',
+            textFallback: parsed.textFallback || cleaned,
+            templateType: parsed.templateType,
+            data: parsed.data,
+          };
+
+          // 🆕 Extraction proactive des actions CDC côté serveur (évite le double parsing frontend)
+          if (response.textFallback && typeof response.textFallback === 'string') {
+            const actionsMatch = response.textFallback.match(
+              /\{[\s\S]*"actions"\s*:\s*\[[\s\S]*?\][\s\S]*\}/
+            );
+            if (actionsMatch) {
+              try {
+                const actionsParsed = JSON.parse(actionsMatch[0]);
+                if (Array.isArray(actionsParsed.actions)) {
+                  response.cdcActions = actionsParsed.actions;
+                  response.textFallback = response.textFallback
+                    .replace(actionsMatch[0], '')
+                    .trim();
+                }
+              } catch {}
+            }
+          }
+
+          return resolve({ response });
         } catch {}
       }
       resolve({ response: { mode: 'text', textFallback: cleaned || 'Aucune réponse générée.' } });
