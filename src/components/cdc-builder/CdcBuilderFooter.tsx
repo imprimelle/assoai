@@ -427,16 +427,20 @@ ${focusBlock}
 
 Instruction de l'utilisateur: ${message}
 
-⚠️ RÈGLE ABSOLUE : Réponds UNIQUEMENT avec le JSON. Pas de markdown, pas de \`\`\`json, pas de texte avant/après.
-Ton message entier doit être :
+⚠️ FORMAT DE RÉPONSE OBLIGATOIRE :
+1. Une courte analyse (1-3 phrases) expliquant ce que tu modifies et pourquoi.
+2. Le JSON d'actions — SANS triple-backticks autour, SANS markdown. Juste le JSON brut.
+
+Exemple :
+Analyse : j'ajoute du Forex 5mm dans la section Découpe car la demande concerne une bande rectangulaire. Quantité ajustée aux dimensions.
 
 {"actions": [
-  {"type":"add","section":"Découpe","enseigneIndex":0,"item":{"nom":"...","quantite":1,"unite":"plaque","largeur":400,"hauteur":150}},
-  {"type":"update","section":"Découpe","enseigneIndex":0,"index":0,"changes":{"quantite":2}},
-  {"type":"delete","section":"Éclairage","enseigneIndex":0,"index":0}
+  {"type":"add","section":"Découpe","enseigneIndex":0,"item":{"nom":"Forex 5mm","quantite":1,"unite":"plaque","largeur":5,"hauteur":70}}
 ]}
 
-⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne s'applique chaque action.`;
+⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne s'applique chaque action.
+⚠️ Le JSON doit être valide — pas de virgule après le dernier élément, pas de commentaires.`;
+
   };
 
   /** Prompt pour la génération complète d'un CDC (bouton "Créer un CDC") */
@@ -462,12 +466,16 @@ ${allEnseignesText}
 1. Pour CHAQUE enseigne, remplis les 5 sections (Découpe, Éclairage, Outillage, Métal, Vinyl) avec des matériaux pertinents.
 2. Utilise tes connaissances des règles de fabrication (manufacturing-rules) pour déterminer les bons matériaux.
 3. Les quantités doivent respecter les dimensions de chaque enseigne.
-4. ⚠️ RÈGLE ABSOLUE : Réponds UNIQUEMENT avec le JSON. Pas de markdown, pas de \`\`\`json, pas de texte avant/après. Ton message entier doit être :
+4. ⚠️ FORMAT DE RÉPONSE OBLIGATOIRE :
+   a) Une analyse (2-4 phrases) résumant les matériaux générés pour chaque enseigne.
+   b) Le JSON d'actions — SANS triple-backticks autour, SANS markdown. Juste le JSON brut.
+
+Exemple :
+Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LED Samsung 12V + profilé alu + kit visserie. Enseigne drapeau : Forex 3mm + vinyle rouge.
 
 {"actions": [
   {"type":"add","section":"Découpe","enseigneIndex":0,"item":{"nom":"Plexiglass 5mm","quantite":1,"unite":"plaque","largeur":400,"hauteur":150}},
   {"type":"add","section":"Éclairage","enseigneIndex":0,"item":{"nom":"Bande LED 12V","quantite":12,"unite":"mètres"}},
-  {"type":"add","section":"Outillage","enseigneIndex":0,"item":{"nom":"Kit visserie inox","quantite":1,"unite":"lot"}},
   ...
 ]}
 
