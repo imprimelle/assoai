@@ -69,6 +69,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ user, persistentSessionId
     data: TemplateData;
     metadata?: TemplateMetadata;
   } | null>(null);
+  const [templateDraftMessageId, setTemplateDraftMessageId] = useState<string>("");
   const [pdfActions, setPdfActions] = useState<PDFAction[]>([]);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -414,18 +415,89 @@ const lastVersion = finalTemplate
     }
   };
 
-  const handleSaveTemplate = (data: any) => {
-    toast({
-      title: "Template enregistré",
-      description: "Les modifications ont été enregistrées avec succès."
-    });
-    // Dans une application réelle, vous voudriez envoyer ces données à un serveur pour les sauvegarder
-    console.log("Template data saved:", data);
+  const handleSaveTemplate = async (data: any) => {
+    if (!currentTemplateData) return;
+    
+    const templateType = currentTemplateData.templateType;
+    let finalData = { ...data };
+    
+    // Générer le numéro atomique via RPC si vide
+    const numeroKey = templateType === "facture" ? "factureNumero" 
+      : templateType === "devis" ? "devisNumero"
+      : templateType === "commande" ? "commandeNumero"
+      : templateType === "cahier_des_charges" ? "cdcNumero"
+      : null;
+    
+    if (numeroKey && !finalData[numeroKey]) {
+      try {
+        const docType = templateType === "cahier_des_charges" ? "cahier_des_charges" : templateType;
+        const { data: rpcResult, error: rpcError } = await supabase.rpc("next_document_number", {
+          p_doc_type: docType
+        });
+        if (!rpcError && rpcResult) {
+          finalData[numeroKey] = rpcResult;
+        }
+      } catch (e) {
+        console.warn("RPC next_document_number failed, using fallback:", e);
+        const fallback = templateType === "facture" ? `F-${Date.now().toString().slice(-6)}`
+          : templateType === "devis" ? `D-${Date.now().toString().slice(-6)}`
+          : `CMD-${Date.now().toString().slice(-6)}`;
+        finalData[numeroKey] = fallback;
+      }
+    }
+    
+    const messageId = templateDraftMessageId || crypto.randomUUID();
+    
+    // Construire un message avec le template
+    const message: Message = {
+      id: messageId,
+      sessionId: sessionId,
+      userId: user.id,
+      content: `${templateType.charAt(0).toUpperCase() + templateType.slice(1)} — ${getDocumentNumber(templateType, finalData) || 'Brouillon'}`,
+      timestamp: new Date().toISOString(),
+      type: "text" as MessageType,
+      attachments: [],
+      isUser: false,
+      template: {
+        templateType,
+        data: finalData,
+        metadata: currentTemplateData.metadata
+      }
+    };
+    
+    try {
+      // Persister dans Supabase via addMessage (INSERT + mise à jour du state local)
+      await addMessage(message);
+      
+      // Stocker le messageId pour les sauvegardes ultérieures (handleQuickSave)
+      if (!templateDraftMessageId) {
+        setTemplateDraftMessageId(messageId);
+      }
+      
+      toast({
+        title: "Enregistré ✅",
+        description: `${templateType} « ${getDocumentNumber(templateType, finalData) || 'Brouillon'} » enregistré dans la base de données.`,
+        className: "bg-white rounded-md"
+      });
+      
+      console.log("Template data saved to Supabase:", { messageId, templateType, data: finalData });
+    } catch (error) {
+      console.error("Error saving template:", error);
+      toast({
+        variant: "destructive",
+        title: "Erreur d'enregistrement",
+        description: "Impossible d'enregistrer dans la base de données.",
+        className: "bg-white rounded-md"
+      });
+    }
   };
 
   const handleSelectTemplate = (templateType: TemplateType) => {
     // Au lieu d'envoyer directement, définir le template actif
     const defaultData = getDefaultTemplateData(templateType);
+    
+    // Réinitialiser l'ID du brouillon pour un nouveau template
+    setTemplateDraftMessageId("");
     
     // Ouvrir le template en mode édition
     setCurrentTemplateData({
@@ -445,47 +517,41 @@ const lastVersion = finalTemplate
     switch (templateType) {
       case "facture":
         return {
-          factureNumero: `F-${Date.now().toString().slice(-6)}`,
+          factureNumero: "",
           dateEmission: new Date().toISOString().split('T')[0],
           client: {
-            nom: "Client",
-            adresse: "Adresse du client"
+            nom: "",
+            adresse: ""
           },
-          details: [
-            { id: crypto.randomUUID(), description: "Produit ou service", quantite: 1, prixUnitaire: 0, sous_total: 0 }
-          ],
+          details: [],
           total: 0,
           version: 1,
           is_latest: true
         };
       case "devis":
         return {
-          devisNumero: `D-${Date.now().toString().slice(-6)}`,
+          devisNumero: "",
           dateEmission: new Date().toISOString().split('T')[0],
           validiteJours: 30,
           client: {
-            nom: "Client",
-            adresse: "Adresse du client"
+            nom: "",
+            adresse: ""
           },
-          details: [
-            { id: crypto.randomUUID(), description: "Produit ou service", quantite: 1, prixUnitaire: 0, sous_total: 0 }
-          ],
+          details: [],
           total: 0,
           version: 1,
           is_latest: true
         };
       case "commande":
         return {
-          commandeNumero: `CMD-${Date.now().toString().slice(-6)}`,
+          commandeNumero: "",
           dateCommande: new Date().toISOString().split('T')[0],
           dateEmission: new Date().toISOString().split('T')[0],
           client: {
-            nom: "Client",
-            adresse: "Adresse du client"
+            nom: "",
+            adresse: ""
           },
-          items: [
-            { id: crypto.randomUUID(), nom: "Produit ou service", quantite: 1, prixUnitaire: 0, sous_total: 0 }
-          ],
+          items: [],
           details: [],
           total: 0,
           statut: "en_attente",
@@ -752,6 +818,7 @@ const getDocumentNumber = (templateType: TemplateType, data: TemplateData): stri
             templateType={currentTemplateData.templateType}
             data={currentTemplateData.data}
             metadata={currentTemplateData.metadata}
+            messageId={templateDraftMessageId || undefined}
             setMessages={setMessages}
             onSave={handleSaveTemplate}
             onGeneratePDF={handleGeneratePDF}
