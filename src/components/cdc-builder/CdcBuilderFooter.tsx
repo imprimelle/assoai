@@ -482,8 +482,9 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
 ⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne appartient chaque matériau.`;
   };
 
-  /** Appliquer les actions Brico — support multi-enseignes via enseigneIndex.
-   * Enrichit automatiquement chaque item avec les données du catalogue materials.
+  /** Appliquer les actions Brico — séquentiel avec scroll automatique (v9).
+   * Chaque action est appliquée une par une avec un délai de 350ms.
+   * Les highlights sont accumulés (pas remplacés) et persistent jusqu'à interaction utilisateur.
    * @param isGeneration true = génération complète (CDC vierge → rempli), false = modification
    */
   const applyActions = useCallback(
@@ -495,9 +496,13 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
       const enrichedActions = await enrichActionsWithCatalog(actions);
       setCatalogLoading(false);
 
-      const newMateriaux = { ...state.materiauxByEnseigne };
-      const highlights: Record<string, "added" | "modified"> = {};
-      let modified = false;
+      // Tracker l'état localement (onStateChange est asynchrone, on ne peut pas relire state)
+      let currentMateriaux = JSON.parse(
+        JSON.stringify(state.materiauxByEnseigne),
+      ) as typeof state.materiauxByEnseigne;
+      const accumulatedHighlights: Record<string, "added" | "modified"> =
+        {};
+      let anyModified = false;
 
       for (const action of enrichedActions) {
         // Déterminer l'enseigne cible (par défaut la 1ère enseigne)
@@ -509,8 +514,12 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
         if (!targetEns) continue;
 
         const ensId = targetEns.id;
-        const currentSections = { ...(newMateriaux[ensId] || {}) };
-        const section = currentSections[action.section] || [];
+        const currentSections = {
+          ...(currentMateriaux[ensId] || {}),
+        };
+        const section = [...(currentSections[action.section] || [])];
+        let highlightKey = "";
+        let flashType: "added" | "modified" = "modified";
 
         switch (action.type) {
           case "add": {
@@ -518,7 +527,9 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
               const newItem: MaterialItem = {
                 id:
                   crypto.randomUUID?.() ||
-                  `mat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  `mat-${Date.now()}-${Math.random()
+                    .toString(36)
+                    .slice(2, 6)}`,
                 nom: action.item.nom || "",
                 quantite: action.item.quantite || 1,
                 unite: action.item.unite || "",
@@ -533,8 +544,9 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
                 couleurs_dispo: action.item.couleurs_dispo,
               };
               currentSections[action.section] = [...section, newItem];
-              highlights[`${action.section}-${section.length}`] = "added";
-              modified = true;
+              highlightKey = `${action.section}-${section.length}`;
+              flashType = "added";
+              anyModified = true;
             }
             break;
           }
@@ -545,10 +557,13 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
               action.changes
             ) {
               currentSections[action.section] = section.map((item, i) =>
-                i === action.index ? { ...item, ...action.changes } : item,
+                i === action.index
+                  ? { ...item, ...action.changes }
+                  : item,
               );
-              highlights[`${action.section}-${action.index}`] = "modified";
-              modified = true;
+              highlightKey = `${action.section}-${action.index}`;
+              flashType = "modified";
+              anyModified = true;
             }
             break;
           }
@@ -557,31 +572,79 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
               currentSections[action.section] = section.filter(
                 (_, i) => i !== action.index,
               );
-              modified = true;
+              anyModified = true;
             }
             break;
           }
         }
 
-        newMateriaux[ensId] = currentSections;
-      }
+        currentMateriaux = {
+          ...currentMateriaux,
+          [ensId]: currentSections,
+        };
 
-      if (modified) {
+        if (highlightKey) {
+          // Accumuler les highlights (pas les remplacer)
+          accumulatedHighlights[highlightKey] = flashType;
+        }
+
+        // Appliquer le state mis à jour immédiatement
         onStateChange({
           ...state,
-          materiauxByEnseigne: newMateriaux,
+          materiauxByEnseigne: currentMateriaux,
         });
-        if (onHighlightsChange && Object.keys(highlights).length > 0) {
-          onHighlightsChange(highlights);
-          setTimeout(() => onHighlightsChange({}), 2200);
+
+        // Émettre TOUS les highlights accumulés
+        if (
+          onHighlightsChange &&
+          Object.keys(accumulatedHighlights).length > 0
+        ) {
+          onHighlightsChange({ ...accumulatedHighlights });
         }
-        // Notifier le parent UNIQUEMENT pour une génération complète (pas pour une modification)
-        if (isGeneration && onCdcGenerated) {
-          onCdcGenerated({
-            ...state,
-            materiauxByEnseigne: newMateriaux,
+
+        // Attendre le render + scroll vers la ligne modifiée
+        if (highlightKey) {
+          await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+              setTimeout(resolve, 60);
+            });
           });
+          const fullKey = `${ensId}-${highlightKey}`;
+          const el = document.querySelector(
+            `[data-highlight-key="${fullKey}"]`,
+          );
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            // Si l'accordéon parent est replié, l'ouvrir
+            const accordion = el.closest(
+              '[data-enseigne-accordion]',
+            ) as HTMLElement | null;
+            if (accordion) {
+              const btn = accordion.querySelector(
+                'button[data-toggle-accordion]',
+              ) as HTMLButtonElement | null;
+              if (
+                btn &&
+                !accordion.querySelector(
+                  '[data-accordion-content]:not(.hidden)',
+                )
+              ) {
+                btn.click();
+              }
+            }
+          }
         }
+
+        // Pause entre chaque action (effet visuel séquentiel)
+        await new Promise<void>((resolve) => setTimeout(resolve, 350));
+      }
+
+      // Notifier le parent UNIQUEMENT pour une génération complète
+      if (anyModified && isGeneration && onCdcGenerated) {
+        onCdcGenerated({
+          ...state,
+          materiauxByEnseigne: currentMateriaux,
+        });
       }
     },
     [state, onStateChange, onHighlightsChange, onCdcGenerated],

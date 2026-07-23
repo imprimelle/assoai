@@ -37,6 +37,8 @@ export interface CdcBuilderRowProps {
   enseigneBadge?: { nom: string; color?: string };
   /** Type de highlight pour animation flash après action Brico */
   flashType?: "added" | "modified";
+  /** ID de l'enseigne propriétaire — utilisé pour la clé de scroll / highlight */
+  enseigneId?: string;
 }
 
 const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
@@ -48,6 +50,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   disabled = false,
   enseigneBadge,
   flashType,
+  enseigneId,
 }) => {
   const { section, item } = row;
 
@@ -78,6 +81,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
 
   return (
     <div
+      data-highlight-key={enseigneId ? `${enseigneId}-${section}-${row.index}` : undefined}
       className={`overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
         flashType ? `flash-${flashType}` : ""
       }`}

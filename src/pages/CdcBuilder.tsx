@@ -85,10 +85,14 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
   };
 
   return (
-    <div className="border border-gray-200 rounded-lg bg-gray-50 mb-4 overflow-hidden shadow-sm">
+    <div
+      data-enseigne-accordion="true"
+      className="border border-gray-200 rounded-lg bg-gray-50 mb-4 overflow-hidden shadow-sm"
+    >
       {/* Header cliquable */}
       <button
         type="button"
+        data-toggle-accordion="true"
         onClick={() => setIsOpen((p) => !p)}
         className="flex justify-between items-center w-full p-4 text-left
                    bg-gradient-to-r from-indigo-50 to-indigo-100
@@ -163,7 +167,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
 
       {/* Contenu dépliable */}
       {isOpen && (
-        <div className="p-4 pt-3">
+        <div data-accordion-content="true" className="p-4 pt-3">
           {/* Tableau matériaux */}
           <CdcBuilderTable
             rows={rows}
@@ -171,6 +175,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
             onRowsChange={onRowsChange}
             enseigneNom={enseigne.nom}
             highlights={highlights}
+            enseigneId={enseigne.id}
           />
         </div>
       )}
@@ -389,6 +394,40 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   const [showConsolidated, setShowConsolidated] = useState(false);
   // Highlights temporaires après action Brico (flash animation)
   const [highlights, setHighlights] = useState<HighlightMap>({});
+  // Ref pour éviter de clear pendant l'application séquentielle
+  const highlightsTimestampRef = useRef(0);
+
+  // Mettre à jour le timestamp quand les highlights changent
+  useEffect(() => {
+    if (Object.keys(highlights).length > 0) {
+      highlightsTimestampRef.current = Date.now();
+    }
+  }, [highlights]);
+
+  // Clear les highlights quand l'utilisateur interagit avec un champ
+  useEffect(() => {
+    if (Object.keys(highlights).length === 0) return;
+
+    const handleInteraction = (e: MouseEvent) => {
+      // Ne pas clear pendant l'application séquentielle (600ms de buffer)
+      if (Date.now() - highlightsTimestampRef.current < 600) return;
+
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "SELECT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable ||
+        target.closest('[contenteditable="true"]')
+      ) {
+        setHighlights({});
+      }
+    };
+
+    document.addEventListener("mousedown", handleInteraction, true);
+    return () =>
+      document.removeEventListener("mousedown", handleInteraction, true);
+  }, [highlights]);
   // État de sauvegarde Supabase
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState("");

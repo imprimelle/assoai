@@ -66,6 +66,8 @@ export interface CdcBuilderTableProps {
   rowMeta?: Record<string, { enseigneBadge?: { nom: string; color?: string } }>;
   /** Highlights temporaires après action Brico (clé = `${section}-${index}`) */
   highlights?: Record<string, "added" | "modified">;
+  /** ID de l'enseigne propriétaire — passé aux rows pour le data-highlight-key */
+  enseigneId?: string;
 }
 
 const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
@@ -76,6 +78,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
   disabled = false,
   rowMeta,
   highlights,
+  enseigneId,
 }) => {
   const grouped = useMemo(() => {
     const map = new Map<string, FlatMaterialRow[]>();
@@ -202,6 +205,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                   disabled={disabled}
                   enseigneBadge={rowMeta?.[`${section}-${r.item.id}`]?.enseigneBadge}
                   flashType={highlights?.[`${section}-${r.index}`]}
+                  enseigneId={enseigneId}
                 />
               ))}
               {/* Bouton Ajouter — après la dernière ligne */}
