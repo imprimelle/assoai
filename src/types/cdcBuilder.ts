@@ -25,7 +25,6 @@ export interface CdcBuilderState {
   cdcNumero: string;
   commandeId: string;
   enseignes: CdcBuilderEnseigne[];
-  activeEnseigneIndex: number;
   materiauxByEnseigne: Record<string, Record<string, MaterialItem[]>>;
   equipe: TeamMember[];
   deliveryAddress?: DeliveryAddress;

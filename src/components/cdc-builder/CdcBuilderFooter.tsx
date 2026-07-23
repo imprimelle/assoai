@@ -104,6 +104,8 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   const [showEnseigneDropdown, setShowEnseigneDropdown] = useState(false);
   const [enseigneQuery, setEnseigneQuery] = useState("");
   const [activeEnseigneIdx, setActiveEnseigneIdx] = useState(0);
+  /** Enseigne ciblée via @ dans l'input (null = Brico décide) */
+  const [targetedEnseigneId, setTargetedEnseigneId] = useState<string | null>(null);
   const enseigneDropdownRef = useRef<HTMLDivElement>(null);
   const enseigneWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -165,39 +167,45 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
     };
   }, []);
 
-  const activeEnseigne = state.enseignes[state.activeEnseigneIndex];
-  const materiauxSections =
-    state.materiauxByEnseigne[activeEnseigne?.id] || {};
-  const rows: FlatMaterialRow[] = sectionsToRows(materiauxSections);
+  /** Enseigne ciblée (via @ ou null = Brico décide) */
+  const targetedEnseigne = targetedEnseigneId
+    ? state.enseignes.find((e) => e.id === targetedEnseigneId)
+    : null;
 
-  /** Construit le prompt Modifier avec contexte multi-enseignes */
+  /** Construit le prompt Modifier — avec @ → focus + BOM, sans @ → toutes les enseignes */
   const buildModifierPrompt = (
     message: string,
-    targetEnseigneId?: string,
+    explicitTargetId?: string,
   ): string => {
-    // Si une enseigne est spécifiée, on détaille SES matériaux
-    const targetEns = targetEnseigneId
-      ? state.enseignes.find((e) => e.id === targetEnseigneId)
-      : activeEnseigne;
+    const targetId = explicitTargetId || targetedEnseigneId;
+    const targetEns = targetId
+      ? state.enseignes.find((e) => e.id === targetId)
+      : null;
 
-    const targetMateriaux =
-      state.materiauxByEnseigne[targetEns?.id || ""] || {};
-    const targetRows: FlatMaterialRow[] = sectionsToRows(targetMateriaux);
-
-    const materialsText = targetRows
-      .map(
-        (r) =>
-          `[${r.section}] ${r.item.nom} | Qté:${r.item.quantite} ${r.item.unite || ""} | ${r.item.largeur || "-"}×${r.item.hauteur || "-"} | ${r.item.couleur || "-"} ${r.item.epaisseur || ""}`,
-      )
-      .join("\n");
-
-    // Contexte de toutes les enseignes (résumé)
+    // Contexte détaillé de TOUTES les enseignes (toujours inclus)
     const allEnseignesText = state.enseignes
-      .map(
-        (ens) =>
-          `- ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm) — ${Object.values(state.materiauxByEnseigne[ens.id] || {}).flat().length} matériaux`,
-      )
-      .join("\n");
+      .map((ens) => {
+        const mats = Object.values(
+          state.materiauxByEnseigne[ens.id] || {},
+        ).flat();
+        const matList =
+          mats.length > 0
+            ? mats
+                .map(
+                  (m) =>
+                    `    [${/* section */ ""}] ${m.nom} ×${m.quantite} ${m.unite || ""}`,
+                )
+                .join("\n")
+            : "    (aucun matériau)";
+        return `- ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm)\n${matList}`;
+      })
+      .join("\n\n");
+
+    const focusBlock = targetEns
+      ? `\n🎯 Enseigne mentionnée par l'utilisateur: ${targetEns.nom}
+Dimensions: ${targetEns.dimensions.largeur}×${targetEns.dimensions.hauteur}cm
+⚠️ Recherche aussi sa nomenclature (BOM) si pertinent.`
+      : `\n📋 Aucune enseigne spécifique mentionnée — c'est toi qui détermines laquelle modifier selon la demande.`;
 
     return `[CDC Builder — Mode Modifier]
 Tu es Brico. Voici le CDC en cours de construction.
@@ -206,25 +214,21 @@ Projet: ${state.projectName || "Sans titre"}
 CDC N°: ${state.cdcNumero || "?"}
 Commande N°: ${state.commandeId || "?"}
 
-📋 Toutes les enseignes du CDC:
+📋 Toutes les enseignes du CDC (avec leurs matériaux):
 ${allEnseignesText}
-
-🎯 Enseigne ciblée: ${targetEns?.nom || "—"}
-Dimensions: ${targetEns?.dimensions.largeur || "?"}×${targetEns?.dimensions.hauteur || "?"}cm
-
-Matériaux de cette enseigne (par section):
-${materialsText || "(aucun matériau)"}
+${focusBlock}
 
 Instruction de l'utilisateur: ${message}
 
 Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc JSON:
 \`\`\`json
 {"actions": [
-  {"type":"add","section":"Découpe","item":{"nom":"...","quantite":1,"unite":"plaque","largeur":400,"hauteur":150}},
-  {"type":"update","section":"Découpe","index":0,"changes":{"quantite":2}},
-  {"type":"delete","section":"Éclairage","index":0}
+  {"type":"add","section":"Découpe","enseigneIndex":0,"item":{"nom":"...","quantite":1,"unite":"plaque","largeur":400,"hauteur":150}},
+  {"type":"update","section":"Découpe","enseigneIndex":0,"index":0,"changes":{"quantite":2}},
+  {"type":"delete","section":"Éclairage","enseigneIndex":0,"index":0}
 ]}
-\`\`\``;
+\`\`\`
+⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne s'applique chaque action.`;
   };
 
   /** Prompt pour la génération complète d'un CDC (bouton "Créer un CDC") */
@@ -274,11 +278,11 @@ ${allEnseignesText}
       let modified = false;
 
       for (const action of actions) {
-        // Déterminer l'enseigne cible (par défaut l'enseigne active)
+        // Déterminer l'enseigne cible (par défaut la 1ère enseigne)
         const ensIdx =
           (action as any).enseigneIndex != null
             ? (action as any).enseigneIndex
-            : state.activeEnseigneIndex;
+            : 0;
         const targetEns = state.enseignes[ensIdx];
         if (!targetEns) continue;
 
@@ -365,14 +369,14 @@ ${allEnseignesText}
   const handleSelectEnseigne = (ensIdx: number) => {
     setShowEnseigneDropdown(false);
     setEnseigneQuery("");
-    // Mettre à jour l'enseigne active
-    onStateChange({ ...state, activeEnseigneIndex: ensIdx });
+    const ens = state.enseignes[ensIdx];
+    // Définir l'enseigne ciblée pour le prochain message
+    setTargetedEnseigneId(ens?.id || null);
     // Remplacer le @query dans l'input par le nom de l'enseigne
     const atPos = input.lastIndexOf("@");
     if (atPos >= 0) {
       const before = input.slice(0, atPos);
-      const ens = state.enseignes[ensIdx];
-      // Garder le @nom pour le contexte, mais on pourrait aussi le retirer
+      // Garder le @nom pour le contexte
       const afterAt = input.slice(atPos).replace(/@\S*/, `@${ens.nom}`);
       setInput(before + afterAt + " ");
     }
@@ -747,14 +751,14 @@ ${allEnseignesText}
                     <>
                       <Pencil size={13} className="text-indigo-400" />
                       <span className="font-medium text-gray-300">
-                        Modifier — {activeEnseigne?.nom || "—"}
+                        Modifier{targetedEnseigne ? ` — ${targetedEnseigne.nom}` : ""}
                       </span>
                     </>
                   ) : (
                     <>
                       <MessageCircle size={13} className="text-gray-400" />
                       <span className="font-medium text-gray-300">
-                        Discussion — {activeEnseigne?.nom || "—"}
+                        Discussion{targetedEnseigne ? ` — ${targetedEnseigne.nom}` : ""}
                       </span>
                     </>
                   )}
@@ -934,7 +938,7 @@ ${allEnseignesText}
                         const realIdx = state.enseignes.findIndex(
                           (e) => e.id === ens.id,
                         );
-                        const isActive = realIdx === state.activeEnseigneIndex;
+                        const isTargeted = ens.id === targetedEnseigneId;
                         const materiauxCount = Object.values(
                           state.materiauxByEnseigne[ens.id] || {},
                         ).flat().length;
@@ -950,7 +954,7 @@ ${allEnseignesText}
                               if (realIdx >= 0) handleSelectEnseigne(realIdx);
                             }}
                             className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
-                              idx === activeEnseigneIdx || isActive
+                              idx === activeEnseigneIdx || isTargeted
                                 ? "bg-indigo-50 text-indigo-700"
                                 : "text-gray-700 hover:bg-gray-50"
                             }`}
@@ -958,7 +962,7 @@ ${allEnseignesText}
                             <Hash
                               size={12}
                               className={
-                                isActive
+                                isTargeted
                                   ? "text-indigo-400"
                                   : "text-gray-300"
                               }
@@ -978,9 +982,9 @@ ${allEnseignesText}
                                 {materiauxCount} mat.
                               </span>
                             )}
-                            {isActive && (
+                            {isTargeted && (
                               <span className="text-[10px] text-indigo-400 font-medium">
-                                active
+                                ciblée
                               </span>
                             )}
                           </button>

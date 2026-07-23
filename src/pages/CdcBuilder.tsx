@@ -50,11 +50,9 @@ interface CdcBuilderProps {
 interface EnseigneAccordionProps {
   enseigne: CdcBuilderEnseigne;
   rows: FlatMaterialRow[];
-  isChatActive: boolean;
   defaultOpen?: boolean;
   onEdit: () => void;
   onDelete: () => void;
-  onSetChatActive: () => void;
   onRowsChange: (rows: FlatMaterialRow[]) => void;
   onUpdateEnseigne: (changes: Partial<CdcBuilderEnseigne>) => void;
   highlights?: HighlightMap;
@@ -63,11 +61,9 @@ interface EnseigneAccordionProps {
 const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
   enseigne,
   rows,
-  isChatActive,
   defaultOpen = false,
   onEdit,
   onDelete,
-  onSetChatActive,
   onRowsChange,
   onUpdateEnseigne,
   highlights,
@@ -128,11 +124,6 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
               <h3 className="text-base font-semibold text-gray-800 truncate">
                 {enseigne.nom}
               </h3>
-              {isChatActive && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500 text-white font-medium shrink-0">
-                  Chat
-                </span>
-              )}
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
               {enseigne.dimensions.largeur}×{enseigne.dimensions.hauteur}
@@ -173,19 +164,6 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
       {/* Contenu dépliable */}
       {isOpen && (
         <div className="p-4 pt-3">
-          {/* Lien chat */}
-          {!isChatActive && (
-            <div className="mb-3">
-              <button
-                type="button"
-                onClick={onSetChatActive}
-                className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
-              >
-                💬 Définir comme enseigne active pour le chat Brico
-              </button>
-            </div>
-          )}
-
           {/* Tableau matériaux */}
           <CdcBuilderTable
             rows={rows}
@@ -382,7 +360,6 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
     cdcNumero: generateCdcNumero(),
     commandeId: "",
     enseignes: [emptyEnseigne],
-    activeEnseigneIndex: 0,
     materiauxByEnseigne: { [emptyEnseigne.id]: {} },
     equipe: [],
   });
@@ -474,11 +451,6 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
       } catch {}
     }
   }, [loaderResult?.initialState]);
-
-  // Enseigne active pour le chat Brico
-  const activeEnseigne = state.enseignes[state.activeEnseigneIndex];
-  const setActiveEnseigne = (index: number) =>
-    setState((prev) => ({ ...prev, activeEnseigneIndex: index }));
 
   // --- Handlers enseigne ---
 
@@ -602,8 +574,8 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
         // Filtrer les rows qui appartiennent à cette enseigne
         const ensRows = newRows.filter((r) => {
           const enseigneId = prevItemToEnseigne.get(r.item.id);
-          // Si connu → garder l'enseigne. Sinon (nouvelle row) → enseigne active.
-          return enseigneId ? enseigneId === ens.id : ens.id === activeEnseigne?.id;
+          // Si connu → garder l'enseigne. Sinon (nouvelle row) → première enseigne.
+          return enseigneId ? enseigneId === ens.id : ens.id === state.enseignes[0]?.id;
         });
 
         if (ensRows.length > 0) {
@@ -616,7 +588,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
         materiauxByEnseigne: newMateriaux,
       });
     },
-    [state, activeEnseigne, consolidatedData.itemToEnseigneId],
+    [state, consolidatedData.itemToEnseigneId],
   );
 
   const handleHeaderChange = useCallback(
@@ -773,7 +745,6 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
               cdcNumero: generateCdcNumero(),
               commandeId: "",
               enseignes: [ens],
-              activeEnseigneIndex: 0,
               materiauxByEnseigne: { [ens.id]: {} },
               equipe: [],
             };
@@ -818,11 +789,9 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
                     key={enseigne.id}
                     enseigne={enseigne}
                     rows={rows}
-                    isChatActive={index === state.activeEnseigneIndex}
                     defaultOpen={allOpen}
                     onEdit={() => handleEditEnseigne(enseigne)}
                     onDelete={() => handleDeleteEnseigne(enseigne)}
-                    onSetChatActive={() => setActiveEnseigne(index)}
                     onRowsChange={(newRows) =>
                       handleRowsChange(enseigne.id, newRows)
                     }
