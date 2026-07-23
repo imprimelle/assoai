@@ -864,6 +864,12 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           onSave={handleSaveCdc}
           saving={saveStatus === "saving"}
           changeCount={changeCount}
+          hasProjectWithoutCdc={
+            !!loaderResult?.project &&
+            !Object.values(state.materiauxByEnseigne).some((sections) =>
+              Object.values(sections).some((items) => items.length > 0),
+            )
+          }
         />
       </div>
     </div>

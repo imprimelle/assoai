@@ -1,12 +1,14 @@
 // src/components/cdc-builder/CdcBuilderFooter.tsx
 // Footer sticky avec widget chat Brico — modes Modifier/Demander.
-// v6: redesign — fond sombre, input pill avec micro intégré, toggle ✏️/💬, chat compact.
-// Envoie le CDC state à Hermes Brico, parse la réponse JSON, applique les actions.
+// v7: bouton Discussion dans l'action bar, chat repositionné entre action bar et saisie.
+//     Gestion @enseigne dans l'input. Bouton "Créer un CDC" quand projet sans CDC.
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   Bot,
   MessageCircle,
+  MessageSquare,
   ChevronDown,
   Send,
   Loader2,
@@ -16,6 +18,8 @@ import {
   Pencil,
   LayoutGrid,
   Save,
+  Wand2,
+  Hash,
 } from "lucide-react";
 import { routeMessage } from "@/services/hermesRouter";
 import { rowsToSections, sectionsToRows } from "./CdcBuilderTable";
@@ -44,6 +48,10 @@ export interface CdcBuilderFooterProps {
   onSave: () => void;
   saving: boolean;
   changeCount: number;
+  /** true = projet lié mais aucun CDC (pas de matériaux) — affiche le bouton "Créer un CDC" */
+  hasProjectWithoutCdc?: boolean;
+  /** Callback appelé quand Brico a généré un CDC depuis le bouton "Créer un CDC" */
+  onCdcGenerated?: (state: CdcBuilderState) => void;
 }
 
 /** Parse la réponse texte de Brico pour extraire les actions JSON */
@@ -76,6 +84,8 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   onSave,
   saving,
   changeCount,
+  hasProjectWithoutCdc = false,
+  onCdcGenerated,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<"modifier" | "demander">("modifier");
@@ -89,6 +99,58 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+
+  // ── @enseigne dropdown ──
+  const [showEnseigneDropdown, setShowEnseigneDropdown] = useState(false);
+  const [enseigneQuery, setEnseigneQuery] = useState("");
+  const [activeEnseigneIdx, setActiveEnseigneIdx] = useState(0);
+  const enseigneDropdownRef = useRef<HTMLDivElement>(null);
+  const enseigneWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Filtrer les enseignes pour le dropdown @
+  const filteredEnseignes = React.useMemo(() => {
+    if (!enseigneQuery) return state.enseignes;
+    const q = enseigneQuery.toLowerCase();
+    return state.enseignes.filter((ens) =>
+      ens.nom.toLowerCase().includes(q),
+    );
+  }, [state.enseignes, enseigneQuery]);
+
+  // Position dropdown @enseigne
+  const [enseigneDropdownStyle, setEnseigneDropdownStyle] = useState<React.CSSProperties>({});
+  useEffect(() => {
+    if (showEnseigneDropdown && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setEnseigneDropdownStyle({
+        position: "fixed",
+        left: `${rect.left}px`,
+        top: `${rect.top - 8}px`, // au-dessus de l'input
+        transform: "translateY(-100%)",
+        minWidth: `${Math.max(rect.width, 250)}px`,
+        zIndex: 9999,
+      });
+    }
+  }, [showEnseigneDropdown, enseigneQuery]);
+
+  // Click outside @enseigne dropdown
+  useEffect(() => {
+    if (!showEnseigneDropdown) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const insideWrapper = enseigneWrapperRef.current?.contains(target);
+      const insideDropdown = enseigneDropdownRef.current?.contains(target);
+      if (!insideWrapper && !insideDropdown) {
+        setShowEnseigneDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showEnseigneDropdown]);
+
+  // Reset active enseigne idx quand la query change
+  useEffect(() => {
+    setActiveEnseigneIdx(0);
+  }, [enseigneQuery]);
 
   // Autoscroll
   useEffect(() => {
@@ -108,12 +170,32 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
     state.materiauxByEnseigne[activeEnseigne?.id] || {};
   const rows: FlatMaterialRow[] = sectionsToRows(materiauxSections);
 
-  /** Prompt Modifier avec le CDC complet */
-  const buildModifierPrompt = (message: string): string => {
-    const materialsText = rows
+  /** Construit le prompt Modifier avec contexte multi-enseignes */
+  const buildModifierPrompt = (
+    message: string,
+    targetEnseigneId?: string,
+  ): string => {
+    // Si une enseigne est spécifiée, on détaille SES matériaux
+    const targetEns = targetEnseigneId
+      ? state.enseignes.find((e) => e.id === targetEnseigneId)
+      : activeEnseigne;
+
+    const targetMateriaux =
+      state.materiauxByEnseigne[targetEns?.id || ""] || {};
+    const targetRows: FlatMaterialRow[] = sectionsToRows(targetMateriaux);
+
+    const materialsText = targetRows
       .map(
         (r) =>
           `[${r.section}] ${r.item.nom} | Qté:${r.item.quantite} ${r.item.unite || ""} | ${r.item.largeur || "-"}×${r.item.hauteur || "-"} | ${r.item.couleur || "-"} ${r.item.epaisseur || ""}`,
+      )
+      .join("\n");
+
+    // Contexte de toutes les enseignes (résumé)
+    const allEnseignesText = state.enseignes
+      .map(
+        (ens) =>
+          `- ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm) — ${Object.values(state.materiauxByEnseigne[ens.id] || {}).flat().length} matériaux`,
       )
       .join("\n");
 
@@ -121,10 +203,16 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
 Tu es Brico. Voici le CDC en cours de construction.
 
 Projet: ${state.projectName || "Sans titre"}
-Enseigne active: ${activeEnseigne?.nom || "—"}
-Dimensions: ${activeEnseigne?.dimensions.largeur || "?"}×${activeEnseigne?.dimensions.hauteur || "?"}cm
+CDC N°: ${state.cdcNumero || "?"}
+Commande N°: ${state.commandeId || "?"}
 
-Matériaux actuels (par section):
+📋 Toutes les enseignes du CDC:
+${allEnseignesText}
+
+🎯 Enseigne ciblée: ${targetEns?.nom || "—"}
+Dimensions: ${targetEns?.dimensions.largeur || "?"}×${targetEns?.dimensions.hauteur || "?"}cm
+
+Matériaux de cette enseigne (par section):
 ${materialsText || "(aucun matériau)"}
 
 Instruction de l'utilisateur: ${message}
@@ -139,16 +227,63 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
 \`\`\``;
   };
 
-  /** Appliquer les actions Brico */
+  /** Prompt pour la génération complète d'un CDC (bouton "Créer un CDC") */
+  const buildGenerationPrompt = (): string => {
+    const allEnseignesText = state.enseignes
+      .map(
+        (ens) =>
+          `- ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm)`,
+      )
+      .join("\n");
+
+    return `[CDC Builder — Génération complète]
+Tu es Brico. Génère un Cahier des Charges complet pour ce projet.
+
+Projet: ${state.projectName || "Sans titre"}
+CDC N°: ${state.cdcNumero || "?"}
+Commande N°: ${state.commandeId || "?"}
+
+Enseignes à couvrir:
+${allEnseignesText}
+
+⚠️ INSTRUCTIONS CRITIQUES :
+1. Pour CHAQUE enseigne, remplis les 5 sections (Découpe, Éclairage, Outillage, Métal, Vinyl) avec des matériaux pertinents.
+2. Utilise tes connaissances des règles de fabrication (manufacturing-rules) pour déterminer les bons matériaux.
+3. Les quantités doivent respecter les dimensions de chaque enseigne.
+4. Produis UNIQUEMENT un bloc JSON avec TOUTES les actions pour TOUTES les enseignes :
+
+\`\`\`json
+{"actions": [
+  {"type":"add","section":"Découpe","enseigneIndex":0,"item":{"nom":"Plexiglass 5mm","quantite":1,"unite":"plaque","largeur":400,"hauteur":150}},
+  {"type":"add","section":"Éclairage","enseigneIndex":0,"item":{"nom":"Bande LED 12V","quantite":12,"unite":"mètres"}},
+  {"type":"add","section":"Outillage","enseigneIndex":0,"item":{"nom":"Kit visserie inox","quantite":1,"unite":"lot"}},
+  ...
+]}
+\`\`\`
+
+⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne appartient chaque matériau.`;
+  };
+
+  /** Appliquer les actions Brico — support multi-enseignes via enseigneIndex */
   const applyActions = useCallback(
     (actions: BricoAction[]) => {
-      if (!activeEnseigne) return;
+      if (state.enseignes.length === 0) return;
 
-      const currentSections = { ...materiauxSections };
+      const newMateriaux = { ...state.materiauxByEnseigne };
       const highlights: Record<string, "added" | "modified"> = {};
       let modified = false;
 
       for (const action of actions) {
+        // Déterminer l'enseigne cible (par défaut l'enseigne active)
+        const ensIdx =
+          (action as any).enseigneIndex != null
+            ? (action as any).enseigneIndex
+            : state.activeEnseigneIndex;
+        const targetEns = state.enseignes[ensIdx];
+        if (!targetEns) continue;
+
+        const ensId = targetEns.id;
+        const currentSections = { ...(newMateriaux[ensId] || {}) };
         const section = currentSections[action.section] || [];
 
         switch (action.type) {
@@ -201,24 +336,48 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
             break;
           }
         }
+
+        newMateriaux[ensId] = currentSections;
       }
 
       if (modified) {
         onStateChange({
           ...state,
-          materiauxByEnseigne: {
-            ...state.materiauxByEnseigne,
-            [activeEnseigne.id]: currentSections,
-          },
+          materiauxByEnseigne: newMateriaux,
         });
         if (onHighlightsChange && Object.keys(highlights).length > 0) {
           onHighlightsChange(highlights);
           setTimeout(() => onHighlightsChange({}), 2200);
         }
+        // Notifier le parent (pour le callback onCdcGenerated)
+        if (onCdcGenerated) {
+          onCdcGenerated({
+            ...state,
+            materiauxByEnseigne: newMateriaux,
+          });
+        }
       }
     },
-    [activeEnseigne, materiauxSections, state, onStateChange, onHighlightsChange],
+    [state, onStateChange, onHighlightsChange, onCdcGenerated],
   );
+
+  /** Sélection d'une enseigne via @ */
+  const handleSelectEnseigne = (ensIdx: number) => {
+    setShowEnseigneDropdown(false);
+    setEnseigneQuery("");
+    // Mettre à jour l'enseigne active
+    onStateChange({ ...state, activeEnseigneIndex: ensIdx });
+    // Remplacer le @query dans l'input par le nom de l'enseigne
+    const atPos = input.lastIndexOf("@");
+    if (atPos >= 0) {
+      const before = input.slice(0, atPos);
+      const ens = state.enseignes[ensIdx];
+      // Garder le @nom pour le contexte, mais on pourrait aussi le retirer
+      const afterAt = input.slice(atPos).replace(/@\S*/, `@${ens.nom}`);
+      setInput(before + afterAt + " ");
+    }
+    inputRef.current?.focus();
+  };
 
   /** Envoyer un message */
   const handleSend = async () => {
@@ -231,9 +390,24 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
     setLoading(true);
     setExpanded(true);
 
+    // Détecter si un @enseigne est présent pour cibler une enseigne spécifique
+    let targetEnseigneId: string | undefined;
+    const atMatch = text.match(/@(\S+)/);
+    if (atMatch) {
+      const refName = atMatch[1].toLowerCase();
+      const matched = state.enseignes.find((ens) =>
+        ens.nom.toLowerCase().includes(refName),
+      );
+      if (matched) {
+        targetEnseigneId = matched.id;
+      }
+    }
+
     try {
       const prompt =
-        mode === "modifier" ? buildModifierPrompt(text) : text;
+        mode === "modifier"
+          ? buildModifierPrompt(text, targetEnseigneId)
+          : text;
 
       const payload = {
         userId: user.id,
@@ -272,11 +446,112 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
     }
   };
 
+  /** Génération complète du CDC via Brico */
+  const handleGenerateCdc = async () => {
+    if (loading) return;
+    setLoading(true);
+    setExpanded(true);
+
+    const prompt = buildGenerationPrompt();
+
+    setMessages([
+      {
+        role: "user",
+        text: `🪄 Génère le CDC complet pour "${state.projectName}"`,
+      },
+    ]);
+
+    try {
+      const payload = {
+        userId: user.id,
+        sessionId: persistentSessionId,
+        timestamp: new Date().toISOString(),
+        message: { type: "text" as const, content: prompt, attachments: [] },
+      };
+
+      const response = await routeMessage(payload, "brico");
+      const responseText =
+        response.response.textFallback || "Aucune réponse.";
+
+      const parsed = parseBricoResponse(responseText);
+      setMessages((prev) => [
+        ...prev,
+        { role: "brico", text: parsed.message || responseText },
+      ]);
+
+      if (parsed.actions?.length) {
+        applyActions(parsed.actions);
+      }
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "brico",
+          text: `❌ Erreur: ${err.message || "Impossible de contacter Brico."}`,
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Navigation dans le dropdown @enseigne
+    if (showEnseigneDropdown && filteredEnseignes.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveEnseigneIdx((p) => (p + 1) % filteredEnseignes.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveEnseigneIdx(
+          (p) => (p - 1 + filteredEnseignes.length) % filteredEnseignes.length,
+        );
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const ens = filteredEnseignes[activeEnseigneIdx];
+        if (ens) {
+          const realIdx = state.enseignes.findIndex((e) => e.id === ens.id);
+          if (realIdx >= 0) handleSelectEnseigne(realIdx);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        setShowEnseigneDropdown(false);
+        return;
+      }
+    }
+
+    // Envoi normal
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  /** Gestion de l'input — détecte @ pour le dropdown enseigne */
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setInput(raw);
+
+    // Détecter @ pour le dropdown enseigne
+    const atIdx = raw.lastIndexOf("@");
+    if (atIdx >= 0) {
+      const afterAt = raw.slice(atIdx + 1);
+      // Ne pas déclencher si c'est au milieu d'un mot (email, etc.)
+      const charBefore = atIdx > 0 ? raw[atIdx - 1] : "";
+      if (charBefore === "" || charBefore === " " || charBefore === "\n") {
+        setEnseigneQuery(afterAt.split(/\s/)[0]); // premier mot après @
+        setShowEnseigneDropdown(true);
+        setActiveEnseigneIdx(0);
+        return;
+      }
+    }
+    setShowEnseigneDropdown(false);
+    setEnseigneQuery("");
   };
 
   // ── Reconnaissance vocale ──
@@ -308,239 +583,455 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
   }, [isListening]);
 
   const chatHeight = 280;
+  const actionBarHeight = 34; // py-1.5 (~12px) + content (~22px)
+  const inputBarHeight = 56;
+  const collapsedSpacer = actionBarHeight + inputBarHeight + 10; // ~100px
+  const expandedSpacer = collapsedSpacer + chatHeight + 4; // ~384px
 
   return (
     <>
       <div
-        style={{ height: expanded ? chatHeight + 10 : 96 }}
+        style={{ height: expanded ? expandedSpacer : collapsedSpacer }}
         aria-hidden="true"
       />
 
-      {/* Footer fixe — fond sombre */}
+      {/* Footer fixe */}
       <div className="fixed bottom-0 left-0 right-0 z-40">
-        {/* Chat expandé */}
-        {expanded && (
-          <div
-            className="max-w-6xl mx-auto flex flex-col bg-gray-900/70 backdrop-blur-lg border-t border-gray-700/20 shadow-2xl"
-            style={{ height: chatHeight }}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 h-9 border-b border-gray-700/50 shrink-0">
-              <div className="flex items-center gap-2 text-xs">
-                {mode === "modifier" ? (
-                  <>
-                    <Pencil size={13} className="text-indigo-400" />
-                    <span className="font-medium text-gray-300">
-                      Modifier — {activeEnseigne?.nom || "—"}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <MessageCircle size={13} className="text-gray-400" />
-                    <span className="font-medium text-gray-300">
-                      Discussion — {activeEnseigne?.nom || "—"}
-                    </span>
-                  </>
-                )}
-              </div>
+        <div className="max-w-6xl mx-auto flex flex-col">
+          {/* ── Barre d'actions (TOUJOURS en haut du footer) ── */}
+          {hasProjectWithoutCdc ? (
+            /* Bouton "Créer un CDC" — remplace toute l'action bar */
+            <div className="flex items-center justify-center px-3 py-2 bg-gray-900/50 border-b border-white/10">
               <button
                 type="button"
-                onClick={() => setExpanded(false)}
-                className="text-gray-500 hover:text-gray-300 p-1"
-                title="Réduire"
+                onClick={handleGenerateCdc}
+                disabled={loading}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold
+                           bg-gradient-to-r from-indigo-500 to-purple-500 text-white
+                           hover:from-indigo-400 hover:to-purple-400
+                           shadow-lg shadow-indigo-500/25 transition-all
+                           disabled:opacity-50 disabled:cursor-not-allowed
+                           animate-pulse"
               >
-                <ChevronDown size={15} />
+                {loading ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Wand2 size={18} />
+                )}
+                <span>
+                  {loading ? "Génération en cours…" : "Créer un CDC"}
+                </span>
               </button>
             </div>
+          ) : (
+            /* Action bar normale */
+            <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
+              {/* 💬 Discussion — toggle le chat */}
+              <button
+                type="button"
+                onClick={() => setExpanded((p) => !p)}
+                className={`flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all ${
+                  expanded
+                    ? "bg-indigo-500/40 text-white"
+                    : "bg-white/10 text-white hover:bg-white/20"
+                }`}
+                title={expanded ? "Masquer la discussion" : "Afficher la discussion"}
+              >
+                <MessageSquare size={13} />
+                <span>Discussion</span>
+                {messages.length > 0 && !expanded && (
+                  <span className="min-w-[16px] h-[16px] flex items-center justify-center
+                                   bg-indigo-500 text-white text-[9px] font-bold rounded-full px-1">
+                    {messages.length > 9 ? "9+" : messages.length}
+                  </span>
+                )}
+              </button>
 
-            {/* Messages */}
-            <div
-              ref={chatRef}
-              className="flex-1 overflow-y-auto px-4 py-2.5 space-y-2.5"
-            >
-              {messages.length === 0 && (
-                <div className="text-center text-xs text-gray-500 py-3">
-                  {mode === "modifier"
-                    ? "Demande à Brico de modifier le CDC."
-                    : "Pose une question à Brico."}
-                </div>
-              )}
-              {messages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex gap-1.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              {/* Toggle Vue consolidée */}
+              <button
+                type="button"
+                onClick={onToggleConsolidated}
+                className={`flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all ${
+                  showConsolidated
+                    ? "bg-indigo-500/40 text-white"
+                    : "bg-white/10 text-white hover:bg-white/20"
+                }`}
+                title={
+                  showConsolidated
+                    ? "Vue par enseigne"
+                    : "Vue consolidée (toutes les enseignes)"
+                }
+              >
+                <LayoutGrid size={13} />
+                <span>Tout</span>
+              </button>
+
+              {/* Tout replier/déplier */}
+              {!showConsolidated && (
+                <button
+                  type="button"
+                  onClick={onToggleAllOpen}
+                  className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium bg-white/10 text-white hover:bg-white/20 transition-all"
+                  title={allOpen ? "Tout replier" : "Tout déplier"}
                 >
-                  {msg.role === "brico" && (
-                    <div className="w-6 h-6 rounded-full bg-indigo-900/50 flex items-center justify-center shrink-0 mt-0.5">
-                      <Bot size={12} className="text-indigo-400" />
-                    </div>
-                  )}
-                  <div
-                    className={`max-w-[82%] px-2.5 py-1.5 rounded-lg text-xs whitespace-pre-wrap leading-relaxed ${
-                      msg.role === "user"
-                        ? "bg-indigo-600 text-white rounded-br-sm"
-                        : "bg-gray-800 border border-gray-700 text-gray-200 rounded-bl-sm"
-                    }`}
-                  >
-                    {msg.text}
-                  </div>
-                  {msg.role === "user" && (
-                    <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mt-0.5">
-                      <UserIcon size={12} className="text-gray-400" />
-                    </div>
-                  )}
-                </div>
-              ))}
-              {loading && (
-                <div className="flex gap-1.5 justify-start">
-                  <div className="w-6 h-6 rounded-full bg-indigo-900/50 flex items-center justify-center shrink-0 mt-0.5">
-                    <Loader2 size={12} className="text-indigo-400 animate-spin" />
-                  </div>
-                  <div className="px-2.5 py-1.5 rounded-lg text-xs bg-gray-800 border border-gray-700 text-gray-500 rounded-bl-sm">
-                    Brico réfléchit…
-                  </div>
-                </div>
+                  <span className="text-xs">{allOpen ? "🔽" : "🔼"}</span>
+                  <span>{allOpen ? "Replier" : "Déplier"}</span>
+                </button>
               )}
+
+              {/* Séparateur */}
+              <div className="w-px h-4 bg-white/20 mx-0.5" />
+
+              {/* Compteur enseignes */}
+              <span className="text-xs text-white/70 font-medium min-w-[20px] text-center select-none bg-white/5 px-1.5 py-0.5 rounded">
+                {state.enseignes.length}
+              </span>
+
+              {/* Sauvegarde avec badge compteur */}
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={saving}
+                className="relative flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all
+                           bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
+                title={
+                  state.savedMessageId
+                    ? "Mettre à jour le CDC"
+                    : "Sauvegarder le CDC"
+                }
+              >
+                {saving ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Save size={13} />
+                )}
+                <span>{state.savedMessageId ? "MàJ" : "Sauver"}</span>
+                {changeCount > 0 && !saving && (
+                  <span
+                    className="absolute -top-1 -right-1 min-w-[15px] h-[15px] flex items-center justify-center
+                               bg-red-500 text-white text-[9px] font-bold rounded-full px-0.5 leading-none"
+                  >
+                    {changeCount > 99 ? "99+" : changeCount}
+                  </span>
+                )}
+              </button>
             </div>
-          </div>
-        )}
-
-        {/* Barre d'actions — fond visible, labels toujours affichés */}
-        <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
-          {/* Toggle Vue consolidée */}
-          <button
-            type="button"
-            onClick={onToggleConsolidated}
-            className={`flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all ${
-              showConsolidated
-                ? "bg-indigo-500/40 text-white"
-                : "bg-white/10 text-white hover:bg-white/20"
-            }`}
-            title={showConsolidated ? "Vue par enseigne" : "Vue consolidée (toutes les enseignes)"}
-          >
-            <LayoutGrid size={13} />
-            <span>Tout</span>
-          </button>
-
-          {/* Tout replier/déplier */}
-          {!showConsolidated && (
-            <button
-              type="button"
-              onClick={onToggleAllOpen}
-              className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium bg-white/10 text-white hover:bg-white/20 transition-all"
-              title={allOpen ? "Tout replier" : "Tout déplier"}
-            >
-              <span className="text-xs">{allOpen ? "🔽" : "🔼"}</span>
-              <span>{allOpen ? "Replier" : "Déplier"}</span>
-            </button>
           )}
 
-          {/* Séparateur */}
-          <div className="w-px h-4 bg-white/20 mx-0.5" />
+          {/* ── Chat expandé (ENTRE action bar et input) ── */}
+          {expanded && !hasProjectWithoutCdc && (
+            <div
+              className="flex flex-col bg-gray-900/70 backdrop-blur-lg border-t border-gray-700/20 shadow-2xl"
+              style={{ height: chatHeight }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 h-9 border-b border-gray-700/50 shrink-0">
+                <div className="flex items-center gap-2 text-xs">
+                  {mode === "modifier" ? (
+                    <>
+                      <Pencil size={13} className="text-indigo-400" />
+                      <span className="font-medium text-gray-300">
+                        Modifier — {activeEnseigne?.nom || "—"}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <MessageCircle size={13} className="text-gray-400" />
+                      <span className="font-medium text-gray-300">
+                        Discussion — {activeEnseigne?.nom || "—"}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExpanded(false)}
+                  className="text-gray-500 hover:text-gray-300 p-1"
+                  title="Réduire"
+                >
+                  <ChevronDown size={15} />
+                </button>
+              </div>
 
-          {/* Compteur enseignes */}
-          <span className="text-xs text-white/70 font-medium min-w-[20px] text-center select-none bg-white/5 px-1.5 py-0.5 rounded">
-            {state.enseignes.length}
-          </span>
+              {/* Messages */}
+              <div
+                ref={chatRef}
+                className="flex-1 overflow-y-auto px-4 py-2.5 space-y-2.5"
+              >
+                {messages.length === 0 && (
+                  <div className="text-center text-xs text-gray-500 py-3">
+                    {mode === "modifier"
+                      ? "Demande à Brico de modifier le CDC. Tape @ pour cibler une enseigne."
+                      : "Pose une question à Brico. Tape @ pour cibler une enseigne."}
+                  </div>
+                )}
+                {messages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex gap-1.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    {msg.role === "brico" && (
+                      <div className="w-6 h-6 rounded-full bg-indigo-900/50 flex items-center justify-center shrink-0 mt-0.5">
+                        <Bot size={12} className="text-indigo-400" />
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[82%] px-2.5 py-1.5 rounded-lg text-xs whitespace-pre-wrap leading-relaxed ${
+                        msg.role === "user"
+                          ? "bg-indigo-600 text-white rounded-br-sm"
+                          : "bg-gray-800 border border-gray-700 text-gray-200 rounded-bl-sm"
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                    {msg.role === "user" && (
+                      <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <UserIcon size={12} className="text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {loading && !hasProjectWithoutCdc && (
+                  <div className="flex gap-1.5 justify-start">
+                    <div className="w-6 h-6 rounded-full bg-indigo-900/50 flex items-center justify-center shrink-0 mt-0.5">
+                      <Loader2 size={12} className="text-indigo-400 animate-spin" />
+                    </div>
+                    <div className="px-2.5 py-1.5 rounded-lg text-xs bg-gray-800 border border-gray-700 text-gray-500 rounded-bl-sm">
+                      Brico réfléchit…
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
-          {/* Sauvegarde avec badge compteur */}
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saving}
-            className="relative flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all
-                       bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
-            title={state.savedMessageId ? "Mettre à jour le CDC" : "Sauvegarder le CDC"}
-          >
-            {saving ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Save size={13} />
-            )}
-            <span>
-              {state.savedMessageId ? "MàJ" : "Sauver"}
-            </span>
-            {changeCount > 0 && !saving && (
-              <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] flex items-center justify-center
-                               bg-red-500 text-white text-[9px] font-bold rounded-full px-0.5 leading-none">
-                {changeCount > 99 ? "99+" : changeCount}
-              </span>
-            )}
-          </button>
-        </div>
+          {/* Chat pour le mode "Créer un CDC" */}
+          {expanded && hasProjectWithoutCdc && (
+            <div
+              className="flex flex-col bg-gray-900/70 backdrop-blur-lg border-t border-gray-700/20 shadow-2xl"
+              style={{ height: chatHeight }}
+            >
+              <div className="flex items-center justify-between px-4 h-9 border-b border-gray-700/50 shrink-0">
+                <div className="flex items-center gap-2 text-xs">
+                  <Wand2 size={13} className="text-purple-400" />
+                  <span className="font-medium text-gray-300">
+                    Génération du CDC — {state.projectName}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExpanded(false)}
+                  className="text-gray-500 hover:text-gray-300 p-1"
+                  title="Réduire"
+                >
+                  <ChevronDown size={15} />
+                </button>
+              </div>
+              <div
+                ref={chatRef}
+                className="flex-1 overflow-y-auto px-4 py-2.5 space-y-2.5"
+              >
+                {messages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex gap-1.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    {msg.role === "brico" && (
+                      <div className="w-6 h-6 rounded-full bg-indigo-900/50 flex items-center justify-center shrink-0 mt-0.5">
+                        <Bot size={12} className="text-indigo-400" />
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[82%] px-2.5 py-1.5 rounded-lg text-xs whitespace-pre-wrap leading-relaxed ${
+                        msg.role === "user"
+                          ? "bg-indigo-600 text-white rounded-br-sm"
+                          : "bg-gray-800 border border-gray-700 text-gray-200 rounded-bl-sm"
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                    {msg.role === "user" && (
+                      <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <UserIcon size={12} className="text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {loading && (
+                  <div className="flex gap-1.5 justify-start">
+                    <div className="w-6 h-6 rounded-full bg-indigo-900/50 flex items-center justify-center shrink-0 mt-0.5">
+                      <Loader2 size={12} className="text-indigo-400 animate-spin" />
+                    </div>
+                    <div className="px-2.5 py-1.5 rounded-lg text-xs bg-gray-800 border border-gray-700 text-gray-500 rounded-bl-sm">
+                      Brico génère le CDC…
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
-        {/* Barre de saisie compacte — fond dégradé vers transparent, input blanc */}
-        <div className="bg-gradient-to-t from-gray-100/80 via-gray-50/60 to-transparent backdrop-blur-lg border-t border-gray-200/30">
-          <div className="flex items-center gap-1.5 px-3 py-2.5 max-w-6xl mx-auto min-h-[56px]">
-            {/* Input pill avec micro intégré à gauche — fond blanc */}
-            <div className="flex-1 relative min-w-0">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={
-                  mode === "demander"
-                    ? "Poser une question…"
-                    : "Décrire la modification…"
-                }
-                className="w-full h-10 pl-9 pr-4 rounded-full bg-white border border-gray-300
-                           text-sm text-gray-700 placeholder:text-gray-400
-                           focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400 outline-none
-                           shadow-sm transition-shadow"
-              />
-              {/* Micro dans l'input */}
+          {/* ── Barre de saisie (TOUJOURS en bas) ── */}
+          <div className="bg-gradient-to-t from-gray-100/80 via-gray-50/60 to-transparent backdrop-blur-lg border-t border-gray-200/30">
+            <div className="flex items-center gap-1.5 px-3 py-2.5 max-w-6xl mx-auto min-h-[56px]">
+              {/* Input pill avec micro intégré à gauche — fond blanc */}
+              <div className="flex-1 relative min-w-0" ref={enseigneWrapperRef}>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => {
+                    // Rouvrir le dropdown @enseigne si @ est déjà présent
+                    const atIdx = input.lastIndexOf("@");
+                    if (atIdx >= 0) {
+                      const charBefore = atIdx > 0 ? input[atIdx - 1] : "";
+                      if (charBefore === "" || charBefore === " " || charBefore === "\n") {
+                        const afterAt = input.slice(atIdx + 1).split(/\s/)[0];
+                        setEnseigneQuery(afterAt);
+                        setShowEnseigneDropdown(true);
+                      }
+                    }
+                  }}
+                  placeholder={
+                    mode === "demander"
+                      ? "Poser une question… (@ pour cibler une enseigne)"
+                      : "Décrire la modification… (@ pour cibler une enseigne)"
+                  }
+                  className="w-full h-10 pl-9 pr-4 rounded-full bg-white border border-gray-300
+                             text-sm text-gray-700 placeholder:text-gray-400
+                             focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400 outline-none
+                             shadow-sm transition-shadow"
+                />
+
+                {/* Dropdown @enseigne — au-dessus de l'input */}
+                {showEnseigneDropdown &&
+                  filteredEnseignes.length > 0 &&
+                  createPortal(
+                    <div
+                      ref={enseigneDropdownRef}
+                      style={enseigneDropdownStyle}
+                      className="bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto py-1"
+                    >
+                      {filteredEnseignes.map((ens, idx) => {
+                        const realIdx = state.enseignes.findIndex(
+                          (e) => e.id === ens.id,
+                        );
+                        const isActive = realIdx === state.activeEnseigneIndex;
+                        const materiauxCount = Object.values(
+                          state.materiauxByEnseigne[ens.id] || {},
+                        ).flat().length;
+                        return (
+                          <button
+                            key={ens.id}
+                            type="button"
+                            onMouseDown={(e) => {
+                              // preventDefault pour éviter que l'input perde le focus
+                              e.preventDefault();
+                            }}
+                            onClick={() => {
+                              if (realIdx >= 0) handleSelectEnseigne(realIdx);
+                            }}
+                            className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
+                              idx === activeEnseigneIdx || isActive
+                                ? "bg-indigo-50 text-indigo-700"
+                                : "text-gray-700 hover:bg-gray-50"
+                            }`}
+                          >
+                            <Hash
+                              size={12}
+                              className={
+                                isActive
+                                  ? "text-indigo-400"
+                                  : "text-gray-300"
+                              }
+                            />
+                            <span className="font-medium flex-1">
+                              {ens.nom}
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              {ens.dimensions.largeur}×{ens.dimensions.hauteur}
+                              {ens.dimensions.profondeur
+                                ? `×${ens.dimensions.profondeur}`
+                                : ""}{" "}
+                              cm
+                            </span>
+                            {materiauxCount > 0 && (
+                              <span className="text-[10px] bg-gray-100 text-gray-500 px-1 py-0.5 rounded">
+                                {materiauxCount} mat.
+                              </span>
+                            )}
+                            {isActive && (
+                              <span className="text-[10px] text-indigo-400 font-medium">
+                                active
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>,
+                    document.body,
+                  )}
+
+                {/* Micro dans l'input */}
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={`absolute left-1.5 top-1/2 -translate-y-1/2 p-1 rounded-full transition-all ${
+                    isListening
+                      ? "text-red-500 animate-pulse"
+                      : "text-gray-400 hover:text-gray-600"
+                  }`}
+                  title={isListening ? "Arrêter l'écoute" : "Dicter"}
+                >
+                  {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                </button>
+              </div>
+
+              {/* Toggle Modifier / Demander — cercle */}
               <button
                 type="button"
-                onClick={toggleListening}
-                className={`absolute left-1.5 top-1/2 -translate-y-1/2 p-1 rounded-full transition-all ${
-                  isListening
-                    ? "text-red-500 animate-pulse"
-                    : "text-gray-400 hover:text-gray-600"
+                onClick={() =>
+                  setMode((prev) =>
+                    prev === "modifier" ? "demander" : "modifier",
+                  )
+                }
+                className={`flex items-center justify-center w-8 h-8 rounded-full transition-all shrink-0 ${
+                  mode === "modifier"
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25"
+                    : "bg-white text-gray-400 border border-gray-300 hover:text-gray-600 hover:border-gray-400"
                 }`}
-                title={isListening ? "Arrêter l'écoute" : "Dicter"}
+                title={
+                  mode === "modifier"
+                    ? "Mode Modifier — clic pour Demander"
+                    : "Mode Demander — clic pour Modifier"
+                }
               >
-                {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                {mode === "modifier" ? (
+                  <Pencil size={15} />
+                ) : (
+                  <MessageCircle size={15} />
+                )}
+              </button>
+
+              {/* Envoyer — cercle */}
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={loading || !input.trim()}
+                className="flex items-center justify-center w-8 h-8 rounded-full
+                           bg-indigo-600 text-white hover:bg-indigo-500 transition-all shrink-0
+                           disabled:opacity-30 disabled:cursor-not-allowed shadow-md shadow-indigo-600/20"
+                title="Envoyer"
+              >
+                {loading ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Send size={15} />
+                )}
               </button>
             </div>
-
-            {/* Toggle Modifier / Demander — cercle */}
-            <button
-              type="button"
-              onClick={() =>
-                setMode((prev) => (prev === "modifier" ? "demander" : "modifier"))
-              }
-              className={`flex items-center justify-center w-8 h-8 rounded-full transition-all shrink-0 ${
-                mode === "modifier"
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25"
-                  : "bg-white text-gray-400 border border-gray-300 hover:text-gray-600 hover:border-gray-400"
-              }`}
-              title={mode === "modifier" ? "Mode Modifier — clic pour Demander" : "Mode Demander — clic pour Modifier"}
-            >
-              {mode === "modifier" ? (
-                <Pencil size={15} />
-              ) : (
-                <MessageCircle size={15} />
-              )}
-            </button>
-
-            {/* Envoyer — cercle */}
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={loading || !input.trim()}
-              className="flex items-center justify-center w-8 h-8 rounded-full
-                         bg-indigo-600 text-white hover:bg-indigo-500 transition-all shrink-0
-                         disabled:opacity-30 disabled:cursor-not-allowed shadow-md shadow-indigo-600/20"
-              title="Envoyer"
-            >
-              {loading ? (
-                <Loader2 size={15} className="animate-spin" />
-              ) : (
-                <Send size={15} />
-              )}
-            </button>
           </div>
         </div>
       </div>
