@@ -538,11 +538,15 @@ app.post('/router', async (req, res) => {
     // Seuls les skills non déployés sont injectés en texte (≈ 0 KB pour Brico/PM/PIA).
     const allSkills = (skills || []).map(s => s.replace(/^assoai\//, ''));
     const deployedSkills = PROFILE_DEPLOYED_SKILLS[profile] || [];
+    // Skills dont le nom entre en conflit avec des références dans assoai-development
+    // → forcer leur injection en texte au lieu du --skills CLI
+    const BLOCKED_FROM_CLI = ['product-search', 'document-derivation', 'document-numbers'];
     const skillsForCli = allSkills.filter(s =>
-      s === 'assoai-development' || deployedSkills.includes(s)
+      (s === 'assoai-development' || deployedSkills.includes(s)) &&
+      !BLOCKED_FROM_CLI.includes(s)
     );
     const skillsForInjection = allSkills.filter(s =>
-      s !== 'assoai-development' && !deployedSkills.includes(s)
+      s !== 'assoai-development' && (!deployedSkills.includes(s) || BLOCKED_FROM_CLI.includes(s))
     );
 
     // Injecter en texte UNIQUEMENT les skills non déployés dans le profil
