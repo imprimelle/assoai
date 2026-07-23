@@ -103,17 +103,29 @@ const TemplateModalHeader: React.FC<TemplateModalHeaderProps> = ({
               </Button>
             )}
       
-            {/* Bouton d'enregistrement rapide - Mobile */}
-            {mode === 'editable' && handleQuickSave && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleQuickSave}
-                className="h-8 w-8 mobile-touch-target text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 bg-white rounded-md"
-                aria-label="Enregistrer rapidement"
-              >
-                <Check className="h-3.5 w-3.5" />
-              </Button>
+            {/* Bouton d'enregistrement — Mobile */}
+            {mode === 'editable' && (
+              handleQuickSave ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleQuickSave}
+                  className="h-8 w-8 mobile-touch-target text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 bg-white rounded-md"
+                  aria-label="Enregistrer rapidement"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleSave}
+                  className="h-8 w-8 mobile-touch-target text-brand-orange hover:text-brand-orange/90 hover:bg-orange-50 bg-white rounded-md"
+                  aria-label="Enregistrer"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                </Button>
+              )
             )}
             
             {/* PDF Download Button - Mobile View - Always show if onGeneratePDF exists */}

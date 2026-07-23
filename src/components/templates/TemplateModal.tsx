@@ -163,15 +163,8 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
       });
       
       // Envoyer les données complètes du template pour sauvegarde
+      // Le toast est géré par le parent (handleSaveTemplate dans ChatContainer)
       onSave(data);
-      
-      // Si c'est un template depuis le chat, ne pas fermer automatiquement après sauvegarde
-      if (!isFromChatMessage) {
-        toast({
-          title: "Modifications enregistrées",
-          description: "Vos modifications ont été enregistrées avec succès.",
-        });
-      }
     }
   };
 
