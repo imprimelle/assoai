@@ -445,6 +445,13 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   // Restauration depuis localStorage au mount (si pas de loader result)
   useEffect(() => {
     if (loaderResult?.initialState) return; // Le loader a priorité
+
+    // 🔴 Nouveau CDC (ni projectId ni cdcId) → ne pas restaurer, repartir à zéro
+    if (!projectId && !cdcId) {
+      try { localStorage.removeItem(LS_KEY); } catch {}
+      return;
+    }
+
     try {
       const saved = localStorage.getItem(LS_KEY);
       if (saved) {

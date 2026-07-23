@@ -682,11 +682,6 @@ ${allEnseignesText}
               {/* Séparateur */}
               <div className="w-px h-4 bg-white/20 mx-0.5" />
 
-              {/* Compteur enseignes */}
-              <span className="text-xs text-white/70 font-medium min-w-[20px] text-center select-none bg-white/5 px-1.5 py-0.5 rounded">
-                {state.enseignes.length}
-              </span>
-
               {/* Sauvegarde avec badge compteur */}
               <button
                 type="button"
