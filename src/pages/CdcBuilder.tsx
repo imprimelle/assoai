@@ -15,6 +15,7 @@ import {
   Upload,
   X,
   ArrowLeft,
+  Eye,
   Save,
   Check,
   AlertCircle,
@@ -405,8 +406,8 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   const [editingEnseigne, setEditingEnseigne] = useState<
     CdcBuilderEnseigne | undefined
   >();
-  // Tous les accordéons ouverts par défaut au début
-  const [allOpen, setAllOpen] = useState(true);
+  // Tous les accordéons repliés par défaut
+  const [allOpen, setAllOpen] = useState(false);
   // Vue consolidée (toutes enseignes groupées par section)
   const [showConsolidated, setShowConsolidated] = useState(false);
   // Highlights temporaires après action Brico (flash animation)
@@ -703,8 +704,8 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           </div>
         )}
 
-        {/* Barre de retour vers la liste */}
-        <div className="flex items-center mb-3">
+        {/* Barre de retour vers la liste + aperçu */}
+        <div className="flex items-center justify-between mb-3">
           <button
             type="button"
             onClick={() => navigate("/cdc-liste")}
@@ -715,6 +716,18 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
             <ArrowLeft className="h-4 w-4" />
             <span>Liste des CDC</span>
           </button>
+          {state.savedMessageId && (
+            <button
+              type="button"
+              onClick={() => window.open(`/public/doc/${state.savedMessageId}`, "_blank")}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600
+                         transition-colors px-2 py-1 rounded-lg hover:bg-indigo-50"
+              title="Aperçu du CDC"
+            >
+              <Eye className="h-4 w-4" />
+              <span>Aperçu</span>
+            </button>
+          )}
         </div>
 
         {/* Header — toujours visible, compact */}

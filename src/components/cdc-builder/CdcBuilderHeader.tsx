@@ -1,9 +1,9 @@
 // src/components/cdc-builder/CdcBuilderHeader.tsx
-// v2 — Toujours visible, compact. Projet lié via @ dropdown. Pas de carte Leaflet.
+// v3 — Collapsible, replié par défaut. Projet lié via @ dropdown.
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { X, Loader2, MapPin } from "lucide-react";
+import { X, Loader2, MapPin, ChevronDown, ChevronUp } from "lucide-react";
 
 // ── Types ──
 
@@ -42,7 +42,7 @@ export interface CdcBuilderHeaderProps {
   enseigneCount?: number;
 }
 
-// ── Géocodage Nominatim (conservé, sans carte) ──
+// ── Géocodage Nominatim ──
 
 async function geocode(query: string): Promise<{ lat: number; lng: number; label: string } | null> {
   try {
@@ -68,6 +68,8 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   onUnlinkProject,
   enseigneCount = 0,
 }) => {
+  const [expanded, setExpanded] = useState(false);
+
   // -- Projet @ dropdown --
   const [projectInput, setProjectInput] = useState("");
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
@@ -80,7 +82,6 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   const [addressInput, setAddressInput] = useState(data.deliveryAddress?.label || "");
   const [geocoding, setGeocoding] = useState(false);
 
-  // Sync externe
   useEffect(() => {
     setAddressInput(data.deliveryAddress?.label || "");
   }, [data.deliveryAddress?.label]);
@@ -94,21 +95,16 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
     );
   }, [availableProjects, projectInput]);
 
-  // Navigation clavier dropdown
-  useEffect(() => {
-    setActiveIdx(0);
-  }, [projectInput]);
+  useEffect(() => { setActiveIdx(0); }, [projectInput]);
 
-  // Click outside → fermer dropdown
+  // Click outside
   useEffect(() => {
     if (!showProjectDropdown) return;
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
       const insideWrapper = projectWrapperRef.current?.contains(target);
       const insideDropdown = projectDropdownRef.current?.contains(target);
-      if (!insideWrapper && !insideDropdown) {
-        setShowProjectDropdown(false);
-      }
+      if (!insideWrapper && !insideDropdown) setShowProjectDropdown(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -129,18 +125,6 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
     }
   }, [showProjectDropdown, projectInput]);
 
-  const handleProjectInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setProjectInput(val);
-    setShowProjectDropdown(true);
-  };
-
-  const handleProjectInputFocus = () => {
-    if (availableProjects && availableProjects.length > 0) {
-      setShowProjectDropdown(true);
-    }
-  };
-
   const handleSelectProject = (p: ProjectOption) => {
     setProjectInput("");
     setShowProjectDropdown(false);
@@ -149,23 +133,12 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
 
   const handleProjectKeyDown = (e: React.KeyboardEvent) => {
     if (!showProjectDropdown || filteredProjects.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActiveIdx((prev) => (prev + 1) % filteredProjects.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIdx((prev) => (prev - 1 + filteredProjects.length) % filteredProjects.length);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (filteredProjects[activeIdx]) {
-        handleSelectProject(filteredProjects[activeIdx]);
-      }
-    } else if (e.key === "Escape") {
-      setShowProjectDropdown(false);
-    }
+    if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx((p) => (p + 1) % filteredProjects.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx((p) => (p - 1 + filteredProjects.length) % filteredProjects.length); }
+    else if (e.key === "Enter") { e.preventDefault(); if (filteredProjects[activeIdx]) handleSelectProject(filteredProjects[activeIdx]); }
+    else if (e.key === "Escape") { setShowProjectDropdown(false); }
   };
 
-  // Adresse
   const handleGeocode = async () => {
     if (!addressInput.trim()) return;
     setGeocoding(true);
@@ -180,178 +153,132 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   const cellInput =
     "h-9 border border-gray-200 rounded-lg px-3 bg-white text-sm text-gray-700 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none w-full";
 
+  const title = project ? project.name : "CDC Builder";
+
   const statutTexte = project
-    ? project.hasCdc
-      ? "✅ CDC existant chargé"
-      : project.hasCommande
-        ? "📋 Commande validée trouvée"
-        : "🆕 Nouveau CDC"
+    ? project.hasCdc ? "✅ CDC existant chargé"
+    : project.hasCommande ? "📋 Commande validée trouvée"
+    : "🆕 Nouveau CDC"
     : null;
 
+  // Résumé compact
+  const summaryParts: string[] = [];
+  if (data.cdcNumero) summaryParts.push(data.cdcNumero);
+  if (data.commandeId) summaryParts.push(data.commandeId);
+  if (enseigneCount > 0) summaryParts.push(`${enseigneCount} ens.`);
+  const summary = summaryParts.length > 0 ? summaryParts.join(" · ") : null;
+
   return (
-    <div className="mb-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
-      {/* Ligne 1 : Titre + statut */}
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-lg">🏗️</span>
-        <h1 className="text-sm font-bold text-gray-800">
-          {project ? project.name : "CDC Builder"}
-        </h1>
-        {statutTexte && (
-          <span className="text-[11px] text-gray-400">{statutTexte}</span>
-        )}
-      </div>
-
-      {/* Ligne 2 : Projet lié — input @ avec dropdown */}
-      <div className="mb-3">
-        <label className="block text-[11px] font-medium text-gray-400 mb-1">📂 Projet lié</label>
-
-        {project ? (
-          /* Projet sélectionné → chip avec croix, pleine largeur */
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
-            <span className="font-medium text-indigo-700">{project.name}</span>
-            {enseigneCount > 0 && (
-              <span className="text-[10px] text-indigo-500 font-medium">
-                {enseigneCount} ens.
-              </span>
+    <div className="mb-4">
+      {/* Barre résumée (toujours visible, cliquable) */}
+      <button
+        type="button"
+        onClick={() => setExpanded((p) => !p)}
+        className="w-full flex items-center justify-between px-4 py-2.5
+                   bg-white border border-gray-200 rounded-lg shadow-sm
+                   hover:border-indigo-300 hover:shadow transition-all duration-150"
+      >
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <span className="text-lg shrink-0">🏗️</span>
+          <div className="min-w-0 text-left">
+            <span className="text-sm font-bold text-gray-800">{title}</span>
+            {summary && (
+              <span className="text-xs text-gray-400 ml-2">{summary}</span>
             )}
-            {project.hasCommande && (
-              <span className="text-[10px] px-1 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
-                CMD ✓
-              </span>
-            )}
-            {project.hasCdc && (
-              <span className="text-[10px] px-1 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold">
-                CDC
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => onUnlinkProject?.()}
-              className="ml-1 p-0.5 rounded-full text-indigo-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-              title="Délier le projet"
-            >
-              <X size={12} />
-            </button>
           </div>
-        ) : loadingProjects ? (
-          <div className="flex items-center gap-2 text-xs text-gray-400 py-1">
-            <Loader2 size={12} className="animate-spin" />
-            Chargement des projets…
-          </div>
-        ) : (
-          /* Pas de projet → input @ */
-          <div ref={projectWrapperRef}>
-            <input
-              ref={projectInputRef}
-              type="text"
-              value={projectInput}
-              onChange={handleProjectInputChange}
-              onFocus={handleProjectInputFocus}
-              onKeyDown={handleProjectKeyDown}
-              placeholder="@ Chercher un projet à lier…"
-              className={`${cellInput} h-8 text-xs`}
-            />
-          </div>
-        )}
-
-        {/* Dropdown portal */}
-        {showProjectDropdown &&
-          filteredProjects.length > 0 &&
-          createPortal(
-            <div
-              ref={projectDropdownRef}
-              style={dropdownStyle}
-              className="bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto py-1"
-            >
-              {filteredProjects.map((p, idx) => {
-                const isSelected = project?.id === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => handleSelectProject(p)}
-                    className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
-                      idx === activeIdx || isSelected
-                        ? "bg-indigo-50 text-indigo-700"
-                        : "text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    <span className="font-medium flex-1 truncate">{p.name}</span>
-                    {p.hasCommande && (
-                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
-                        CMD ✓
-                      </span>
-                    )}
-                    {p.hasCdc && (
-                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold">
-                        CDC
-                      </span>
-                    )}
-                    {isSelected && (
-                      <span className="shrink-0 text-[10px] text-indigo-400">✓</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>,
-            document.body,
+        </div>
+        <div className="flex items-center gap-2 shrink-0 ml-3">
+          {data.deliveryAddress?.label && (
+            <MapPin size={12} className="text-gray-300 hidden sm:block" />
           )}
-      </div>
-
-      {/* Ligne 3 : CDC# + Commande# côte à côte, Adresse en dessous */}
-      <div className="flex items-center gap-3 mb-3">
-        <div className="flex items-center gap-1.5">
-          <label className="text-[11px] font-medium text-gray-400">N° CDC</label>
-          <span className="text-xs font-mono text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-8 flex items-center min-w-[120px]">
-            {data.cdcNumero || "—"}
-          </span>
+          {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
         </div>
-        <div className="flex items-center gap-1.5">
-          <label className="text-[11px] font-medium text-gray-400">N° CMD</label>
-          <span className="text-xs font-mono text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-8 flex items-center min-w-[120px]">
-            {data.commandeId || "—"}
-          </span>
-        </div>
-      </div>
+      </button>
 
-      {/* Ligne 4 : Adresse */}
-      <div>
-        <label className="block text-[11px] font-medium text-gray-400 mb-1">
-          <MapPin size={11} className="inline mr-1 text-gray-300" />
-          Adresse de livraison
-        </label>
-        <div className="flex items-center gap-1.5">
-          <input
-            type="text"
-            value={addressInput}
-            onChange={(e) => setAddressInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleGeocode();
-              }
-            }}
-            placeholder="Ex: Abidjan, Cocody…"
-            className={cellInput}
-          />
-          <button
-            type="button"
-            onClick={handleGeocode}
-            disabled={geocoding || !addressInput.trim()}
-            className="shrink-0 h-9 w-9 flex items-center justify-center
-                       bg-indigo-600 text-white rounded-lg
-                       hover:bg-indigo-700 transition-colors
-                       disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Géocoder l'adresse"
-          >
-            {geocoding ? (
-              <Loader2 size={14} className="animate-spin" />
+      {/* Contenu dépliable */}
+      {expanded && (
+        <div className="mt-2 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+          {/* Projet lié */}
+          <div className="mb-3">
+            <label className="block text-[11px] font-medium text-gray-400 mb-1">📂 Projet lié</label>
+
+            {project ? (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
+                <span className="font-medium text-indigo-700">{project.name}</span>
+                {enseigneCount > 0 && (
+                  <span className="text-[10px] text-indigo-500 font-medium">{enseigneCount} ens.</span>
+                )}
+                {project.hasCommande && (
+                  <span className="text-[10px] px-1 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">CMD ✓</span>
+                )}
+                {project.hasCdc && (
+                  <span className="text-[10px] px-1 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold">CDC</span>
+                )}
+                <button type="button" onClick={() => onUnlinkProject?.()} className="ml-1 p-0.5 rounded-full text-indigo-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Délier le projet">
+                  <X size={12} />
+                </button>
+              </div>
+            ) : loadingProjects ? (
+              <div className="flex items-center gap-2 text-xs text-gray-400 py-1"><Loader2 size={12} className="animate-spin" /> Chargement…</div>
             ) : (
-              <span className="text-sm">🔍</span>
+              <div ref={projectWrapperRef}>
+                <input ref={projectInputRef} type="text" value={projectInput}
+                  onChange={(e) => { setProjectInput(e.target.value); setShowProjectDropdown(true); }}
+                  onFocus={() => { if (availableProjects?.length) setShowProjectDropdown(true); }}
+                  onKeyDown={handleProjectKeyDown}
+                  placeholder="@ Chercher un projet à lier…" className={`${cellInput} h-8 text-xs`} />
+              </div>
             )}
-          </button>
+
+            {showProjectDropdown && filteredProjects.length > 0 && createPortal(
+              <div ref={projectDropdownRef} style={dropdownStyle} className="bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto py-1">
+                {filteredProjects.map((p, idx) => {
+                  const isSelected = project?.id === p.id;
+                  return (
+                    <button key={p.id} type="button" onClick={() => handleSelectProject(p)}
+                      className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs transition-colors ${idx === activeIdx || isSelected ? "bg-indigo-50 text-indigo-700" : "text-gray-700 hover:bg-gray-50"}`}>
+                      <span className="font-medium flex-1 truncate">{p.name}</span>
+                      {p.hasCommande && <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">CMD ✓</span>}
+                      {p.hasCdc && <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold">CDC</span>}
+                      {isSelected && <span className="shrink-0 text-[10px] text-indigo-400">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>,
+              document.body,
+            )}
+          </div>
+
+          {/* CDC# + Commande# */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center gap-1.5">
+              <label className="text-[11px] font-medium text-gray-400">N° CDC</label>
+              <span className="text-xs font-mono text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-8 flex items-center min-w-[120px]">{data.cdcNumero || "—"}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-[11px] font-medium text-gray-400">N° CMD</label>
+              <span className="text-xs font-mono text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-2.5 h-8 flex items-center min-w-[120px]">{data.commandeId || "—"}</span>
+            </div>
+          </div>
+
+          {/* Adresse */}
+          <div>
+            <label className="block text-[11px] font-medium text-gray-400 mb-1">
+              <MapPin size={11} className="inline mr-1 text-gray-300" /> Adresse de livraison
+            </label>
+            <div className="flex items-center gap-1.5">
+              <input type="text" value={addressInput}
+                onChange={(e) => setAddressInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleGeocode(); } }}
+                placeholder="Ex: Abidjan, Cocody…" className={cellInput} />
+              <button type="button" onClick={handleGeocode} disabled={geocoding || !addressInput.trim()}
+                className="shrink-0 h-9 w-9 flex items-center justify-center bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Géocoder l'adresse">
+                {geocoding ? <Loader2 size={14} className="animate-spin" /> : <span className="text-sm">🔍</span>}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

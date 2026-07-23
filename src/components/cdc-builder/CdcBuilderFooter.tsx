@@ -405,21 +405,21 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
           </div>
         )}
 
-        {/* Barre d'actions — icônes + labels compacts */}
-        <div className="flex items-center justify-center gap-1 px-3 py-1.5 bg-gradient-to-t from-gray-900/50 via-gray-900/30 to-transparent border-b border-gray-700/10">
+        {/* Barre d'actions — fond visible, labels toujours affichés */}
+        <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
           {/* Toggle Vue consolidée */}
           <button
             type="button"
             onClick={onToggleConsolidated}
             className={`flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all ${
               showConsolidated
-                ? "bg-indigo-500/25 text-indigo-300"
-                : "text-white/80 hover:text-white hover:bg-white/10"
+                ? "bg-indigo-500/40 text-white"
+                : "bg-white/10 text-white hover:bg-white/20"
             }`}
             title={showConsolidated ? "Vue par enseigne" : "Vue consolidée (toutes les enseignes)"}
           >
             <LayoutGrid size={13} />
-            <span className="hidden sm:inline">Tout</span>
+            <span>Tout</span>
           </button>
 
           {/* Tout replier/déplier */}
@@ -427,19 +427,19 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
             <button
               type="button"
               onClick={onToggleAllOpen}
-              className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition-all"
+              className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium bg-white/10 text-white hover:bg-white/20 transition-all"
               title={allOpen ? "Tout replier" : "Tout déplier"}
             >
               <span className="text-xs">{allOpen ? "🔽" : "🔼"}</span>
-              <span className="hidden sm:inline">{allOpen ? "Replier" : "Déplier"}</span>
+              <span>{allOpen ? "Replier" : "Déplier"}</span>
             </button>
           )}
 
           {/* Séparateur */}
-          <div className="w-px h-4 bg-white/15 mx-0.5" />
+          <div className="w-px h-4 bg-white/20 mx-0.5" />
 
           {/* Compteur enseignes */}
-          <span className="text-xs text-white/60 font-medium min-w-[20px] text-center select-none">
+          <span className="text-xs text-white/70 font-medium min-w-[20px] text-center select-none bg-white/5 px-1.5 py-0.5 rounded">
             {state.enseignes.length}
           </span>
 
@@ -449,7 +449,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
             onClick={onSave}
             disabled={saving}
             className="relative flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all
-                       text-white/80 hover:text-emerald-300 hover:bg-white/10 disabled:opacity-50"
+                       bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
             title={state.savedMessageId ? "Mettre à jour le CDC" : "Sauvegarder le CDC"}
           >
             {saving ? (
@@ -457,7 +457,7 @@ Réponds avec tes suggestions. Si tu modifies le CDC, inclus UNIQUEMENT un bloc 
             ) : (
               <Save size={13} />
             )}
-            <span className="hidden sm:inline">
+            <span>
               {state.savedMessageId ? "MàJ" : "Sauver"}
             </span>
             {changeCount > 0 && !saving && (
