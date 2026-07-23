@@ -431,11 +431,27 @@ const lastVersion = finalTemplate
     if (numeroKey && !finalData[numeroKey]) {
       try {
         const docType = templateType === "cahier_des_charges" ? "cahier_des_charges" : templateType;
-        const { data: rpcResult, error: rpcError } = await supabase.rpc("next_document_number", {
-          p_doc_type: docType
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://yqioyfuxviiximembver.supabase.co";
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_KZfNfiGqqAu2sKShjOys9Q_QtJyCKF7";
+        
+        const response = await fetch(`${supabaseUrl}/rest/v1/rpc/next_document_number`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": anonKey,
+            "Authorization": `Bearer ${anonKey}`
+          },
+          body: JSON.stringify({ p_doc_type: docType })
         });
-        if (!rpcError && rpcResult) {
-          finalData[numeroKey] = rpcResult;
+        
+        if (response.ok) {
+          const text = await response.text();
+          // Le RPC retourne une string JSON entre guillemets : "F-2026-019"
+          finalData[numeroKey] = text.replace(/^"|"$/g, "");
+          console.log("Numéro alloué via RPC:", finalData[numeroKey]);
+        } else {
+          console.warn("RPC next_document_number failed:", response.status, await response.text());
+          throw new Error(`RPC failed with status ${response.status}`);
         }
       } catch (e) {
         console.warn("RPC next_document_number failed, using fallback:", e);
