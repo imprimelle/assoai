@@ -1,7 +1,7 @@
 // src/components/cdc-builder/CdcBuilderFooter.tsx
 // Footer sticky avec widget chat Brico — modes Modifier/Demander.
 // v7: bouton Discussion dans l'action bar, chat repositionné entre action bar et saisie.
-//     Gestion @enseigne dans l'input. Bouton "Créer un CDC" quand projet sans CDC.
+//     Gestion @enseigne dans l'input. Bouton "Générer le CDC" quand projet sans CDC.
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -600,26 +600,47 @@ ${allEnseignesText}
         <div className="max-w-6xl mx-auto flex flex-col">
           {/* ── Barre d'actions (TOUJOURS en haut du footer) ── */}
           {hasProjectWithoutCdc ? (
-            /* Bouton "Créer un CDC" — remplace toute l'action bar */
-            <div className="flex items-center justify-center px-3 py-2 bg-gray-900/50 border-b border-white/10">
+            /* Projet lié sans CDC — bouton Discussion + Générer */
+            <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
+              {/* 💬 Discussion — conservé */}
+              <button
+                type="button"
+                onClick={() => setExpanded((p) => !p)}
+                className={`flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all ${
+                  expanded
+                    ? "bg-indigo-500/40 text-white"
+                    : "bg-white/10 text-white hover:bg-white/20"
+                }`}
+                title={expanded ? "Masquer la discussion" : "Afficher la discussion"}
+              >
+                <MessageSquare size={13} />
+                <span>Discussion</span>
+                {messages.length > 0 && !expanded && (
+                  <span className="min-w-[16px] h-[16px] flex items-center justify-center
+                                   bg-indigo-500 text-white text-[9px] font-bold rounded-full px-1">
+                    {messages.length > 9 ? "9+" : messages.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Générer le CDC — bouton vert large */}
               <button
                 type="button"
                 onClick={handleGenerateCdc}
                 disabled={loading}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold
-                           bg-gradient-to-r from-indigo-500 to-purple-500 text-white
-                           hover:from-indigo-400 hover:to-purple-400
-                           shadow-lg shadow-indigo-500/25 transition-all
-                           disabled:opacity-50 disabled:cursor-not-allowed
-                           animate-pulse"
+                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold
+                           bg-emerald-600 text-white
+                           hover:bg-emerald-500
+                           shadow-lg shadow-emerald-600/25 transition-all
+                           disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
-                  <Loader2 size={18} className="animate-spin" />
+                  <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  <Wand2 size={18} />
+                  <Wand2 size={16} />
                 )}
                 <span>
-                  {loading ? "Génération en cours…" : "Créer un CDC"}
+                  {loading ? "Génération en cours…" : "Générer le CDC"}
                 </span>
               </button>
             </div>
