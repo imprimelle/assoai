@@ -260,33 +260,33 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
       )
       .join("\n");
 
-    // 🆕 Données préchargées : chips @produit OU condensé catalogue si aucun @
+    // 🆕 Bloc produits : chips @produit (données complètes) + flat list compacte (tjs présente)
     let preloadBlock = "";
+
+    // 1. Produits sélectionnés via @ (données complètes)
     const allChips = [...chips];
-    // Ajouter aussi les produits préchargés des messages précédents
     for (const pp of preloadedProducts) {
       if (!allChips.some(c => c.productId === pp.id)) {
         allChips.push({ productId: pp.id, name: pp.name, price: pp.price, variant: pp.variant });
       }
     }
     if (allChips.length > 0) {
-      preloadBlock = "\n📦 PRODUITS SÉLECTIONNÉS (données complètes — utilise-les, ne les re-cherche pas) :\n";
+      preloadBlock += "\n📦 PRODUITS SÉLECTIONNÉS (données complètes — prix exacts) :\n";
       for (const chip of allChips) {
-        preloadBlock += `- ${chip.name} (id: ${chip.productId}) — Prix: ${formatCFA(chip.price)}`;
-        if (chip.variant) preloadBlock += ` [Variante: ${chip.variant}]`;
+        preloadBlock += `- ${chip.name} | id=${chip.productId} | Prix: ${formatCFA(chip.price)}`;
+        if (chip.variant) preloadBlock += ` [${chip.variant}]`;
         preloadBlock += "\n";
       }
-    } else {
-      // Aucun @produit → injecter un condensé du catalogue pour que Wari n'ait pas à chercher
-      const topProducts = flatProducts.slice(0, 40);
-      if (topProducts.length > 0) {
-        preloadBlock = "\n📦 CATALOGUE RAPIDE (utilise ces produits, ne fais PAS d'appel Supabase) :\n";
-        for (const fp of topProducts) {
-          preloadBlock += `- ${fp.label} — ${formatCFA(fp.price)}`;
-          if (fp.variant) preloadBlock += ` [${fp.variant}]`;
-          preloadBlock += "\n";
-        }
-        preloadBlock += `\n⚠️ ${topProducts.length} produits listés. Choisis parmi ceux-ci. Ne cherche PAS dans Supabase.\n`;
+    }
+
+    // 2. Flat list compacte TOUJOURS présente (référence rapide pour Wari)
+    const topProducts = flatProducts.slice(0, 60);
+    if (topProducts.length > 0) {
+      preloadBlock += `\n📋 FLAT LIST (${topProducts.length} produits — référence rapide. Si besoin de détails, curl Supabase) :\n`;
+      for (const fp of topProducts) {
+        preloadBlock += `${fp.id}|${fp.label}|${fp.price}`;
+        if (fp.variant) preloadBlock += `|${fp.variant}`;
+        preloadBlock += "\n";
       }
     }
 
