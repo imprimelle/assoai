@@ -1,8 +1,9 @@
 // src/pages/FactureBuilder.tsx
 // Page d'édition de facture avec footer Wari conversationnel.
+// v2: Highlights + scroll, localStorage, compteur incrémental, Wari décide génération/modification.
 // Inspiré de CdcBuilder.tsx — layout pleine page avec footer sticky.
 
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -53,7 +54,7 @@ async function fetchNextFactureNumber(): Promise<string> {
     );
     if (response.ok) {
       const text = await response.text();
-      return text.replace(/^"|"$/g, "");
+      return text.replace(/^"|\"$/g, "");
     }
   } catch (e) {
     console.warn("RPC next_document_number failed:", e);
@@ -74,10 +75,7 @@ function getDefaultFactureData(): FactureData {
   };
 }
 
-/** Extrait l'identifiant du document depuis template_data (factureNumero) */
-function getDocumentNumber(data: FactureData): string | undefined {
-  return data.factureNumero || undefined;
-}
+const LS_KEY_PREFIX = "assoai-facture-builder";
 
 const FactureBuilder: React.FC<FactureBuilderProps> = ({
   user,
@@ -100,6 +98,41 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
   const [headerOpen, setHeaderOpen] = useState(false);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
 
+  // 🆕 Highlights (feedback visuel après actions Wari)
+  const [highlights, setHighlights] = useState<Record<string, "added" | "modified">>({});
+  const highlightsTimestampRef = useRef(0);
+
+  // 🆕 Compteur incrémental
+  const [changeCount, setChangeCount] = useState(0);
+  const prevDataHashRef = useRef("");
+
+  // Mettre à jour le timestamp quand les highlights changent
+  useEffect(() => {
+    if (Object.keys(highlights).length > 0) {
+      highlightsTimestampRef.current = Date.now();
+    }
+  }, [highlights]);
+
+  // 🆕 Clear highlights quand l'utilisateur interagit (identique CDC Builder)
+  useEffect(() => {
+    if (Object.keys(highlights).length === 0) return;
+    const handleInteraction = (e: MouseEvent) => {
+      if (Date.now() - highlightsTimestampRef.current < 600) return;
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "SELECT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable ||
+        target.closest('[contenteditable="true"]')
+      ) {
+        setHighlights({});
+      }
+    };
+    document.addEventListener("mousedown", handleInteraction, true);
+    return () => document.removeEventListener("mousedown", handleInteraction, true);
+  }, [highlights]);
+
   // Session dédiée pour le footer chat
   const footerSessionId = messageId
     ? `facture-${messageId}`
@@ -107,6 +140,9 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
 
   // useMessages pour persister les réponses Wari
   const { addMessage } = useMessages({ sessionId: footerSessionId });
+
+  // ── localStorage key ──
+  const lsKey = `${LS_KEY_PREFIX}-${messageId || "new"}`;
 
   // ── Chargement depuis Supabase ──
   const {
@@ -143,28 +179,44 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
       };
       setData(normalized);
       setOriginalData(JSON.stringify(normalized));
+      // Nettoyer localStorage après chargement DB
+      try { localStorage.removeItem(lsKey); } catch {}
     }
   }, [loadedData]);
 
-  // ── Compteur de changements ──
-  const changeCount = useMemo(() => {
-    if (!originalData) return 0;
-    // Comparaison simple : un changement = toute modification depuis le chargement
-    const current = JSON.stringify(data);
-    if (current === originalData) return 0;
-    // Compter les différences structurelles
-    let count = 0;
-    const orig = JSON.parse(originalData) as FactureData;
-    if (JSON.stringify(orig.client) !== JSON.stringify(data.client)) count++;
-    if (JSON.stringify(orig.details) !== JSON.stringify(data.details)) count++;
-    if (orig.total !== data.total) count++;
-    if ((orig.reduction ?? 0) !== (data.reduction ?? 0)) count++;
-    if (orig.statut !== data.statut) count++;
-    if (orig.echeancier !== data.echeancier) count++;
-    if (orig.delaiLivraison !== data.delaiLivraison) count++;
-    if (orig.dateEmission !== data.dateEmission) count++;
-    return count || 1; // au moins 1 si JSON diffère
-  }, [data, originalData]);
+  // 🆕 Restauration localStorage au mount (si pas de données chargées)
+  useEffect(() => {
+    if (loadedData || messageId) return; // DB a priorité
+    try {
+      const saved = localStorage.getItem(lsKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as FactureData;
+        if (parsed.client?.nom || parsed.details?.length) {
+          setData(parsed);
+          setOriginalData(JSON.stringify(parsed));
+        }
+      }
+    } catch {}
+  }, []);
+
+  // 🆕 Persistance localStorage auto (debounce 500ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(lsKey, JSON.stringify(data));
+      } catch {}
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [data, lsKey]);
+
+  // 🆕 Compteur incrémental (hash-based)
+  useEffect(() => {
+    const hash = JSON.stringify(data);
+    if (prevDataHashRef.current && prevDataHashRef.current !== hash) {
+      setChangeCount((c) => c + 1);
+    }
+    prevDataHashRef.current = hash;
+  }, [data]);
 
   // ── Sauvegarde ──
   const handleSave = useCallback(async () => {
@@ -181,7 +233,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
         setData(finalData);
       }
 
-      const numero = getDocumentNumber(finalData);
+      const numero = finalData.factureNumero;
 
       if (currentMessageId) {
         // Mise à jour d'une facture existante
@@ -232,6 +284,9 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
 
       setOriginalData(JSON.stringify(finalData));
       setSaveStatus("saved");
+      setChangeCount(0); // 🆕 reset compteur
+      // 🆕 Nettoyer localStorage après sauvegarde réussie
+      try { localStorage.removeItem(lsKey); } catch {}
       setTimeout(() => setSaveStatus("idle"), 3000);
 
       toast({
@@ -249,23 +304,11 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
         className: "bg-white rounded-md",
       });
     }
-  }, [data, messageId, footerSessionId, user.id, setSearchParams, toast]);
+  }, [data, messageId, footerSessionId, user.id, setSearchParams, toast, lsKey]);
 
   const handleDataChange = useCallback((newData: FactureData) => {
     setData(newData);
   }, []);
-
-  // ── Génération complète ──
-  const handleFactureGenerated = useCallback(
-    (newData: FactureData) => {
-      setData(newData);
-      setOriginalData(JSON.stringify(newData));
-    },
-    [],
-  );
-
-  // La facture est-elle vide ? (aucun article)
-  const isEmpty = !data.details || data.details.length === 0;
 
   // ── Téléchargement PDF ──
   const handleDownloadPDF = useCallback(async () => {
@@ -375,7 +418,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
           )}
         </div>
 
-        {/* Header facture — collapsible, fermé au démarrage, contrôlé par le toggle */}
+        {/* Header facture — collapsible */}
         <FactureBuilderHeader
           data={data}
           onChange={handleDataChange}
@@ -406,12 +449,11 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
           saving={saveStatus === "saving"}
           changeCount={changeCount}
           messageId={messageId}
-          isEmpty={isEmpty}
-          onFactureGenerated={handleFactureGenerated}
           allOpen={allOpen}
           onToggleAllOpen={() => { setAllOpen((p) => !p); setHeaderOpen((p) => !p); }}
           onDownloadPDF={handleDownloadPDF}
           downloadingPDF={downloadingPDF}
+          onHighlightsChange={setHighlights}
         />
       </div>
     </div>

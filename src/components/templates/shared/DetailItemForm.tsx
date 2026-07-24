@@ -2,12 +2,17 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Trash2, Download, Upload, X, Image as ImageIcon, Loader2, Package } from "lucide-react";
-import { DetailItemFormProps } from "@/types";
+import type { DetailItemFormProps as BaseDetailItemFormProps } from "@/types";
 import { formatCFA } from "@/utils/format";
 import { supabase } from "@/integrations/supabase/client";
 import { useProducts } from "@/hooks/useProducts";
 import { smartSearch } from "@/utils/productSearch";
 import { v4 as uuidv4 } from "uuid";
+
+interface DetailItemFormProps extends BaseDetailItemFormProps {
+  /** index de l'article dans la liste (pour data-highlight-key) */
+  detailIndex?: number;
+}
 
 const DetailItemForm: React.FC<DetailItemFormProps> = ({
   id,
@@ -20,8 +25,8 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
   onChange,
   isEditable = false,
   disableAmountEdit = false,
+  detailIndex,
 }) => {
-  const [imageModalOpen, setImageModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -261,7 +266,9 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
   };
 
   return (
-    <div className="relative bg-white border border-gray-200 rounded-lg px-3 py-2 space-y-1.5">
+    <div
+      data-highlight-key={detailIndex !== undefined ? `detail-${detailIndex}` : undefined}
+      className="relative bg-white border border-gray-200 rounded-lg px-3 py-2 space-y-1.5 transition-colors duration-1000">
       {/* ── Ligne 1 : Description + Supprimer ── */}
       <div className="flex items-start gap-1.5">
         <div className="flex-1 min-w-0" ref={productWrapperRef}>

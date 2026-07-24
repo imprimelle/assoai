@@ -119,6 +119,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
             </label>
 
             {/* Champ unifié avec @ pour recherche client */}
+            <div data-highlight-key="client-nom">
             <UnifiedAtInput
               value={data.client.nom}
               onChange={(v) => updateClient("nom", v)}
@@ -126,12 +127,14 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
               mode="client"
               placeholder="Nom du client… @ pour chercher dans l'historique"
             />
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
               <div>
                 <label className="text-[10px] text-gray-400 mb-0.5 block">Téléphone</label>
                 <input
                   type="text"
+                  data-highlight-key="client-telephone"
                   value={data.client.telephone || ""}
                   onChange={(e) => updateClient("telephone", e.target.value)}
                   className={inputClass}
@@ -142,6 +145,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 <label className="text-[10px] text-gray-400 mb-0.5 block">Adresse</label>
                 <input
                   type="text"
+                  data-highlight-key="client-adresse"
                   value={data.client.adresse}
                   onChange={(e) => updateClient("adresse", e.target.value)}
                   className={inputClass}
@@ -169,6 +173,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
               <div>
                 <label className="text-[10px] text-gray-400 mb-0.5 block">Statut</label>
                 <select
+                  data-highlight-key="statut"
                   value={data.statut || "Brouillon"}
                   onChange={(e) => updateField("statut", e.target.value)}
                   className={inputClass}
@@ -184,6 +189,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 <label className="text-[10px] text-gray-400 mb-0.5 block">Délai livraison</label>
                 <input
                   type="text"
+                  data-highlight-key="delaiLivraison"
                   value={data.delaiLivraison || ""}
                   onChange={(e) => updateField("delaiLivraison", e.target.value)}
                   className={inputClass}
@@ -194,6 +200,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 <label className="text-[10px] text-gray-400 mb-0.5 block">Échéancier</label>
                 <input
                   type="text"
+                  data-highlight-key="echeancier"
                   value={data.echeancier || ""}
                   onChange={(e) => updateField("echeancier", e.target.value)}
                   className={inputClass}
@@ -213,6 +220,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 <input
                   type="number"
                   min={0}
+                  data-highlight-key="remise"
                   value={data.reduction ?? 0}
                   onChange={(e) => {
                     const val = Number(e.target.value) || 0;

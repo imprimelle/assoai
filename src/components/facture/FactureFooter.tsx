@@ -1,6 +1,8 @@
 // src/components/facture/FactureFooter.tsx
 // Footer sticky avec widget chat Wari — modes Modifier/Demander.
-// Adapté de CdcBuilderFooter — simplifié (pas d'@enseigne, pas de matériaux).
+// v2: Highlights + scroll séquentiel, préchargement @produit, extractContent DOM,
+//     Wari décide génération vs modification via le prompt (pas de bouton Générer).
+// Adapté de CdcBuilderFooter.
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
@@ -18,7 +20,6 @@ import {
   Save,
   Wand2,
   Package,
-  Hash,
   FileDown,
 } from "lucide-react";
 import { routeMessage } from "@/services/hermesRouter";
@@ -37,44 +38,47 @@ export interface FactureFooterProps {
   saving: boolean;
   changeCount: number;
   messageId?: string;
-  /** Facture vide (nouvelle, sans articles) → affiche bouton "Générer la facture" */
-  isEmpty?: boolean;
-  /** Callback appelé quand Wari a généré une facture complète */
-  onFactureGenerated?: (data: FactureData) => void;
   /** Toggle tout déplier/replier */
   allOpen?: boolean;
   onToggleAllOpen?: () => void;
   /** Téléchargement PDF */
   onDownloadPDF?: () => void;
   downloadingPDF?: boolean;
+  /** Highlights après application d'actions */
+  onHighlightsChange?: (highlights: Record<string, "added" | "modified">) => void;
 }
 
-/** Parse la réponse Wari — extrait le JSON d'actions */
+// ── Produit préchargé (données complètes pour le prompt Wari) ──
+interface PreloadedProduct {
+  id: string;
+  name: string;
+  price: number;
+  imageUrl?: string | null;
+  variant?: string;
+  /** Données BOM/techniques si disponibles (pour accélérer Wari ×5) */
+  bom?: { category: string; condition_expr?: string; meta_variables?: Record<string, any> }[];
+}
+
+// ── Parsing réponse Wari ──
+
 function parseWariResponse(
   response: { textFallback?: string; factureActions?: FactureAction[] }
 ): { message: string; actions?: FactureAction[] } {
-  // Niveau 0 : le backend a déjà extrait les actions
   if (response.factureActions?.length) {
     return { message: response.textFallback || '', actions: response.factureActions };
   }
-
   const text = response.textFallback || '';
   if (!text) return { message: text };
-
-  // Niveau 1 : la réponse entière est un JSON valide contenant "actions"
   try {
     const parsed = JSON.parse(text);
     if (parsed.actions && Array.isArray(parsed.actions)) {
       return { message: '', actions: parsed.actions };
     }
   } catch {}
-
-  // Niveau 2 : extraction multi-patterns (```json, JSON inline)
   const patterns: RegExp[] = [
     /```(?:json)?\s*(\{[\s\S]*?"actions"\s*:\s*\[[\s\S]*?\]\s*[\s\S]*?\})\s*```/,
     /\{[\s\S]*?"actions"\s*:\s*\[[\s\S]*?\][\s\S]*?\}/,
   ];
-
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match) {
@@ -82,16 +86,65 @@ function parseWariResponse(
       try {
         const parsed = JSON.parse(jsonStr);
         if (Array.isArray(parsed.actions)) {
-          return {
-            message: text.replace(match[0], '').trim(),
-            actions: parsed.actions,
-          };
+          return { message: text.replace(match[0], '').trim(), actions: parsed.actions };
         }
       } catch {}
     }
   }
-
   return { message: text };
+}
+
+// ── Extraction contenu DOM (walk récursif) ──
+
+function extractContent(container: HTMLElement): {
+  text: string;
+  chips: { productId: string; name: string; price: number; variant?: string }[];
+} {
+  const chips: { productId: string; name: string; price: number; variant?: string }[] = [];
+  let text = "";
+
+  function walk(node: Node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      text += node.textContent || "";
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      if (el.hasAttribute("data-product-id")) {
+        const pid = el.getAttribute("data-product-id")!;
+        const pname = el.getAttribute("data-product-name") || "";
+        const pprice = Number(el.getAttribute("data-product-price") || "0");
+        const pvariant = el.getAttribute("data-product-variant") || undefined;
+        chips.push({ productId: pid, name: pname, price: pprice, variant: pvariant });
+        text += " " + pname + " ";
+      } else if (el.tagName === "BR") {
+        text += "\n";
+      } else {
+        el.childNodes.forEach(walk);
+      }
+    }
+  }
+
+  container.childNodes.forEach(walk);
+  return { text: text.replace(/\u00A0/g, " ").trim(), chips };
+}
+
+// ── Scroll animé (identique CdcBuilderFooter) ──
+
+function smoothScrollTo(el: HTMLElement, duration = 800) {
+  const target = el.getBoundingClientRect().top + window.scrollY - window.innerHeight / 2;
+  const start = window.scrollY;
+  const distance = target - start;
+  const startTime = performance.now();
+
+  function step(currentTime: number) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = progress < 0.5
+      ? 4 * progress * progress * progress
+      : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+    window.scrollTo(0, start + distance * eased);
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
 }
 
 const FactureFooter: React.FC<FactureFooterProps> = ({
@@ -103,12 +156,11 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   saving,
   changeCount,
   messageId,
-  isEmpty = false,
-  onFactureGenerated,
   allOpen,
   onToggleAllOpen,
   onDownloadPDF,
   downloadingPDF = false,
+  onHighlightsChange,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<"modifier" | "demander">("modifier");
@@ -130,15 +182,18 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   const [activeProductIdx, setActiveProductIdx] = useState(0);
   const { products, isLoading: productsLoading } = useProducts("", "ALL");
 
+  // 🆕 Produits préchargés (accumulés depuis les chips @produit)
+  const [preloadedProducts, setPreloadedProducts] = useState<PreloadedProduct[]>([]);
+
   const flatProducts = useMemo(() => {
-    const items: { id: string; label: string; price: number; imageUrl?: string | null; variant?: string }[] = [];
+    const items: { id: string; label: string; price: number; imageUrl?: string | null; variant?: string; product?: any }[] = [];
     for (const p of products) {
       if (!p) continue;
-      items.push({ id: p.id, label: p.name || "", price: p.variants?.[0]?.price || 0, imageUrl: p.main_image_url });
+      items.push({ id: p.id, label: p.name || "", price: p.variants?.[0]?.price || 0, imageUrl: p.main_image_url, product: p });
       if (Array.isArray(p.variants)) {
         for (const v of p.variants) {
           if (!v) continue;
-          items.push({ id: v.id || "", label: `${p.name} — ${v.name}`, price: v.price || 0, imageUrl: (v as any).image_url || p.main_image_url, variant: v.name });
+          items.push({ id: v.id || "", label: `${p.name} — ${v.name}`, price: v.price || 0, imageUrl: (v as any).image_url || p.main_image_url, variant: v.name, product: p });
         }
       }
     }
@@ -151,7 +206,7 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
     const scored = smartSearch(q, products);
     const result = new Map<string, typeof flatProducts[0]>();
     for (const s of scored.slice(0, 8)) {
-      result.set(s.product.id, { id: s.product.id, label: s.product.name || "", price: s.product.variants?.[0]?.price || 0, imageUrl: s.product.main_image_url });
+      result.set(s.product.id, { id: s.product.id, label: s.product.name || "", price: s.product.variants?.[0]?.price || 0, imageUrl: s.product.main_image_url, product: s.product });
     }
     return Array.from(result.values());
   }, [productQuery, products, flatProducts]);
@@ -176,7 +231,6 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
     return () => document.removeEventListener("mousedown", handler);
   }, [showProductDropdown]);
 
-  // Reset idx on query change
   useEffect(() => { setActiveProductIdx(0); }, [productQuery]);
 
   // Autoscroll chat
@@ -187,13 +241,18 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   }, [messages]);
 
   useEffect(() => {
-    return () => {
-      recognitionRef.current?.abort();
-    };
+    return () => { recognitionRef.current?.abort(); };
   }, []);
 
-  /** Construit le prompt Modifier */
-  const buildModifierPrompt = (message: string): string => {
+  // ── Nettoyer les précharges quand les articles changent ──
+  useEffect(() => {
+    // Garder seulement les produits qui sont encore référencés dans les articles
+    const detailProductIds = new Set((data.details || []).map(d => (d as any).productId).filter(Boolean));
+    setPreloadedProducts(prev => prev.filter(p => detailProductIds.has(p.id)));
+  }, [data.details]);
+
+  /** Construit le prompt Modifier — Wari décide s'il doit générer ou modifier */
+  const buildModifierPrompt = (message: string, chips: { productId: string; name: string; price: number; variant?: string }[]): string => {
     const articlesText = (data.details || [])
       .map(
         (d, i) =>
@@ -201,8 +260,27 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
       )
       .join("\n");
 
-    return `[Facture Builder — Mode Modifier]
-Tu es Wari. Voici la facture en cours d'édition.
+    // 🆕 Données préchargées des produits mentionnés via @
+    let preloadBlock = "";
+    if (preloadedProducts.length > 0) {
+      preloadBlock = "\n📦 PRODUITS PRÉCHARGÉS (données complètes — utilise-les, ne les re-cherche pas) :\n";
+      for (const pp of preloadedProducts) {
+        preloadBlock += `- ${pp.name} (id: ${pp.id}) — Prix: ${formatCFA(pp.price)}`;
+        if (pp.variant) preloadBlock += ` [Variante: ${pp.variant}]`;
+        if (pp.bom?.length) {
+          preloadBlock += `\n  BOM: ${pp.bom.map(b => `${b.category}${b.condition_expr ? ` (${b.condition_expr})` : ''}`).join(', ')}`;
+        }
+        preloadBlock += "\n";
+      }
+    }
+
+    const isEmpty = !data.details || data.details.length === 0;
+    const modeInstruction = isEmpty
+      ? `\n🆕 MODE GÉNÉRATION : La facture est VIDE (aucun article). Tu dois GÉNÉRER une facture complète et cohérente.`
+      : `\n✏️ MODE MODIFICATION : La facture a déjà ${data.details?.length || 0} article(s). Tu dois MODIFIER la facture existante.`;
+
+    return `[Facture Builder — Wari]
+${modeInstruction}
 
 N°: ${data.factureNumero || "Brouillon"}
 Date: ${data.dateEmission || "?"}
@@ -218,11 +296,11 @@ Remise: ${formatCFA(data.reduction ?? 0)}
 Échéancier: ${data.echeancier || "—"}
 Délai livraison: ${data.delaiLivraison || "—"}
 Total: ${formatCFA(data.total)}
-
+${preloadBlock}
 Instruction de l'utilisateur: ${message}
 
 ⚠️ FORMAT DE RÉPONSE OBLIGATOIRE :
-1. Une courte analyse (1-3 phrases) expliquant ce que tu modifies et pourquoi.
+1. Une courte analyse (1-3 phrases) expliquant ce que tu fais et pourquoi.
 2. Le JSON d'actions — SANS triple-backticks autour, SANS markdown. Juste le JSON brut.
 
 Actions disponibles :
@@ -247,39 +325,12 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
 ⚠️ Le JSON doit être valide — pas de virgule après le dernier élément, pas de commentaires.`;
   };
 
-  /** Prompt pour la génération complète */
-  const buildGenerationPrompt = (): string => {
-    return `[Facture Builder — Génération complète]
-Tu es Wari. Génère une facture complète et cohérente.
-
-Client: ${data.client.nom || "(à définir)"}
-Adresse: ${data.client.adresse || "(à définir)"}
-
-⚠️ INSTRUCTIONS :
-1. Propose des articles cohérents avec le domaine (signalétique, enseignes, impression).
-2. Remplis TOUS les champs : statut, échéancier, délai de livraison.
-3. Les prix doivent être réalistes pour le marché ivoirien (en CFA).
-4. ⚠️ FORMAT DE RÉPONSE OBLIGATOIRE : analyse (2-3 phrases) + JSON d'actions.
-
-Exemple :
-Analyse : facture pour une enseigne drapeau avec installation. 3 articles : structure alu, vinyle imprimé, main d'œuvre.
-
-{"actions": [
-  {"type":"updateClientField","field":"nom","value":"Client Exemple"},
-  {"type":"updateClientField","field":"adresse","value":"Abidjan, Cocody"},
-  {"type":"addDetail","item":{"description":"Structure aluminium 3×1m","quantite":1,"prixUnitaire":180000}},
-  {"type":"addDetail","item":{"description":"Vinyle imprimé","quantite":3,"prixUnitaire":45000}},
-  {"type":"addDetail","item":{"description":"Main d'œuvre installation","quantite":1,"prixUnitaire":120000}},
-  {"type":"setStatut","value":"Brouillon"},
-  {"type":"setEcheancier","value":"50% à la commande, 50% à la livraison"},
-  {"type":"setDelaiLivraison","value":"10 jours ouvrés"}
-]}`;
-  };
-
-  /** Appliquer les actions Wari à la facture */
+  /** Appliquer les actions Wari — avec highlights + scroll séquentiel */
   const applyActions = useCallback(
-    (actions: FactureAction[], isGeneration = false) => {
+    (actions: FactureAction[]) => {
       let newData = JSON.parse(JSON.stringify(data)) as FactureData;
+      const allHighlights: Record<string, "added" | "modified"> = {};
+      const scrollOrder: string[] = [];
 
       for (const action of actions) {
         switch (action.type) {
@@ -287,11 +338,11 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
             if (action.field && action.value !== undefined) {
               newData = {
                 ...newData,
-                client: {
-                  ...newData.client,
-                  [action.field]: action.value,
-                },
+                client: { ...newData.client, [action.field]: action.value },
               };
+              const key = `client-${action.field}`;
+              allHighlights[key] = "modified";
+              scrollOrder.push(key);
             }
             break;
           }
@@ -310,51 +361,62 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
                 ...newData,
                 details: [...(newData.details || []), newItem],
               };
+              const idx = (newData.details || []).length - 1;
+              const key = `detail-${idx}`;
+              allHighlights[key] = "added";
+              scrollOrder.push(key);
             }
             break;
           }
           case "updateDetail": {
             if (action.index != null && action.changes && newData.details?.[action.index]) {
-              const updated = {
-                ...newData.details[action.index],
-                ...action.changes,
-              };
-              updated.sous_total =
-                Number(updated.quantite) * Number(updated.prixUnitaire);
+              const updated = { ...newData.details[action.index], ...action.changes };
+              updated.sous_total = Number(updated.quantite) * Number(updated.prixUnitaire);
               const newDetails = [...newData.details];
               newDetails[action.index] = updated;
               newData = { ...newData, details: newDetails };
+              const key = `detail-${action.index}`;
+              allHighlights[key] = "modified";
+              scrollOrder.push(key);
             }
             break;
           }
           case "removeDetail": {
             if (action.index != null && newData.details?.[action.index]) {
-              newData = {
-                ...newData,
-                details: newData.details.filter((_, i) => i !== action.index),
-              };
+              newData = { ...newData, details: newData.details.filter((_, i) => i !== action.index) };
             }
             break;
           }
           case "setRemise": {
             newData = { ...newData, reduction: action.value ?? 0 };
+            allHighlights["remise"] = "modified";
+            scrollOrder.push("remise");
             break;
           }
           case "setStatut": {
             newData = { ...newData, statut: action.value };
+            allHighlights["statut"] = "modified";
+            scrollOrder.push("statut");
             break;
           }
           case "setEcheancier": {
             newData = { ...newData, echeancier: action.value };
+            allHighlights["echeancier"] = "modified";
+            scrollOrder.push("echeancier");
             break;
           }
           case "setDelaiLivraison": {
             newData = { ...newData, delaiLivraison: action.value };
+            allHighlights["delaiLivraison"] = "modified";
+            scrollOrder.push("delaiLivraison");
             break;
           }
           case "updateField": {
             if (action.field) {
               (newData as any)[action.field] = action.value;
+              const key = `field-${action.field}`;
+              allHighlights[key] = "modified";
+              scrollOrder.push(key);
             }
             break;
           }
@@ -362,29 +424,66 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
       }
 
       // Recalculer le total
-      const base = (newData.details || []).reduce(
-        (sum, d) => sum + d.sous_total,
-        0,
-      );
+      const base = (newData.details || []).reduce((sum, d) => sum + d.sous_total, 0);
       newData.total = base - (newData.reduction ?? 0);
 
+      // Appliquer le state d'un coup
       onDataChange(newData);
 
-      if (isGeneration && onFactureGenerated) {
-        onFactureGenerated(newData);
+      // Émettre les highlights
+      if (onHighlightsChange && Object.keys(allHighlights).length > 0) {
+        onHighlightsChange({ ...allHighlights });
+      }
+
+      // 🆕 Scroll séquentiel (identique CDC Builder)
+      if (scrollOrder.length > 0) {
+        setTimeout(async () => {
+          for (const key of scrollOrder) {
+            const el = document.querySelector(`[data-highlight-key="${key}"]`) as HTMLElement | null;
+            if (el) {
+              // Appliquer le flash
+              const type = allHighlights[key];
+              el.setAttribute("data-flash", type);
+            }
+            // Pause 1.5s entre chaque
+            await new Promise<void>(r => setTimeout(r, 1500));
+          }
+        }, 100);
       }
     },
-    [data, onDataChange, onFactureGenerated],
+    [data, onDataChange, onHighlightsChange],
   );
 
   /** Envoyer un message */
   const handleSend = async () => {
     if (!contentEditableRef.current || loading) return;
 
-    const text = contentEditableRef.current.innerText?.trim() || "";
-    if (!text) return;
+    const { text, chips } = extractContent(contentEditableRef.current);
+    if (!text && chips.length === 0) return;
 
-    const userMsg: FactureFooterMessage = { role: "user", text };
+    // 🆕 Ajouter les chips au préchargement
+    if (chips.length > 0) {
+      setPreloadedProducts(prev => {
+        const existing = new Set(prev.map(p => p.id));
+        const newProds: PreloadedProduct[] = [];
+        for (const chip of chips) {
+          if (!existing.has(chip.productId)) {
+            const fp = flatProducts.find(p => p.id === chip.productId);
+            newProds.push({
+              id: chip.productId,
+              name: chip.name,
+              price: chip.price,
+              variant: chip.variant,
+              // BOM sera chargée plus tard si disponible
+            });
+          }
+        }
+        return [...prev, ...newProds];
+      });
+    }
+
+    const displayText = text || chips.map(c => c.name).join(", ");
+    const userMsg: FactureFooterMessage = { role: "user", text: displayText };
     setMessages((prev) => [...prev, userMsg]);
 
     // Vider le contenteditable
@@ -396,10 +495,9 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
     setExpanded(true);
 
     try {
-      const prompt =
-        mode === "modifier"
-          ? buildModifierPrompt(text)
-          : text;
+      const prompt = mode === "modifier"
+        ? buildModifierPrompt(text, chips)
+        : text;
 
       const payload = {
         userId: user.id,
@@ -409,8 +507,7 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
       };
 
       const response = await routeMessage(payload, "wari");
-      const responseText =
-        response.response.textFallback || "Aucune réponse.";
+      const responseText = response.response.textFallback || "Aucune réponse.";
 
       if (mode === "modifier") {
         const parsed = parseWariResponse({
@@ -422,7 +519,7 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
           { role: "wari", text: parsed.message || responseText },
         ]);
         if (parsed.actions?.length) {
-          applyActions(parsed.actions, false);
+          applyActions(parsed.actions);
         } else {
           console.warn(
             "[FactureFooter] Réponse Wari sans actions parsables:",
@@ -448,58 +545,6 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
     }
   };
 
-  /** Génération complète de la facture via Wari */
-  const handleGenerateFacture = async () => {
-    if (loading) return;
-    setLoading(true);
-    setExpanded(true);
-
-    const prompt = buildGenerationPrompt();
-
-    setMessages([
-      {
-        role: "user",
-        text: `🪄 Génère la facture complète`,
-      },
-    ]);
-
-    try {
-      const payload = {
-        userId: user.id,
-        sessionId: persistentSessionId,
-        timestamp: new Date().toISOString(),
-        message: { type: "text" as const, content: prompt, attachments: [] },
-      };
-
-      const response = await routeMessage(payload, "wari");
-      const responseText =
-        response.response.textFallback || "Aucune réponse.";
-
-      const parsed = parseWariResponse({
-        textFallback: responseText,
-        factureActions: (response.response as any).factureActions,
-      });
-      setMessages((prev) => [
-        ...prev,
-        { role: "wari", text: parsed.message || responseText },
-      ]);
-
-      if (parsed.actions?.length) {
-        applyActions(parsed.actions, true);
-      }
-    } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "wari",
-          text: `❌ Erreur: ${err.message || "Impossible de contacter Wari."}`,
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Navigation dropdown @produit
     if (showProductDropdown && filteredProducts.length > 0) {
@@ -509,7 +554,7 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
       if (e.key === "Escape") { setShowProductDropdown(false); return; }
     }
 
-    // Suppression d'une chip avec Backspace : si le curseur est en position 0 d'un nœud texte suivant une chip
+    // Suppression d'une chip avec Backspace
     if (e.key === "Backspace") {
       const sel = window.getSelection();
       if (!sel?.rangeCount) return;
@@ -524,7 +569,6 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
             if (el.hasAttribute("data-product-id")) {
               e.preventDefault();
               el.remove();
-              // Supprimer aussi l'espace après la chip
               if (textNode.textContent?.startsWith("\u00A0")) {
                 textNode.textContent = textNode.textContent.slice(1);
               }
@@ -542,7 +586,7 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
   };
 
   /** Insère une chip produit (contentEditable=false) dans le contenteditable */
-  const insertProductChip = (prod: { id: string; label: string; price: number; imageUrl?: string | null }) => {
+  const insertProductChip = (prod: { id: string; label: string; price: number; imageUrl?: string | null; variant?: string; product?: any }) => {
     if (!contentEditableRef.current) return;
     const sel = window.getSelection();
     if (!sel?.rangeCount) return;
@@ -555,7 +599,6 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
     const atIdx = beforeCursor.lastIndexOf("@");
     if (atIdx < 0) return;
 
-    // Vérifier que @ est précédé d'espace ou début
     const charBeforeAt = atIdx > 0 ? text[atIdx - 1] : " ";
     if (charBeforeAt !== " " && charBeforeAt !== "\n" && atIdx > 0) return;
 
@@ -568,6 +611,7 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
     chip.setAttribute("data-product-id", prod.id);
     chip.setAttribute("data-product-name", prod.label);
     chip.setAttribute("data-product-price", String(prod.price));
+    if (prod.variant) chip.setAttribute("data-product-variant", prod.variant);
     chip.contentEditable = "false";
     chip.className =
       "inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded-md text-xs font-medium " +
@@ -619,8 +663,7 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
   // ── Reconnaissance vocale ──
   const toggleListening = useCallback(() => {
     const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
     if (isListening) {
@@ -647,9 +690,7 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
           sel.removeAllRanges();
           sel.addRange(range);
         } else {
-          contentEditableRef.current.appendChild(
-            document.createTextNode(transcript + " "),
-          );
+          contentEditableRef.current.appendChild(document.createTextNode(transcript + " "));
         }
         contentEditableRef.current.focus();
       }
@@ -661,16 +702,16 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
     setIsListening(true);
   }, [isListening]);
 
-  // ── Hauteurs (identiques à CdcBuilderFooter) ──
+  // ── Hauteurs ──
   const chatHeight = 280;
   const actionBarHeight = 34;
   const inputBarHeight = 56;
-  const collapsedSpacer = actionBarHeight + inputBarHeight + 10; // ~100px
-  const expandedSpacer = collapsedSpacer + chatHeight + 4; // ~384px
+  const collapsedSpacer = actionBarHeight + inputBarHeight + 10;
+  const expandedSpacer = collapsedSpacer + chatHeight + 4;
 
   return (
     <>
-      {/* Spacer pour éviter que le contenu passe sous le footer */}
+      {/* Spacer */}
       <div
         style={{ height: expanded ? expandedSpacer : collapsedSpacer }}
         aria-hidden="true"
@@ -679,85 +720,85 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
       {/* Footer fixe */}
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="max-w-6xl mx-auto flex flex-col">
-          {/* ── Barre d'actions — toujours visible ── */}
+          {/* ── Barre d'actions ── */}
           <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
             {/* 💬 Discussion */}
             <button
-                type="button"
-                onClick={() => setExpanded((p) => !p)}
-                className={`flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all ${
-                  expanded
-                    ? "bg-orange-500/40 text-white"
-                    : "bg-white/10 text-white hover:bg-white/20"
-                }`}
-                title={expanded ? "Masquer la discussion" : "Afficher la discussion"}
-              >
-                <MessageSquare size={13} />
-                <span>Discussion</span>
-                {messages.length > 0 && !expanded && (
-                  <span className="min-w-[16px] h-[16px] flex items-center justify-center bg-orange-500 text-white text-[9px] font-bold rounded-full px-1">
-                    {messages.length > 9 ? "9+" : messages.length}
-                  </span>
-                )}
-              </button>
-
-              {/* Tout déplier/replier */}
-              {onToggleAllOpen && (
-                <button
-                  type="button"
-                  onClick={onToggleAllOpen}
-                  className="flex items-center justify-center w-7 h-7 rounded-lg text-xs
-                             bg-white/10 text-white hover:bg-white/20 transition-all"
-                  title={allOpen ? "Tout replier" : "Tout déplier"}
-                >
-                  <span className="text-xs">{allOpen ? "🔽" : "🔼"}</span>
-                </button>
+              type="button"
+              onClick={() => setExpanded((p) => !p)}
+              className={`flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all ${
+                expanded
+                  ? "bg-orange-500/40 text-white"
+                  : "bg-white/10 text-white hover:bg-white/20"
+              }`}
+              title={expanded ? "Masquer la discussion" : "Afficher la discussion"}
+            >
+              <MessageSquare size={13} />
+              <span>Discussion</span>
+              {messages.length > 0 && !expanded && (
+                <span className="min-w-[16px] h-[16px] flex items-center justify-center bg-orange-500 text-white text-[9px] font-bold rounded-full px-1">
+                  {messages.length > 9 ? "9+" : messages.length}
+                </span>
               )}
+            </button>
 
-              {/* Séparateur */}
-              <div className="w-px h-4 bg-white/20 mx-0.5" />
-
-              {/* PDF */}
-              {onDownloadPDF && (
-                <button
-                  type="button"
-                  onClick={onDownloadPDF}
-                  disabled={downloadingPDF}
-                  className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium bg-white/10 text-white hover:bg-white/20 transition-all disabled:opacity-50"
-                  title="Télécharger en PDF"
-                >
-                  {downloadingPDF ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <FileDown size={13} />
-                  )}
-                  <span>PDF</span>
-                </button>
-              )}
-
-              {/* Sauvegarde avec badge compteur */}
+            {/* Tout déplier/replier */}
+            {onToggleAllOpen && (
               <button
                 type="button"
-                onClick={onSave}
-                disabled={saving}
-                className="relative flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all
-                           bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
-                title={messageId ? "Mettre à jour la facture" : "Sauvegarder la facture"}
+                onClick={onToggleAllOpen}
+                className="flex items-center justify-center w-7 h-7 rounded-lg text-xs
+                           bg-white/10 text-white hover:bg-white/20 transition-all"
+                title={allOpen ? "Tout replier" : "Tout déplier"}
               >
-                {saving ? (
+                <span className="text-xs">{allOpen ? "🔽" : "🔼"}</span>
+              </button>
+            )}
+
+            {/* Séparateur */}
+            <div className="w-px h-4 bg-white/20 mx-0.5" />
+
+            {/* PDF */}
+            {onDownloadPDF && (
+              <button
+                type="button"
+                onClick={onDownloadPDF}
+                disabled={downloadingPDF}
+                className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium bg-white/10 text-white hover:bg-white/20 transition-all disabled:opacity-50"
+                title="Télécharger en PDF"
+              >
+                {downloadingPDF ? (
                   <Loader2 size={13} className="animate-spin" />
                 ) : (
-                  <Save size={13} />
+                  <FileDown size={13} />
                 )}
-                <span>{messageId ? "MàJ" : "Sauver"}</span>
-                {changeCount > 0 && !saving && (
-                  <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] flex items-center justify-center
-                                 bg-red-500 text-white text-[9px] font-bold rounded-full px-0.5 leading-none">
-                    {changeCount > 99 ? "99+" : changeCount}
-                  </span>
-                )}
+                <span>PDF</span>
               </button>
-            </div>
+            )}
+
+            {/* Sauvegarde avec badge compteur */}
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving}
+              className="relative flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all
+                         bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
+              title={messageId ? "Mettre à jour la facture" : "Sauvegarder la facture"}
+            >
+              {saving ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Save size={13} />
+              )}
+              <span>{messageId ? "MàJ" : "Sauver"}</span>
+              {changeCount > 0 && !saving && (
+                <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] flex items-center justify-center
+                               bg-red-500 text-white text-[9px] font-bold rounded-full px-0.5 leading-none">
+                  {changeCount > 99 ? "99+" : changeCount}
+                </span>
+              )}
+            </button>
+          </div>
 
           {/* ── Chat expandé ── */}
           {expanded && (
@@ -771,16 +812,12 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
                   {mode === "modifier" ? (
                     <>
                       <Pencil size={13} className="text-orange-400" />
-                      <span className="font-medium text-gray-300">
-                        Modifier la facture
-                      </span>
+                      <span className="font-medium text-gray-300">Modifier la facture</span>
                     </>
                   ) : (
                     <>
                       <MessageCircle size={13} className="text-gray-400" />
-                      <span className="font-medium text-gray-300">
-                        Discussion
-                      </span>
+                      <span className="font-medium text-gray-300">Discussion</span>
                     </>
                   )}
                 </div>
@@ -795,14 +832,11 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
               </div>
 
               {/* Messages */}
-              <div
-                ref={chatRef}
-                className="flex-1 overflow-y-auto px-4 py-2.5 space-y-2.5"
-              >
+              <div ref={chatRef} className="flex-1 overflow-y-auto px-4 py-2.5 space-y-2.5">
                 {messages.length === 0 && (
                   <div className="text-center text-xs text-gray-500 py-3">
                     {mode === "modifier"
-                      ? "Décris les modifications à apporter à la facture. Wari les appliquera automatiquement."
+                      ? "Décris les modifications. Wari détecte si la facture est vide (génération) ou remplie (modification)."
                       : "Pose une question à Wari à propos de cette facture."}
                   </div>
                 )}
@@ -846,10 +880,10 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
             </div>
           )}
 
-          {/* ── Barre de saisie ── */}
+          {/* ── Barre de saisie (toujours visible) ── */}
           <div className="bg-gradient-to-t from-gray-100/80 via-gray-50/60 to-transparent backdrop-blur-lg border-t border-gray-200/30">
             <div className="flex items-center gap-1.5 px-3 py-2.5 max-w-6xl mx-auto min-h-[56px]">
-              {/* Input pill — contenteditable simple (sans @enseigne) */}
+              {/* Input pill */}
               <div className="flex-1 relative min-w-0" ref={productWrapperRef}>
                 <div
                   ref={contentEditableRef}
