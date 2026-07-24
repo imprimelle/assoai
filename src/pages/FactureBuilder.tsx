@@ -22,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useMessages } from "@/hooks/use-messages";
+import { generatePDFClient } from "@/services/pdfGenerator";
 
 interface FactureBuilderProps {
   user: User;
@@ -96,6 +97,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
   >("idle");
   const [saveError, setSaveError] = useState<string>("");
   const [allOpen, setAllOpen] = useState(true);
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
 
   // Session dédiée pour le footer chat
   const footerSessionId = messageId
@@ -266,6 +268,29 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
   // La facture est-elle vide ? (aucun article)
   const isEmpty = !data.details || data.details.length === 0;
 
+  // ── Téléchargement PDF ──
+  const handleDownloadPDF = useCallback(async () => {
+    if (downloadingPDF) return;
+    setDownloadingPDF(true);
+    try {
+      const result = await generatePDFClient("facture", data, user.id, persistentSessionId);
+      if (result.success && result.pdfBlob) {
+        const url = URL.createObjectURL(result.pdfBlob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = result.filename || `facture_${data.factureNumero || "brouillon"}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error("PDF error:", err);
+    } finally {
+      setDownloadingPDF(false);
+    }
+  }, [data, user.id, persistentSessionId, downloadingPDF]);
+
   // ── Rendu ──
   if (loadingFacture) {
     return (
@@ -385,6 +410,8 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
           onFactureGenerated={handleFactureGenerated}
           allOpen={allOpen}
           onToggleAllOpen={() => setAllOpen((p) => !p)}
+          onDownloadPDF={handleDownloadPDF}
+          downloadingPDF={downloadingPDF}
         />
       </div>
     </div>

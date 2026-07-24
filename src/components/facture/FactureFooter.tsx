@@ -19,6 +19,7 @@ import {
   Wand2,
   Package,
   Hash,
+  FileDown,
 } from "lucide-react";
 import { routeMessage } from "@/services/hermesRouter";
 import type { FactureData, DetailItem, FactureAction, FactureFooterMessage } from "@/types";
@@ -43,6 +44,9 @@ export interface FactureFooterProps {
   /** Toggle tout déplier/replier */
   allOpen?: boolean;
   onToggleAllOpen?: () => void;
+  /** Téléchargement PDF */
+  onDownloadPDF?: () => void;
+  downloadingPDF?: boolean;
 }
 
 /** Parse la réponse Wari — extrait le JSON d'actions */
@@ -103,6 +107,8 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   onFactureGenerated,
   allOpen,
   onToggleAllOpen,
+  onDownloadPDF,
+  downloadingPDF = false,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<"modifier" | "demander">("modifier");
@@ -503,14 +509,40 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
       if (e.key === "Escape") { setShowProductDropdown(false); return; }
     }
 
+    // Suppression d'une chip avec Backspace : si le curseur est en position 0 d'un nœud texte suivant une chip
+    if (e.key === "Backspace") {
+      const sel = window.getSelection();
+      if (!sel?.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      if (range.collapsed && range.startContainer.nodeType === Node.TEXT_NODE) {
+        const textNode = range.startContainer;
+        const offset = range.startOffset;
+        if (offset === 0) {
+          const prev = textNode.previousSibling;
+          if (prev && prev.nodeType === Node.ELEMENT_NODE) {
+            const el = prev as HTMLElement;
+            if (el.hasAttribute("data-product-id")) {
+              e.preventDefault();
+              el.remove();
+              // Supprimer aussi l'espace après la chip
+              if (textNode.textContent?.startsWith("\u00A0")) {
+                textNode.textContent = textNode.textContent.slice(1);
+              }
+              return;
+            }
+          }
+        }
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
 
-  /** Insère le nom du produit dans le contenteditable et ferme le dropdown */
-  const insertProductChip = (prod: { id: string; label: string; price: number }) => {
+  /** Insère une chip produit (contentEditable=false) dans le contenteditable */
+  const insertProductChip = (prod: { id: string; label: string; price: number; imageUrl?: string | null }) => {
     if (!contentEditableRef.current) return;
     const sel = window.getSelection();
     if (!sel?.rangeCount) return;
@@ -522,15 +554,40 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
     const beforeCursor = text.slice(0, cursorPos);
     const atIdx = beforeCursor.lastIndexOf("@");
     if (atIdx < 0) return;
-    // Remplacer @query par le nom du produit
-    textNode.textContent = text.slice(0, atIdx) + prod.label + " " + text.slice(cursorPos);
-    // Placer le curseur après
-    const newPos = atIdx + prod.label.length + 1;
+
+    // Vérifier que @ est précédé d'espace ou début
+    const charBeforeAt = atIdx > 0 ? text[atIdx - 1] : " ";
+    if (charBeforeAt !== " " && charBeforeAt !== "\n" && atIdx > 0) return;
+
+    // Supprimer @query du nœud texte
+    textNode.textContent = text.slice(0, atIdx) + text.slice(cursorPos);
+
+    // Créer la chip
+    const chip = document.createElement("span");
+    chip.textContent = prod.label;
+    chip.setAttribute("data-product-id", prod.id);
+    chip.setAttribute("data-product-name", prod.label);
+    chip.setAttribute("data-product-price", String(prod.price));
+    chip.contentEditable = "false";
+    chip.className =
+      "inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded-md text-xs font-medium " +
+      "bg-orange-100 text-orange-700 border border-orange-200 select-none cursor-default " +
+      "align-middle whitespace-nowrap";
+
+    // Insérer la chip + un espace après
+    const space = document.createTextNode("\u00A0");
     const newRange = document.createRange();
-    newRange.setStart(textNode, newPos);
+    newRange.setStart(textNode, atIdx);
     newRange.collapse(true);
+    newRange.insertNode(chip);
+    chip.after(space);
+
+    // Placer le curseur après l'espace
+    const afterRange = document.createRange();
+    afterRange.setStartAfter(space);
+    afterRange.collapse(true);
     sel.removeAllRanges();
-    sel.addRange(newRange);
+    sel.addRange(afterRange);
     setShowProductDropdown(false);
     setProductQuery("");
     contentEditableRef.current.focus();
@@ -704,6 +761,24 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
 
               {/* Séparateur */}
               <div className="w-px h-4 bg-white/20 mx-0.5" />
+
+              {/* PDF */}
+              {onDownloadPDF && (
+                <button
+                  type="button"
+                  onClick={onDownloadPDF}
+                  disabled={downloadingPDF}
+                  className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium bg-white/10 text-white hover:bg-white/20 transition-all disabled:opacity-50"
+                  title="Télécharger en PDF"
+                >
+                  {downloadingPDF ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <FileDown size={13} />
+                  )}
+                  <span>PDF</span>
+                </button>
+              )}
 
               {/* Sauvegarde avec badge compteur */}
               <button

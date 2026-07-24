@@ -32,11 +32,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
   const [expanded, setExpanded] = useState(false);
 
   const title = data.client.nom || "Nouvelle facture";
-  const summaryParts: string[] = [];
-  if (data.factureNumero) summaryParts.push(data.factureNumero);
-  if (data.statut && data.statut !== "Brouillon") summaryParts.push(data.statut);
-  if (data.total > 0) summaryParts.push(formatCFA(data.total));
-  const summary = summaryParts.join(" · ");
+  const summary = data.factureNumero || "";
 
   const updateClient = (field: string, value: string) => {
     onChange({ ...data, client: { ...data.client, [field]: value } });
