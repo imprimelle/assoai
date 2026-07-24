@@ -367,7 +367,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
 
       {/* Articles */}
       <CollapsibleSection
-        title={`Articles${data.details?.length ? ` · ${data.details.length} article${data.details.length > 1 ? "s" : ""}${baseTotal > 0 ? ` · ${formatCFA(baseTotal)}` : ""}` : ""}`}
+        title={`Articles${data.details?.length ? ` · ${data.details.length}` : ""}`}
         defaultOpen={true}
         className="mb-6"
       >
@@ -401,14 +401,15 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
             </button>
           )}
         </div>
+      </CollapsibleSection>
 
-        {/* ── Résumé : Remise + Total ── */}
-        <div className="mt-6 bg-white border border-gray-200 rounded-lg p-4">
-          {/* Sous-total */}
-          <div className="flex justify-between items-center text-sm mb-2">
-            <span className="text-gray-500">Sous-total</span>
-            <span className="font-medium text-gray-700">{formatCFA(baseTotal)}</span>
-          </div>
+      {/* ── Total & Remise (bloc indépendant) ── */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+        {/* Sous-total */}
+        <div className="flex justify-between items-center text-sm mb-2">
+          <span className="text-gray-500">Sous-total</span>
+          <span className="font-medium text-gray-700">{formatCFA(baseTotal)}</span>
+        </div>
 
           {/* Remise */}
           <div className="flex justify-between items-center text-sm mb-1 pb-2 border-b border-gray-100">
@@ -485,8 +486,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
             <span className="text-lg font-bold text-green-600">{formatCFA(data.total)}</span>
           </div>
         </div>
-      </CollapsibleSection>
-      
+
       {/* Barre d'actions mobile */}
       {!hideMobileBar && isMobile && isEditable && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 flex justify-between items-center z-10">
