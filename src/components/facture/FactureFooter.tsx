@@ -546,9 +546,10 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
           factureActions: (response.response as any).factureActions,
         });
         const actionsFound = parsed.actions?.length || 0;
+        const rawPreview = responseText.slice(responseText.indexOf('{'), responseText.lastIndexOf('}') + 1).slice(0, 120) || "?";
         const debugInfo = actionsFound > 0
           ? ` [✅ ${actionsFound} action(s) appliquée(s)]`
-          : " [⚠️ Aucune action trouvée — vérifie le format JSON]";
+          : ` [⚠️ 0 actions] JSON: ${rawPreview}`;
         setMessages((prev) => [
           ...prev,
           { role: "wari", text: (parsed.message || responseText) + debugInfo },
