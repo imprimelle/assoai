@@ -758,7 +758,6 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
                 )}
               </button>
             </div>
-          </div>
 
           {/* ── Chat expandé ── */}
           {expanded && (
