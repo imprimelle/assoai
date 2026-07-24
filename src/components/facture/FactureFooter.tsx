@@ -260,7 +260,7 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
       )
       .join("\n");
 
-    // 🆕 Données préchargées des produits mentionnés via @ (directement depuis les chips)
+    // 🆕 Données préchargées : chips @produit OU condensé catalogue si aucun @
     let preloadBlock = "";
     const allChips = [...chips];
     // Ajouter aussi les produits préchargés des messages précédents
@@ -270,11 +270,23 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
       }
     }
     if (allChips.length > 0) {
-      preloadBlock = "\n📦 PRODUITS PRÉCHARGÉS (données complètes — utilise-les, ne les re-cherche pas) :\n";
+      preloadBlock = "\n📦 PRODUITS SÉLECTIONNÉS (données complètes — utilise-les, ne les re-cherche pas) :\n";
       for (const chip of allChips) {
         preloadBlock += `- ${chip.name} (id: ${chip.productId}) — Prix: ${formatCFA(chip.price)}`;
         if (chip.variant) preloadBlock += ` [Variante: ${chip.variant}]`;
         preloadBlock += "\n";
+      }
+    } else {
+      // Aucun @produit → injecter un condensé du catalogue pour que Wari n'ait pas à chercher
+      const topProducts = flatProducts.slice(0, 40);
+      if (topProducts.length > 0) {
+        preloadBlock = "\n📦 CATALOGUE RAPIDE (utilise ces produits, ne fais PAS d'appel Supabase) :\n";
+        for (const fp of topProducts) {
+          preloadBlock += `- ${fp.label} — ${formatCFA(fp.price)}`;
+          if (fp.variant) preloadBlock += ` [${fp.variant}]`;
+          preloadBlock += "\n";
+        }
+        preloadBlock += `\n⚠️ ${topProducts.length} produits listés. Choisis parmi ceux-ci. Ne cherche PAS dans Supabase.\n`;
       }
     }
 
