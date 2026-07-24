@@ -65,7 +65,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
 
   const inputClass =
     "h-9 border border-gray-300 rounded-lg px-3 bg-white text-sm text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none w-full";
-  const labelClass = "block text-[11px] font-medium text-gray-500 mb-1";
+  const labelClass = "block text-xs font-semibold text-gray-700 mb-1.5";
 
   return (
     <div className="mb-4">
@@ -111,7 +111,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
 
       {/* Contenu dépliable */}
       {expanded && (
-        <div className="mt-2 bg-white border border-gray-300 rounded-lg shadow-sm p-4 space-y-4">
+        <div className="mt-2 bg-gray-50/80 border border-gray-300 rounded-lg shadow-sm p-4 space-y-4">
           {/* ── Bloc Client (unifié @) ── */}
           <div>
             <label className={labelClass}>
