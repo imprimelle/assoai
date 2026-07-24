@@ -14,6 +14,8 @@ export interface FactureBuilderHeaderProps {
   data: FactureData;
   onChange: (data: FactureData) => void;
   messageId?: string;
+  /** Force l'expansion (toggle externe tout déplier/replier) */
+  forceOpen?: boolean;
 }
 
 function statutColor(s: string) {
@@ -28,8 +30,14 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
   data,
   onChange,
   messageId,
+  forceOpen,
 }) => {
   const [expanded, setExpanded] = useState(false);
+
+  // Synchroniser avec le toggle externe
+  React.useEffect(() => {
+    if (forceOpen !== undefined) setExpanded(forceOpen);
+  }, [forceOpen]);
 
   const title = data.client.nom || "Nouvelle facture";
   const summary = data.factureNumero || "";
@@ -69,26 +77,30 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                    bg-white border border-gray-200 rounded-lg shadow-sm
                    hover:border-orange-300 hover:shadow transition-all duration-150"
       >
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="bg-orange-100 p-1.5 rounded-full shrink-0">
-            <Receipt className="h-4 w-4 text-orange-600" />
-          </div>
-          <div className="min-w-0 text-left">
+        <div className="min-w-0 flex-1 text-left">
+          {/* Ligne 1 : Nom client */}
+          <div className="flex items-center gap-2">
+            <div className="bg-orange-100 p-1 rounded-full shrink-0">
+              <Receipt className="h-3.5 w-3.5 text-orange-600" />
+            </div>
             <span className="text-sm font-bold text-gray-800 truncate">{title}</span>
+          </div>
+          {/* Ligne 2 : N° + total + statut */}
+          <div className="flex items-center gap-2 mt-0.5 ml-6">
             {summary && (
-              <span className="text-xs text-gray-400 ml-2">{summary}</span>
+              <span className="text-xs text-gray-400 font-mono">{summary}</span>
+            )}
+            {data.total > 0 && (
+              <span className="text-xs font-bold text-green-600">{formatCFA(data.total)}</span>
+            )}
+            {data.statut && data.statut !== "Brouillon" && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${statutColor(data.statut)}`}>
+                {data.statut}
+              </span>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0 ml-3">
-          {data.statut && data.statut !== "Brouillon" && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${statutColor(data.statut)}`}>
-              {data.statut}
-            </span>
-          )}
-          {data.total > 0 && (
-            <span className="text-xs font-bold text-green-600">{formatCFA(data.total)}</span>
-          )}
+        <div className="shrink-0 ml-2">
           {expanded ? (
             <ChevronUp size={16} className="text-gray-400" />
           ) : (

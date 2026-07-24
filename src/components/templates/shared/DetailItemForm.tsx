@@ -66,6 +66,7 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
               onChange={(v) => onChange({ description: v })}
               mode="product"
               placeholder="Description… @ pour chercher un produit"
+              multiline
             />
           ) : (
             <div className="text-sm text-gray-900 min-h-[36px] flex items-center">

@@ -381,6 +381,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
           data={data}
           onChange={handleDataChange}
           messageId={messageId}
+          forceOpen={allOpen}
         />
 
         {/* Contenu : FactureTemplate (articles uniquement) */}

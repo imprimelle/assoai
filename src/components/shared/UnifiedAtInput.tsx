@@ -38,6 +38,8 @@ export interface UnifiedAtInputProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  /** Utilise un textarea multiligne au lieu d'un input simple */
+  multiline?: boolean;
 }
 
 // ── Helpers ──
@@ -89,6 +91,7 @@ const UnifiedAtInput: React.FC<UnifiedAtInputProps> = ({
   placeholder = "Tapez @ pour chercher…",
   disabled = false,
   className = "",
+  multiline = false,
 }) => {
   // ── State dropdown ──
   const [showDropdown, setShowDropdown] = useState(false);
@@ -287,26 +290,47 @@ const UnifiedAtInput: React.FC<UnifiedAtInputProps> = ({
 
   return (
     <div ref={wrapperRef} className={`relative ${className}`}>
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={handleInputChange}
-        onKeyDown={handleKeyDown}
-        onFocus={() => {
-          // Rouvrir le dropdown si @ présent
-          const atIdx = value.lastIndexOf("@");
-          if (atIdx >= 0) {
-            setAtQuery(value.slice(atIdx + 1));
-            setShowDropdown(true);
-          }
-        }}
-        placeholder={placeholder}
-        disabled={disabled}
-        className="w-full h-9 border border-gray-200 rounded-lg px-3 bg-white text-sm text-gray-700
-                   placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400
-                   outline-none transition-shadow"
-      />
+      {multiline ? (
+        <textarea
+          ref={inputRef as any}
+          value={value}
+          onChange={(e) => handleInputChange(e as any)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => {
+            const atIdx = value.lastIndexOf("@");
+            if (atIdx >= 0) {
+              setAtQuery(value.slice(atIdx + 1));
+              setShowDropdown(true);
+            }
+          }}
+          placeholder={placeholder}
+          disabled={disabled}
+          rows={2}
+          className="w-full border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-sm text-gray-700
+                     placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400
+                     outline-none transition-shadow resize-none"
+        />
+      ) : (
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onFocus={() => {
+            const atIdx = value.lastIndexOf("@");
+            if (atIdx >= 0) {
+              setAtQuery(value.slice(atIdx + 1));
+              setShowDropdown(true);
+            }
+          }}
+          placeholder={placeholder}
+          disabled={disabled}
+          className="w-full h-9 border border-gray-200 rounded-lg px-3 bg-white text-sm text-gray-700
+                     placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400
+                     outline-none transition-shadow"
+        />
+      )}
 
       {showDropdown &&
         suggestions.length > 0 &&
