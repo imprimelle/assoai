@@ -28,6 +28,7 @@ import ConfigurateurPage from "./pages/ConfigurateurPage";
 import CdcBuilder from "./pages/CdcBuilder";
 import CdcListe from "./pages/CdcListe";
 import FactureBuilder from "./pages/FactureBuilder";
+import FactureListe from "./pages/FactureListe";
 import NotFound from "./pages/NotFound";
 import InstallBanner from "./components/pwa/InstallBanner";
 import UpdateNotification from "./components/pwa/UpdateNotification";
@@ -416,6 +417,16 @@ const AppContent = () => {
                     user={currentUser!}
                     persistentSessionId={persistentSessionId!}
                   />
+                </RequireAuth>
+              }
+            />
+
+            {/* 🆕 Liste des factures */}
+            <Route
+              path="/factures"
+              element={
+                <RequireAuth persistentSessionId={persistentSessionId}>
+                  <FactureListe />
                 </RequireAuth>
               }
             />

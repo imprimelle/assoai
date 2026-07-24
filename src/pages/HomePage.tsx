@@ -20,6 +20,7 @@ import {
   Settings,
   ChevronDown,
   Hammer,
+  Receipt,
 } from "lucide-react";
 import { useHomeCounters, type HomeCounters } from "@/hooks/useHomeCounters";
 import { usePageVisit } from "@/hooks/usePageVisit";
@@ -149,12 +150,20 @@ const cardDefs: Record<string, HomeCard> = {
     path: "/cdc-liste",
     color: "bg-orange-100 text-orange-700",
   },
+  factures: {
+    id: "factures",
+    title: "Factures",
+    description: "Liste des factures, téléchargement PDF",
+    icon: <Receipt className="h-8 w-8" />,
+    path: "/factures",
+    color: "bg-orange-100 text-orange-700",
+  },
 };
 
 const roleCards: Record<string, string[]> = {
-  directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle", "configurateur", "infinityMirror", "cdcBuilder"],
-  directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "configurateur", "cdcBuilder"],
-  commerciale: ["projet", "demande", "wari", "monBara", "produit"],
+  directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle", "configurateur", "infinityMirror", "cdcBuilder", "factures"],
+  directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "configurateur", "cdcBuilder", "factures"],
+  commerciale: ["projet", "demande", "wari", "monBara", "produit", "factures"],
   chef_technique: ["demande", "monBara", "produit", "configurateur", "cdcBuilder"],
   technicien_adjoint: ["demande", "monBara"],
   superviseur_logistique: ["demande", "monBara", "materiaux"],
