@@ -29,6 +29,10 @@ interface FactureTemplateProps {
   onSave?: (data: FactureData) => void;
   isEditable?: boolean;
   onChange?: (data: FactureData) => void;
+  /** Masque le header interne (titre FACTURE + boutons) — utilisé quand le header est géré par la page parent */
+  hideHeader?: boolean;
+  /** Masque la barre d'actions mobile fixe — utilisé quand le footer est géré par la page parent */
+  hideMobileBar?: boolean;
 }
 
 const FactureTemplate: React.FC<FactureTemplateProps> = ({
@@ -36,6 +40,8 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
   onSave,
   isEditable = false,
   onChange,
+  hideHeader = false,
+  hideMobileBar = false,
 }) => {
   const [isEditMode, setIsEditMode] = useState(isEditable);
   const [data, setData] = useState<FactureData>({
@@ -202,6 +208,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
 
   return (
     <div className="w-full py-4 sm:py-6">
+      {!hideHeader && (
       <div className="flex justify-between items-center mb-4 sm:mb-6">
         <div className="flex items-center">
           <div className="bg-orange-100 p-2 rounded-full mr-3">
@@ -237,6 +244,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
           </div>
         )}
       </div>
+      )}
       
       {/* Statut */}
       <section aria-label="Statut" className="mb-4">
@@ -501,7 +509,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
       </CollapsibleSection>
       
       {/* Barre d'actions mobile */}
-      {isMobile && isEditable && (
+      {!hideMobileBar && isMobile && isEditable && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 flex justify-between items-center z-10">
           <Button 
             variant="outline" 

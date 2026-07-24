@@ -27,6 +27,7 @@ import InfinityMirror from "./pages/InfinityMirror";
 import ConfigurateurPage from "./pages/ConfigurateurPage";
 import CdcBuilder from "./pages/CdcBuilder";
 import CdcListe from "./pages/CdcListe";
+import FactureBuilder from "./pages/FactureBuilder";
 import NotFound from "./pages/NotFound";
 import InstallBanner from "./components/pwa/InstallBanner";
 import UpdateNotification from "./components/pwa/UpdateNotification";
@@ -402,6 +403,19 @@ const AppContent = () => {
               element={
                 <RequireAuth persistentSessionId={persistentSessionId}>
                   <CdcListe />
+                </RequireAuth>
+              }
+            />
+
+            {/* 🆕 Facture Builder — édition de facture avec footer Wari */}
+            <Route
+              path="/facture-builder"
+              element={
+                <RequireAuth persistentSessionId={persistentSessionId}>
+                  <FactureBuilder
+                    user={currentUser!}
+                    persistentSessionId={persistentSessionId!}
+                  />
                 </RequireAuth>
               }
             />

@@ -59,6 +59,11 @@ export function detectPageContext(forcedAgent?: 'wari' | 'brico' | 'pm' | 'pia')
     return { route: path, pageType: 'products', forcedAgent: 'brico' };
   }
 
+  // Facture Builder — Wari en mode édition de facture
+  if (path.startsWith('/facture-builder')) {
+    return { route: path, pageType: 'general', forcedAgent: 'wari' };
+  }
+
   // CRM Templates (lecture seule)
   if (path.startsWith('/templates')) {
     return { route: path, pageType: 'templates', forcedAgent };

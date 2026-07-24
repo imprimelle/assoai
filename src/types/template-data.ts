@@ -176,3 +176,36 @@ export type TemplateData =
   | CommandeData
   | CahierDesChargesData
   | Record<string, any>;
+
+// ── Actions Wari pour le FactureBuilder ──
+export type FactureActionType =
+  | "updateClientField"    // { field: "nom"|"adresse"|"telephone", value }
+  | "addDetail"            // { item: { description, quantite, prixUnitaire } }
+  | "updateDetail"         // { index, changes: Partial<DetailItem> }
+  | "removeDetail"         // { index }
+  | "setRemise"            // { value: number (CFA) }
+  | "setStatut"            // { value }
+  | "setEcheancier"        // { value: string }
+  | "setDelaiLivraison"    // { value: string }
+  | "updateField";         // { field: string, value: any }
+
+export interface FactureAction {
+  type: FactureActionType;
+  field?: string;
+  value?: any;
+  index?: number;
+  changes?: Partial<DetailItem>;
+  item?: Partial<DetailItem>;
+}
+
+/** Message dans le fil de discussion du FactureFooter */
+export interface FactureFooterMessage {
+  role: "user" | "wari";
+  text: string;
+}
+
+/** Réponse structurée retournée par Wari après parsing des actions facture */
+export interface FactureResponsePayload {
+  textFallback: string;
+  factureActions?: FactureAction[];
+}
