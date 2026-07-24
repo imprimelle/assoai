@@ -174,8 +174,8 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
     el.focus();
 
     // Émettre description + prix en UN SEUL appel (anti-batching)
-    const text = el.innerText || "";
-    const updates: any = { description: text };
+    const descText = el.innerText || "";
+    const updates: any = { description: descText };
     if (prod.price) updates.prixUnitaire = prod.price;
     onChange(updates);
   }, [onChange, emitDescription]);
