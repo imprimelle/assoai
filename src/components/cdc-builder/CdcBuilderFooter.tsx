@@ -260,6 +260,32 @@ async function enrichActionsWithCatalog(
   return enriched;
 }
 
+/** Scroll animé manuel — durée contrôlable (800ms, easing easeInOutCubic). */
+function smoothScrollTo(el: HTMLElement, duration = 800) {
+  const target =
+    el.getBoundingClientRect().top +
+    window.scrollY -
+    window.innerHeight / 2;
+  const start = window.scrollY;
+  const distance = target - start;
+  const startTime = performance.now();
+
+  function step(currentTime: number) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    // easeInOutCubic
+    const eased =
+      progress < 0.5
+        ? 4 * progress * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+    window.scrollTo(0, start + distance * eased);
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    }
+  }
+  requestAnimationFrame(step);
+}
+
 const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   state,
   onStateChange,
@@ -635,10 +661,10 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
               }
             }
           }
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          smoothScrollTo(el);
         }
-        // Pause d'1 seconde entre chaque scroll
-        await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+        // Pause de 1,5 seconde entre chaque scroll
+        await new Promise<void>((resolve) => setTimeout(resolve, 1500));
       }
     },
     [state, onStateChange, onHighlightsChange, onCdcGenerated],
