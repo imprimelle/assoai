@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import FactureTemplate from "@/components/templates/FactureTemplate";
 import FactureFooter from "@/components/facture/FactureFooter";
+import FactureBuilderHeader from "@/components/facture/FactureBuilderHeader";
 import type { FactureData } from "@/types";
 import type { User } from "@/types/user";
 import { useQuery } from "@tanstack/react-query";
@@ -349,25 +350,14 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
           )}
         </div>
 
-        {/* Header facture */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-orange-100 p-2 rounded-full">
-              <FileText className="h-5 w-5 text-orange-600" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-800">Facture Builder</h1>
-              <p className="text-sm text-gray-500">
-                {data.factureNumero
-                  ? `N° ${data.factureNumero}`
-                  : "Nouvelle facture"}
-                {data.client.nom ? ` — ${data.client.nom}` : ""}
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* Header facture — collapsible, inspiré CDC Builder */}
+        <FactureBuilderHeader
+          data={data}
+          onChange={handleDataChange}
+          messageId={messageId}
+        />
 
-        {/* Contenu : FactureTemplate */}
+        {/* Contenu : FactureTemplate (articles uniquement) */}
         <div className="pb-24">
           <FactureTemplate
             data={data}
@@ -375,6 +365,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
             onChange={handleDataChange}
             hideHeader={true}
             hideMobileBar={true}
+            hideInfoBlocks={true}
           />
         </div>
 

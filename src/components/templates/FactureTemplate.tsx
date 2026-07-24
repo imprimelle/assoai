@@ -33,6 +33,8 @@ interface FactureTemplateProps {
   hideHeader?: boolean;
   /** Masque la barre d'actions mobile fixe — utilisé quand le footer est géré par la page parent */
   hideMobileBar?: boolean;
+  /** Masque les blocs d'infos (statut, client, détails, remise) — utilisé avec FactureBuilderHeader */
+  hideInfoBlocks?: boolean;
 }
 
 const FactureTemplate: React.FC<FactureTemplateProps> = ({
@@ -42,6 +44,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
   onChange,
   hideHeader = false,
   hideMobileBar = false,
+  hideInfoBlocks = false,
 }) => {
   const [isEditMode, setIsEditMode] = useState(isEditable);
   const [data, setData] = useState<FactureData>({
@@ -246,6 +249,8 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
       </div>
       )}
       
+      {!hideInfoBlocks && (
+      <>
       {/* Statut */}
       <section aria-label="Statut" className="mb-4">
         <StatusLine
@@ -381,6 +386,9 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
           </div>
         </CollapsibleSection>
       </div>
+
+      </>
+      )}
 
       {/* Détails - Now Collapsible */}
       <CollapsibleSection title="Articles" defaultOpen={true} className="mb-6">
