@@ -307,6 +307,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
   }, [data, messageId, footerSessionId, user.id, setSearchParams, toast, lsKey]);
 
   const handleDataChange = useCallback((newData: FactureData) => {
+    console.log("[FactureBuilder] handleDataChange: reçu", newData.details?.length || 0, "articles");
     setData(newData);
   }, []);
 

@@ -458,6 +458,7 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
       newData.total = base - (newData.reduction ?? 0);
 
       // Appliquer le state d'un coup
+      console.log("[FactureFooter] applyActions: onDataChange avec", newData.details?.length || 0, "articles, total:", newData.total);
       onDataChange(newData);
 
       // Émettre les highlights
@@ -549,6 +550,7 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
           { role: "wari", text: parsed.message || responseText },
         ]);
         if (parsed.actions?.length) {
+          console.log("[FactureFooter] Actions parsées:", parsed.actions.length, "actions");
           applyActions(parsed.actions);
         } else {
           console.warn(
