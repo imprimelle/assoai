@@ -679,34 +679,10 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
       {/* Footer fixe */}
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="max-w-6xl mx-auto flex flex-col">
-          {/* ── Barre d'actions ── */}
-          {isEmpty ? (
-            /* Facture vide → uniquement Discussion */
-            <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
-              <button
-                type="button"
-                onClick={() => setExpanded((p) => !p)}
-                className={`flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all ${
-                  expanded
-                    ? "bg-orange-500/40 text-white"
-                    : "bg-white/10 text-white hover:bg-white/20"
-                }`}
-                title={expanded ? "Masquer la discussion" : "Afficher la discussion"}
-              >
-                <MessageSquare size={13} />
-                <span>Discussion</span>
-                {messages.length > 0 && !expanded && (
-                  <span className="min-w-[16px] h-[16px] flex items-center justify-center bg-orange-500 text-white text-[9px] font-bold rounded-full px-1">
-                    {messages.length > 9 ? "9+" : messages.length}
-                  </span>
-                )}
-              </button>
-            </div>
-          ) : (
-            /* Action bar normale */
-            <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
-              {/* 💬 Discussion */}
-              <button
+          {/* ── Barre d'actions — toujours visible ── */}
+          <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
+            {/* 💬 Discussion */}
+            <button
                 type="button"
                 onClick={() => setExpanded((p) => !p)}
                 className={`flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all ${
@@ -782,7 +758,7 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
                 )}
               </button>
             </div>
-          )}
+          </div>
 
           {/* ── Chat expandé ── */}
           {expanded && (

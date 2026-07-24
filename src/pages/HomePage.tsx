@@ -127,10 +127,10 @@ const cardDefs: Record<string, HomeCard> = {
     icon: <Sparkles className="h-7 w-7" />,
     path: "/infinity-mirror",
     color: "bg-cyan-100 text-cyan-700",
-  },
   cdcBuilder: {
     id: "cdcBuilder",
-    title: "CDC Builder",
+    title: "Fabrication",
+    description: "Construire un cahier des charges",
     icon: <Hammer className="h-7 w-7" />,
     path: "/cdc-liste",
     color: "bg-orange-100 text-orange-700",
@@ -145,10 +145,10 @@ const cardDefs: Record<string, HomeCard> = {
 };
 
 const roleCards: Record<string, string[]> = {
-  directeur: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "procedure", "agents", "testCycle", "configurateur", "infinityMirror", "cdcBuilder", "factures"],
-  directrice_adjointe: ["finances", "projet", "wari", "monBara", "produit", "materiaux", "configurateur", "cdcBuilder", "factures"],
-  commerciale: ["projet", "demande", "wari", "monBara", "produit", "factures"],
-  chef_technique: ["demande", "monBara", "produit", "configurateur", "cdcBuilder"],
+  directeur: ["finances", "projet", "monBara", "produit", "materiaux", "procedure", "agents", "cdcBuilder", "factures"],
+  directrice_adjointe: ["finances", "projet", "monBara", "produit", "materiaux", "cdcBuilder", "factures"],
+  commerciale: ["projet", "demande", "monBara", "produit", "factures"],
+  chef_technique: ["demande", "monBara", "produit", "cdcBuilder"],
   technicien_adjoint: ["demande", "monBara"],
   superviseur_logistique: ["demande", "monBara", "materiaux"],
 };
@@ -171,14 +171,14 @@ const homeSections: {
     title: "Finance",
     icon: <DollarSign className="h-5 w-5" />,
     color: "from-emerald-500 to-emerald-600",
-    cardIds: ["finances", "demande", "factures", "wari"],
+    cardIds: ["finances", "demande"],
   },
   {
     id: "travail",
     title: "Travail",
     icon: <BriefcaseBusiness className="h-5 w-5" />,
     color: "from-blue-500 to-blue-600",
-    cardIds: ["projet", "monBara"],
+    cardIds: ["projet", "monBara", "factures", "cdcBuilder"],
   },
   {
     id: "catalogue",
@@ -192,14 +192,14 @@ const homeSections: {
     title: "Atelier",
     icon: <Wrench className="h-5 w-5" />,
     color: "from-amber-500 to-amber-600",
-    cardIds: ["configurateur", "cdcBuilder", "infinityMirror"],
+    cardIds: [],
   },
   {
     id: "parametres",
     title: "Paramètres",
     icon: <Settings className="h-5 w-5" />,
     color: "from-violet-500 to-violet-600",
-    cardIds: ["procedure", "agents", "testCycle"],
+    cardIds: ["procedure", "agents"],
   },
 ];
 
