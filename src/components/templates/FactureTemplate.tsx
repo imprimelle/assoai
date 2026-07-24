@@ -244,9 +244,10 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
             className="mt-2 w-full p-2 border rounded text-sm"
           >
             <option value="Brouillon">Brouillon</option>
-            <option value="vérification">Vérification</option>
+            <option value="demande">Demande</option>
             <option value="Vérifié">Vérifié</option>
-            <option value="validé">Validé</option>
+            <option value="Payé">Payé</option>
+            <option value="Livré">Livré</option>
           </select>
         )}
       </section>

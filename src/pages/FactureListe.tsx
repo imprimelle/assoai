@@ -272,7 +272,7 @@ const FactureCard: React.FC<{
   const st = (facture.statut || "").toLowerCase();
   const statusBadge =
     st === "payé" || st === "livré" ? "bg-emerald-100 text-emerald-700"
-    : st === "vérifié" || st === "validé" ? "bg-amber-100 text-amber-700"
+    : st === "vérifié" ? "bg-amber-100 text-amber-700"
     : st === "demande" ? "bg-blue-100 text-blue-700"
     : "bg-gray-100 text-gray-500";
 

@@ -21,7 +21,7 @@ export interface FactureBuilderHeaderProps {
 function statutColor(s: string) {
   const l = (s || "").toLowerCase();
   if (l === "payé" || l === "livré") return "bg-green-100 text-green-700";
-  if (l === "vérifié" || l === "infographie") return "bg-amber-100 text-amber-700";
+  if (l === "vérifié") return "bg-amber-100 text-amber-700";
   if (l === "demande") return "bg-blue-100 text-blue-700";
   return "bg-gray-100 text-gray-600";
 }
@@ -174,7 +174,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                   className={inputClass}
                 >
                   <option value="Brouillon">Brouillon</option>
-                  <option value="vérification">Vérification</option>
+                  <option value="demande">Demande</option>
                   <option value="Vérifié">Vérifié</option>
                   <option value="Payé">Payé</option>
                   <option value="Livré">Livré</option>
