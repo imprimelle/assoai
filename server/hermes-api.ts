@@ -88,6 +88,7 @@ const PROFILE_DEPLOYED_SKILLS: Record<string, string[]> = {
   'hermes-brico': ['cdc-generate', 'manufacturing-rules', 'material-calculator', 'enseigne-dimensions', 'product-search'],
   'hermes-pm': ['pm-queue-reader', 'kanban-manager', 'checklist-validator', 'phase-manager', 'communicator-bridge'],
   'hermes-pia': ['pia-finance', 'pia-reporting'],
+  'hermes-wari': ['facture-wari'],
 };
 
 // Dérivation : si un template source est fourni, on détecte le type cible
@@ -564,7 +565,8 @@ app.post('/router', async (req, res) => {
       hermesArgs.push('--skills', skill);
     }
     // Toujours ajouter assoai-development pour le contexte Supabase
-    if (!skillsForCli.includes('assoai-development')) {
+    // SAUF pour Wari qui utilise facture-wari (plus léger)
+    if (!skillsForCli.includes('assoai-development') && profile !== 'hermes-wari') {
       hermesArgs.push('--skills', 'assoai-development');
     }
 
@@ -667,7 +669,7 @@ app.post('/router/stream', async (req, res) => {
     for (const skill of cliSafeSkills) {
       hermesArgs.push('--skills', skill);
     }
-    if (!allSkills.includes('assoai-development')) {
+    if (!allSkills.includes('assoai-development') && profile !== 'hermes-wari') {
       hermesArgs.push('--skills', 'assoai-development');
     }
 

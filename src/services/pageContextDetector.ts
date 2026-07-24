@@ -59,7 +59,7 @@ export function detectPageContext(forcedAgent?: 'wari' | 'brico' | 'pm' | 'pia')
     return { route: path, pageType: 'products', forcedAgent: 'brico' };
   }
 
-  // Facture Builder — Wari en mode édition de facture
+  // Facture Builder — Wari, skills ultra-light
   if (path.startsWith('/facture-builder')) {
     return { route: path, pageType: 'general', forcedAgent: 'wari' };
   }
@@ -99,6 +99,12 @@ export function routeToProfile(context: PageContext): string {
  */
 export function getSkillsForContext(context: PageContext): string[] {
   // Skills injectés dans le prompt par hermes-api.ts (préfixe assoai/ retiré pour le CLI)
+
+  // Skills spécifiques Wari (FactureBuilder) — ultra-light
+  if (context.forcedAgent === 'wari') {
+    return ['facture-wari'];
+  }
+
   const base = ['assoai-development'];
 
   // Skills spécifiques Brico (technique)
