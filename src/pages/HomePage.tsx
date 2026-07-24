@@ -127,6 +127,7 @@ const cardDefs: Record<string, HomeCard> = {
     icon: <Sparkles className="h-7 w-7" />,
     path: "/infinity-mirror",
     color: "bg-cyan-100 text-cyan-700",
+  },
   cdcBuilder: {
     id: "cdcBuilder",
     title: "Fabrication",
