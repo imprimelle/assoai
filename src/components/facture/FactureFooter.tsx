@@ -545,18 +545,16 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
           textFallback: responseText,
           factureActions: (response.response as any).factureActions,
         });
+        const actionsFound = parsed.actions?.length || 0;
+        const debugInfo = actionsFound > 0
+          ? ` [✅ ${actionsFound} action(s) appliquée(s)]`
+          : " [⚠️ Aucune action trouvée — vérifie le format JSON]";
         setMessages((prev) => [
           ...prev,
-          { role: "wari", text: parsed.message || responseText },
+          { role: "wari", text: (parsed.message || responseText) + debugInfo },
         ]);
-        if (parsed.actions?.length) {
-          console.log("[FactureFooter] Actions parsées:", parsed.actions.length, "actions");
-          applyActions(parsed.actions);
-        } else {
-          console.warn(
-            "[FactureFooter] Réponse Wari sans actions parsables:",
-            responseText.slice(0, 200),
-          );
+        if (actionsFound > 0) {
+          applyActions(parsed.actions!);
         }
       } else {
         setMessages((prev) => [
