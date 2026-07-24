@@ -205,12 +205,9 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
         const message = {
           id: newMessageId,
           session_id: footerSessionId,
-          user_id: user.id,
           content: `Facture — ${numero || "Brouillon"}`,
+          sender: user.name || user.id,
           timestamp: new Date().toISOString(),
-          type: "text",
-          attachments: [],
-          is_user: false,
           template_type: "facture",
           template_data: {
             data: finalData,
