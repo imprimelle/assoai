@@ -159,7 +159,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
       sous_total: 0
     };
     
-    const newDetails = [newDetail, ...(data.details || [])];
+    const newDetails = [...(data.details || []), newDetail];
 
     handleDataChange({
       ...data,
@@ -365,8 +365,12 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
       </>
       )}
 
-      {/* Détails - Now Collapsible */}
-      <CollapsibleSection title="Articles" defaultOpen={true} className="mb-6">
+      {/* Articles */}
+      <CollapsibleSection
+        title={`Articles${data.details?.length ? ` · ${data.details.length} article${data.details.length > 1 ? "s" : ""}${baseTotal > 0 ? ` · ${formatCFA(baseTotal)}` : ""}` : ""}`}
+        defaultOpen={true}
+        className="mb-6"
+      >
         <div className="space-y-3">
           {data.details && data.details.map((item, index) => (
             <div key={item.id}>
@@ -407,47 +411,66 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
           </div>
 
           {/* Remise */}
-          <div className="flex justify-between items-center text-sm mb-2 pb-2 border-b border-gray-100">
+          <div className="flex justify-between items-center text-sm mb-1 pb-2 border-b border-gray-100">
             <span className="text-gray-500">Remise</span>
             {isEditMode ? (
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min={0}
-                    max={baseTotal}
-                    value={data.reduction ?? 0}
-                    onChange={e => {
-                      const newReduction = Number(e.currentTarget.value) || 0;
-                      const pct = baseTotal > 0 ? Math.round((newReduction * 100) / baseTotal) : 0;
-                      const newTotal = baseTotal - newReduction;
-                      setCurrentPercent(pct);
-                      handleDataChange({ ...data, reduction: newReduction, total: newTotal });
-                    }}
-                    className="w-20 h-8 border border-gray-200 rounded-lg px-2 text-xs text-right"
-                    aria-label="Montant de la remise"
-                  />
-                  <span className="text-xs text-gray-400">CFA</span>
+              <div className="flex flex-col items-end gap-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      max={baseTotal}
+                      value={data.reduction ?? 0}
+                      onChange={e => {
+                        const newReduction = Number(e.currentTarget.value) || 0;
+                        const pct = baseTotal > 0 ? Math.round((newReduction * 100) / baseTotal) : 0;
+                        const newTotal = baseTotal - newReduction;
+                        setCurrentPercent(pct);
+                        handleDataChange({ ...data, reduction: newReduction, total: newTotal });
+                      }}
+                      className="w-20 h-8 border border-gray-200 rounded-lg px-2 text-xs text-right"
+                      aria-label="Montant de la remise"
+                    />
+                    <span className="text-xs text-gray-400">CFA</span>
+                  </div>
+                  <span className="text-xs text-gray-300">|</span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={currentPercent}
+                      onChange={e => {
+                        const pct = Number(e.currentTarget.value) || 0;
+                        const newReduction = Math.round((baseTotal * pct) / 100);
+                        const newTotal = baseTotal - newReduction;
+                        setCurrentPercent(pct);
+                        handleDataChange({ ...data, reduction: newReduction, total: newTotal });
+                      }}
+                      className="w-14 h-8 border border-gray-200 rounded-lg px-2 text-xs text-right"
+                      aria-label="Pourcentage de remise"
+                    />
+                    <span className="text-xs text-gray-400">%</span>
+                  </div>
                 </div>
-                <span className="text-xs text-gray-400">|</span>
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={currentPercent}
-                    onChange={e => {
-                      const pct = Number(e.currentTarget.value) || 0;
-                      const newReduction = Math.round((baseTotal * pct) / 100);
-                      const newTotal = baseTotal - newReduction;
-                      setCurrentPercent(pct);
-                      handleDataChange({ ...data, reduction: newReduction, total: newTotal });
-                    }}
-                    className="w-14 h-8 border border-gray-200 rounded-lg px-2 text-xs text-right"
-                    aria-label="Pourcentage de remise"
-                  />
-                  <span className="text-xs text-gray-400">%</span>
-                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={currentPercent}
+                  onChange={e => {
+                    const pct = Number(e.currentTarget.value);
+                    const newReduction = Math.round((baseTotal * pct) / 100);
+                    const newTotal = baseTotal - newReduction;
+                    setCurrentPercent(pct);
+                    handleDataChange({ ...data, reduction: newReduction, total: newTotal });
+                  }}
+                  className="w-36 h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer
+                             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
+                             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:shadow"
+                  aria-label="Slider de remise"
+                />
               </div>
             ) : (
               <span className="text-orange-600 font-medium">
@@ -459,7 +482,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
           {/* Total */}
           <div className="flex justify-between items-center">
             <span className="text-base font-semibold text-gray-800">Total</span>
-            <span className="text-lg font-bold text-gray-900">{formatCFA(data.total)}</span>
+            <span className="text-lg font-bold text-green-600">{formatCFA(data.total)}</span>
           </div>
         </div>
       </CollapsibleSection>

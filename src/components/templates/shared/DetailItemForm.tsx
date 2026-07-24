@@ -77,7 +77,7 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
           <button
             type="button"
             onClick={onDelete}
-            className="text-gray-300 hover:text-red-500 hover:bg-red-50 p-1 rounded transition-colors shrink-0 self-start mt-0.5"
+            className="text-red-400 hover:text-red-600 hover:bg-red-50 p-0.5 rounded transition-colors shrink-0 self-start mt-0.5"
             title="Supprimer l'article"
           >
             <Trash2 size={13} />
