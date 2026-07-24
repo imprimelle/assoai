@@ -27,6 +27,7 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
   disableAmountEdit = false,
   detailIndex,
 }) => {
+  const [imageModalOpen, setImageModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
