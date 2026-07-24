@@ -110,7 +110,7 @@ const NouvelleFactureDialog: React.FC<NouvelleFactureDialogProps> = ({
         session_id: `facture-${newMessageId}`,
         user_id: user.id,
         content: `Facture — ${numero}`,
-        sender: user.name || user.id,
+        sender: "user",
         timestamp: new Date().toISOString(),
         template_type: "facture",
         template_data: {

@@ -207,7 +207,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
           session_id: footerSessionId,
           user_id: user.id,
           content: `Facture — ${numero || "Brouillon"}`,
-          sender: user.name || user.id,
+          sender: "user",
           timestamp: new Date().toISOString(),
           template_type: "facture",
           template_data: {
