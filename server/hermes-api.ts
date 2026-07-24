@@ -1265,16 +1265,18 @@ function spawnHermes(args: string[], profile?: string): Promise<{
             data: parsed.data,
           };
 
-          // 🆕 Extraction proactive des actions CDC côté serveur (évite le double parsing frontend)
+          // 🆕 Extraction proactive des actions côté serveur (CDC + Facture)
           if (response.textFallback && typeof response.textFallback === 'string') {
             const actionsMatch = response.textFallback.match(
-              /\{[\s\S]*"actions"\s*:\s*\[[\s\S]*?\][\s\S]*\}/
+              /\{[\s\S]*"actions"\s*:\s*\[[\s\S]*?\]\s*[\s\S]*\}/
             );
             if (actionsMatch) {
               try {
                 const actionsParsed = JSON.parse(actionsMatch[0]);
                 if (Array.isArray(actionsParsed.actions)) {
+                  // Stocker dans les deux clés pour compatibilité CDC et Facture
                   response.cdcActions = actionsParsed.actions;
+                  response.factureActions = actionsParsed.actions;
                   response.textFallback = response.textFallback
                     .replace(actionsMatch[0], '')
                     .trim();
