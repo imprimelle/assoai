@@ -207,6 +207,7 @@ const UnifiedAtInput: React.FC<UnifiedAtInputProps> = ({
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
+      console.log("[UnifiedAtInput] handleInputChange", { raw, multiline });
       onChange(raw);
 
       const atIdx = raw.lastIndexOf("@");
@@ -225,12 +226,16 @@ const UnifiedAtInput: React.FC<UnifiedAtInputProps> = ({
 
   const handleSelect = useCallback(
     (sugg: AtSuggestion) => {
+      console.log("[UnifiedAtInput] handleSelect called", { value, suggLabel: sugg.label, multiline });
       // Remplacer le @query dans le texte
       const atIdx = value.lastIndexOf("@");
       if (atIdx >= 0) {
         const before = value.slice(0, atIdx);
-        onChange(before + sugg.label);
+        const newValue = before + sugg.label;
+        console.log("[UnifiedAtInput] replacing @query", { before, newValue });
+        onChange(newValue);
       } else {
+        console.log("[UnifiedAtInput] no @ found, setting label directly", { label: sugg.label });
         onChange(sugg.label);
       }
       setShowDropdown(false);
@@ -238,7 +243,7 @@ const UnifiedAtInput: React.FC<UnifiedAtInputProps> = ({
       onSuggestionSelect?.(sugg);
       inputRef.current?.focus();
     },
-    [value, onChange, onSuggestionSelect],
+    [value, onChange, onSuggestionSelect, multiline],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
