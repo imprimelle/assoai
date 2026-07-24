@@ -97,6 +97,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
   >("idle");
   const [saveError, setSaveError] = useState<string>("");
   const [allOpen, setAllOpen] = useState(true);
+  const [headerOpen, setHeaderOpen] = useState(false);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
 
   // Session dédiée pour le footer chat
@@ -374,11 +375,12 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
           )}
         </div>
 
-        {/* Header facture — collapsible, toujours fermé au démarrage */}
+        {/* Header facture — collapsible, fermé au démarrage, contrôlé par le toggle */}
         <FactureBuilderHeader
           data={data}
           onChange={handleDataChange}
           messageId={messageId}
+          forceOpen={headerOpen}
         />
 
         {/* Contenu : FactureTemplate (articles uniquement) */}
@@ -407,7 +409,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
           isEmpty={isEmpty}
           onFactureGenerated={handleFactureGenerated}
           allOpen={allOpen}
-          onToggleAllOpen={() => setAllOpen((p) => !p)}
+          onToggleAllOpen={() => { setAllOpen((p) => !p); setHeaderOpen((p) => !p); }}
           onDownloadPDF={handleDownloadPDF}
           downloadingPDF={downloadingPDF}
         />
