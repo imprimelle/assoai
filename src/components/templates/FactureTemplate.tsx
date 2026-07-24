@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,63 +37,6 @@ interface FactureTemplateProps {
   /** Force l'ouverture/fermeture de la section Articles (toggle externe) */
   articlesOpen?: boolean;
 }
-
-// ── Slider custom (pas de bug tactile natif) ──
-const RangeSlider: React.FC<{
-  value: number; min?: number; max?: number;
-  onChange: (v: number) => void;
-}> = ({ value, min = 0, max = 100, onChange }) => {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-
-  const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
-
-  const updateFromClientX = useCallback((clientX: number) => {
-    const rect = trackRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    onChange(Math.round(min + ratio * (max - min)));
-  }, [min, max, onChange]);
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    e.preventDefault();
-    dragging.current = true;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    updateFromClientX(e.clientX);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!dragging.current) return;
-    updateFromClientX(e.clientX);
-  };
-
-  const handlePointerUp = () => { dragging.current = false; };
-
-  return (
-    <div
-      ref={trackRef}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-      className="relative w-36 h-8 flex items-center cursor-pointer touch-none select-none"
-      role="slider"
-      aria-valuemin={min}
-      aria-valuemax={max}
-      aria-valuenow={value}
-    >
-      {/* Track */}
-      <div className="absolute inset-x-0 h-2 rounded-full bg-gray-300" />
-      {/* Fill */}
-      <div className="absolute inset-y-0 left-0 h-2 rounded-full bg-orange-400" style={{ width: `${pct}%` }} />
-      {/* Thumb */}
-      <div
-        className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-orange-500 shadow border-2 border-white"
-        style={{ left: `calc(${pct}% - 10px)` }}
-      />
-    </div>
-  );
-};
 
 const FactureTemplate: React.FC<FactureTemplateProps> = ({
   data: initialData,
@@ -465,16 +408,16 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
       </CollapsibleSection>
 
       {/* ── Total & Remise (bloc indépendant) ── */}
-      <div className="bg-white border border-gray-300 rounded-lg p-4 mb-6 shadow-sm">
+      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
         {/* Sous-total */}
         <div className="flex justify-between items-center text-sm mb-2">
-          <span className="text-gray-600 font-medium">Sous-total</span>
-          <span className="font-semibold text-gray-800">{formatCFA(baseTotal)}</span>
+          <span className="text-gray-500">Sous-total</span>
+          <span className="font-medium text-gray-700">{formatCFA(baseTotal)}</span>
         </div>
 
           {/* Remise */}
-          <div className="flex justify-between items-center text-sm mb-1 pb-2 border-b border-gray-200">
-            <span className="text-gray-600 font-medium">Remise</span>
+          <div className="flex justify-between items-center text-sm mb-1 pb-2 border-b border-gray-100">
+            <span className="text-gray-500">Remise</span>
             {isEditMode ? (
               <div className="flex flex-col items-end gap-1.5">
                 <div className="flex items-center gap-2">
@@ -491,10 +434,10 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
                         setCurrentPercent(pct);
                         handleDataChange({ ...data, reduction: newReduction, total: newTotal });
                       }}
-                      className="w-20 h-8 border border-gray-300 bg-white rounded-lg px-2 text-xs text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
+                      className="w-20 h-8 border border-gray-200 rounded-lg px-2 text-xs text-right"
                       aria-label="Montant de la remise"
                     />
-                    <span className="text-xs text-gray-500">CFA</span>
+                    <span className="text-xs text-gray-400">CFA</span>
                   </div>
                   <span className="text-xs text-gray-300">|</span>
                   <div className="flex items-center gap-1">
@@ -510,22 +453,28 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
                         setCurrentPercent(pct);
                         handleDataChange({ ...data, reduction: newReduction, total: newTotal });
                       }}
-                      className="w-14 h-8 border border-gray-300 bg-white rounded-lg px-2 text-xs text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
+                      className="w-14 h-8 border border-gray-200 rounded-lg px-2 text-xs text-right"
                       aria-label="Pourcentage de remise"
                     />
-                    <span className="text-xs text-gray-500">%</span>
+                    <span className="text-xs text-gray-400">%</span>
                   </div>
                 </div>
-                <RangeSlider
-                  value={currentPercent}
+                <input
+                  type="range"
                   min={0}
                   max={100}
-                  onChange={pct => {
+                  value={currentPercent}
+                  onChange={e => {
+                    const pct = Number(e.currentTarget.value);
                     const newReduction = Math.round((baseTotal * pct) / 100);
                     const newTotal = baseTotal - newReduction;
                     setCurrentPercent(pct);
                     handleDataChange({ ...data, reduction: newReduction, total: newTotal });
                   }}
+                  className="w-36 h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer
+                             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
+                             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:shadow"
+                  aria-label="Slider de remise"
                 />
               </div>
             ) : (
@@ -537,8 +486,8 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
 
           {/* Total */}
           <div className="flex justify-between items-center">
-            <span className="text-base font-bold text-gray-800">Total</span>
-            <span className="text-xl font-bold text-green-700">{formatCFA(data.total)}</span>
+            <span className="text-base font-semibold text-gray-800">Total</span>
+            <span className="text-lg font-bold text-green-600">{formatCFA(data.total)}</span>
           </div>
         </div>
 
