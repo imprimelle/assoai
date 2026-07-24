@@ -55,8 +55,8 @@ interface PreloadedProduct {
   price: number;
   imageUrl?: string | null;
   variant?: string;
-  /** Données BOM/techniques si disponibles (pour accélérer Wari ×5) */
-  bom?: { category: string; condition_expr?: string; meta_variables?: Record<string, any> }[];
+  dimensions?: string;
+  sku?: string;
 }
 
 // ── Parsing réponse Wari ──
@@ -98,9 +98,9 @@ function parseWariResponse(
 
 function extractContent(container: HTMLElement): {
   text: string;
-  chips: { productId: string; name: string; price: number; variant?: string }[];
+  chips: { productId: string; name: string; price: number; variant?: string; dimensions?: string; sku?: string }[];
 } {
-  const chips: { productId: string; name: string; price: number; variant?: string }[] = [];
+  const chips: { productId: string; name: string; price: number; variant?: string; dimensions?: string; sku?: string }[] = [];
   let text = "";
 
   function walk(node: Node) {
@@ -113,7 +113,9 @@ function extractContent(container: HTMLElement): {
         const pname = el.getAttribute("data-product-name") || "";
         const pprice = Number(el.getAttribute("data-product-price") || "0");
         const pvariant = el.getAttribute("data-product-variant") || undefined;
-        chips.push({ productId: pid, name: pname, price: pprice, variant: pvariant });
+        const pdims = el.getAttribute("data-product-dimensions") || undefined;
+        const psku = el.getAttribute("data-product-sku") || undefined;
+        chips.push({ productId: pid, name: pname, price: pprice, variant: pvariant, dimensions: pdims, sku: psku });
         text += " " + pname + " ";
       } else if (el.tagName === "BR") {
         text += "\n";
@@ -186,14 +188,23 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   const [preloadedProducts, setPreloadedProducts] = useState<PreloadedProduct[]>([]);
 
   const flatProducts = useMemo(() => {
-    const items: { id: string; label: string; price: number; imageUrl?: string | null; variant?: string; product?: any }[] = [];
+    const items: { id: string; label: string; price: number; imageUrl?: string | null; variant?: string; dimensions?: string; sku?: string; product?: any }[] = [];
     for (const p of products) {
       if (!p) continue;
-      items.push({ id: p.id, label: p.name || "", price: p.variants?.[0]?.price || 0, imageUrl: p.main_image_url, product: p });
-      if (Array.isArray(p.variants)) {
+      if (Array.isArray(p.variants) && p.variants.length > 0) {
         for (const v of p.variants) {
-          if (!v) continue;
-          items.push({ id: v.id || "", label: `${p.name} — ${v.name}`, price: v.price || 0, imageUrl: (v as any).image_url || p.main_image_url, variant: v.name, product: p });
+          if (!v || !v.price) continue;
+          const dims = v.attributes?.dimensions || "";
+          items.push({
+            id: v.id || "",
+            label: `${p.name} — ${v.name}`,
+            price: v.price || 0,
+            imageUrl: (v as any).image_url || p.main_image_url,
+            variant: v.name,
+            dimensions: dims,
+            sku: v.sku || "",
+            product: p,
+          });
         }
       }
     }
@@ -252,7 +263,7 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   }, [data.details]);
 
   /** Construit le prompt Modifier — Wari décide s'il doit générer ou modifier */
-  const buildModifierPrompt = (message: string, chips: { productId: string; name: string; price: number; variant?: string }[]): string => {
+  const buildModifierPrompt = (message: string, chips: { productId: string; name: string; price: number; variant?: string; dimensions?: string; sku?: string }[]): string => {
     const articlesText = (data.details || [])
       .map(
         (d, i) =>
@@ -260,32 +271,35 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
       )
       .join("\n");
 
-    // 🆕 Bloc produits : chips @produit (données complètes) + flat list compacte (tjs présente)
+    // 🆕 Bloc produits : chips @produit (données complètes) + flat list enrichie (tjs présente)
     let preloadBlock = "";
 
-    // 1. Produits sélectionnés via @ (données complètes)
+    // 1. Produits sélectionnés via @ (données complètes avec dimensions)
     const allChips = [...chips];
     for (const pp of preloadedProducts) {
       if (!allChips.some(c => c.productId === pp.id)) {
-        allChips.push({ productId: pp.id, name: pp.name, price: pp.price, variant: pp.variant });
+        allChips.push({ productId: pp.id, name: pp.name, price: pp.price, variant: pp.variant, dimensions: pp.dimensions, sku: pp.sku });
       }
     }
     if (allChips.length > 0) {
-      preloadBlock += "\n📦 PRODUITS SÉLECTIONNÉS (données complètes — prix exacts) :\n";
+      preloadBlock += "\n📦 PRODUITS SÉLECTIONNÉS (prix et dimensions exacts) :\n";
       for (const chip of allChips) {
-        preloadBlock += `- ${chip.name} | id=${chip.productId} | Prix: ${formatCFA(chip.price)}`;
-        if (chip.variant) preloadBlock += ` [${chip.variant}]`;
+        preloadBlock += `- ${chip.name} | Prix: ${formatCFA(chip.price)}`;
+        if (chip.variant) preloadBlock += ` | Variante: ${chip.variant}`;
+        if (chip.dimensions) preloadBlock += ` | Dims: ${chip.dimensions}`;
+        if (chip.sku) preloadBlock += ` | SKU: ${chip.sku}`;
         preloadBlock += "\n";
       }
     }
 
-    // 2. Flat list compacte TOUJOURS présente (référence rapide pour Wari)
-    const topProducts = flatProducts.slice(0, 60);
+    // 2. Flat list enrichie TOUJOURS présente (id|produit|variante|prix|dimensions|SKU)
+    const topProducts = flatProducts.slice(0, 100);
     if (topProducts.length > 0) {
-      preloadBlock += `\n📋 FLAT LIST (${topProducts.length} produits — référence rapide. Si besoin de détails, curl Supabase) :\n`;
+      preloadBlock += `\n📋 FLAT LIST (${topProducts.length} variantes — choisis la bonne selon les dimensions. Format: id|produit|variante|prix|dimensions|SKU) :\n`;
       for (const fp of topProducts) {
         preloadBlock += `${fp.id}|${fp.label}|${fp.price}`;
-        if (fp.variant) preloadBlock += `|${fp.variant}`;
+        if (fp.dimensions) preloadBlock += `|${fp.dimensions}`;
+        if (fp.sku) preloadBlock += `|${fp.sku}`;
         preloadBlock += "\n";
       }
     }
@@ -628,6 +642,8 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
     chip.setAttribute("data-product-name", prod.label);
     chip.setAttribute("data-product-price", String(prod.price));
     if (prod.variant) chip.setAttribute("data-product-variant", prod.variant);
+    if ((prod as any).dimensions) chip.setAttribute("data-product-dimensions", (prod as any).dimensions);
+    if ((prod as any).sku) chip.setAttribute("data-product-sku", (prod as any).sku);
     chip.contentEditable = "false";
     chip.className =
       "inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded-md text-xs font-medium " +
