@@ -18,7 +18,6 @@ import DetailItemForm from "./shared/DetailItemForm";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ClientSuggestions from "../shared/ClientSuggestions";
-import ProductSuggestions from "../shared/ProductSuggestions";
 import CollapsibleSection from "../ui/CollapsibleSection";
 import StatusLine from "@/components/ui/StatusLine";
 import { formatCFA } from "@/utils/format";
@@ -107,30 +106,6 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
         adresse: client.adresse,
         telephone: client.telephone
       }
-    });
-  };
-
-  // Handle product selection for a detail item
-  const handleProductSelection = (index: number, productInfo: { description: string; prixUnitaire: number; image_url?: string | null }) => {
-    const current = data.details[index];
-    const updated = { 
-      ...current, 
-      description: productInfo.description,
-      prixUnitaire: productInfo.prixUnitaire,
-      sous_total: current.quantite * productInfo.prixUnitaire
-    };
-
-    const newDetails = [...data.details];
-    newDetails[index] = updated;
-
-    // Total après application de la remise stockée en €
-    const base = newDetails.reduce((sum, item) => sum + item.sous_total, 0);
-    const newTotal = base - (data.reduction ?? 0);
-
-    handleDataChange({
-      ...data,
-      details: newDetails,
-      total: newTotal
     });
   };
 
@@ -407,17 +382,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
 
         <div className="space-y-4">
           {data.details && data.details.map((item, index) => (
-            <div key={item.id} className="relative">
-              {isEditMode && (
-                <div className="mb-2">
-                  <Label htmlFor={`product-suggestion-${index}`}>Suggestion de produit</Label>
-                  <ProductSuggestions
-                    onSelectProduct={(product) => handleProductSelection(index, product)}
-                    currentValue=""
-                    placeholder="Rechercher un produit..."
-                  />
-                </div>
-              )}
+            <div key={item.id}>
               <DetailItemForm
                 id={item.id}
                 description={item.description}

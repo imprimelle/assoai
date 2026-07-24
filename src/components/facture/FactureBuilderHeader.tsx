@@ -1,12 +1,14 @@
 // src/components/facture/FactureBuilderHeader.tsx
 // Header collapsible pour le FactureBuilder — informations de la facture hors items.
 // Inspiré de CdcBuilderHeader : barre résumée cliquable + contenu dépliable.
+// v2: UnifiedAtInput pour la recherche client avec @.
 
 import React, { useState } from "react";
 import { ChevronDown, ChevronUp, Receipt, User, Calendar, Tag } from "lucide-react";
 import type { FactureData } from "@/types";
 import { formatCFA } from "@/utils/format";
-import ClientSuggestions from "@/components/shared/ClientSuggestions";
+import UnifiedAtInput from "@/components/shared/UnifiedAtInput";
+import type { AtSuggestion } from "@/components/shared/UnifiedAtInput";
 
 export interface FactureBuilderHeaderProps {
   data: FactureData;
@@ -14,7 +16,6 @@ export interface FactureBuilderHeaderProps {
   messageId?: string;
 }
 
-/** Statut badge couleur */
 function statutColor(s: string) {
   const l = (s || "").toLowerCase();
   if (l === "payé" || l === "livré") return "bg-green-100 text-green-700";
@@ -41,15 +42,17 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
     onChange({ ...data, client: { ...data.client, [field]: value } });
   };
 
-  const handleClientSelect = (client: { nom: string; adresse: string; telephone?: string }) => {
-    onChange({
-      ...data,
-      client: {
-        nom: client.nom,
-        adresse: client.adresse,
-        telephone: client.telephone,
-      },
-    });
+  const handleClientSuggestion = (sugg: AtSuggestion) => {
+    if (sugg.kind === "client" && sugg.data) {
+      onChange({
+        ...data,
+        client: {
+          nom: sugg.data.nom || sugg.label,
+          adresse: sugg.data.adresse || data.client.adresse,
+          telephone: sugg.data.telephone || data.client.telephone,
+        },
+      });
+    }
   };
 
   const updateField = (field: string, value: any) => {
@@ -62,7 +65,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
 
   return (
     <div className="mb-4">
-      {/* Barre résumée (toujours visible, cliquable) */}
+      {/* Barre résumée */}
       <button
         type="button"
         onClick={() => setExpanded((p) => !p)}
@@ -98,32 +101,22 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
       {/* Contenu dépliable */}
       {expanded && (
         <div className="mt-2 bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-4">
-          {/* ── Bloc Client ── */}
+          {/* ── Bloc Client (unifié @) ── */}
           <div>
             <label className={labelClass}>
               <User size={11} className="inline mr-1 text-gray-300" /> Client
             </label>
 
-            {/* ClientSuggestions */}
-            <div className="mb-3">
-              <ClientSuggestions
-                onSelectClient={handleClientSelect}
-                currentValue={data.client.nom}
-                placeholder="Rechercher un client existant…"
-              />
-            </div>
+            {/* Champ unifié avec @ pour recherche client */}
+            <UnifiedAtInput
+              value={data.client.nom}
+              onChange={(v) => updateClient("nom", v)}
+              onSuggestionSelect={handleClientSuggestion}
+              mode="client"
+              placeholder="Nom du client… @ pour chercher dans l'historique"
+            />
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div>
-                <label className="text-[10px] text-gray-400 mb-0.5 block">Nom</label>
-                <input
-                  type="text"
-                  value={data.client.nom}
-                  onChange={(e) => updateClient("nom", e.target.value)}
-                  className={inputClass}
-                  placeholder="Nom du client"
-                />
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
               <div>
                 <label className="text-[10px] text-gray-400 mb-0.5 block">Téléphone</label>
                 <input
