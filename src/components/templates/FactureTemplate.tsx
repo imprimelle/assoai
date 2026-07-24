@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +37,63 @@ interface FactureTemplateProps {
   /** Force l'ouverture/fermeture de la section Articles (toggle externe) */
   articlesOpen?: boolean;
 }
+
+// ── Slider custom (pas de bug tactile natif) ──
+const RangeSlider: React.FC<{
+  value: number; min?: number; max?: number;
+  onChange: (v: number) => void;
+}> = ({ value, min = 0, max = 100, onChange }) => {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+
+  const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+
+  const updateFromClientX = useCallback((clientX: number) => {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    onChange(Math.round(min + ratio * (max - min)));
+  }, [min, max, onChange]);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    updateFromClientX(e.clientX);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    updateFromClientX(e.clientX);
+  };
+
+  const handlePointerUp = () => { dragging.current = false; };
+
+  return (
+    <div
+      ref={trackRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      className="relative w-36 h-8 flex items-center cursor-pointer touch-none select-none"
+      role="slider"
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={value}
+    >
+      {/* Track */}
+      <div className="absolute inset-x-0 h-2 rounded-full bg-gray-300" />
+      {/* Fill */}
+      <div className="absolute inset-y-0 left-0 h-2 rounded-full bg-orange-400" style={{ width: `${pct}%` }} />
+      {/* Thumb */}
+      <div
+        className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-orange-500 shadow border-2 border-white"
+        style={{ left: `calc(${pct}% - 10px)` }}
+      />
+    </div>
+  );
+};
 
 const FactureTemplate: React.FC<FactureTemplateProps> = ({
   data: initialData,
@@ -459,22 +516,16 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
                     <span className="text-xs text-gray-500">%</span>
                   </div>
                 </div>
-                <input
-                  type="range"
+                <RangeSlider
+                  value={currentPercent}
                   min={0}
                   max={100}
-                  value={currentPercent}
-                  onChange={e => {
-                    const pct = Number(e.currentTarget.value);
+                  onChange={pct => {
                     const newReduction = Math.round((baseTotal * pct) / 100);
                     const newTotal = baseTotal - newReduction;
                     setCurrentPercent(pct);
                     handleDataChange({ ...data, reduction: newReduction, total: newTotal });
                   }}
-                  className="w-36 h-2 bg-gray-300 rounded-full appearance-none cursor-pointer
-                             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
-                             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:shadow"
-                  aria-label="Slider de remise"
                 />
               </div>
             ) : (
