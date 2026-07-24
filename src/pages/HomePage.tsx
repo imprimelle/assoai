@@ -188,7 +188,7 @@ const homeSections: {
     title: "Finance",
     icon: <DollarSign className="h-5 w-5" />,
     color: "from-emerald-500 to-emerald-600",
-    cardIds: ["finances", "demande", "wari"],
+    cardIds: ["finances", "demande", "factures", "wari"],
   },
   {
     id: "travail",
@@ -225,6 +225,8 @@ const pageToVisitKey: Record<string, string> = {
   "/projects": "projets",
   "/mon-bara": "mon_bara",
   "/demande": "demandes",
+  "/factures": "factures",
+  "/facture-builder": "factures",
 };
 
 // ── Carte bouton réutilisable ──

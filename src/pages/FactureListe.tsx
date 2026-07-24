@@ -264,7 +264,7 @@ const FactureListe: React.FC = () => {
                       key={f.id}
                       facture={f}
                       onView={() => navigate(`/public/doc/${f.id}`)}
-                      onEdit={() =>
+                      onOpen={() =>
                         navigate(`/facture-builder?messageId=${f.id}`)
                       }
                       onDownload={() => handleDownload(f)}
@@ -288,7 +288,7 @@ const FactureListe: React.FC = () => {
                       key={f.id}
                       facture={f}
                       onView={() => navigate(`/public/doc/${f.id}`)}
-                      onEdit={() =>
+                      onOpen={() =>
                         navigate(`/facture-builder?messageId=${f.id}`)
                       }
                       onDownload={() => handleDownload(f)}
@@ -310,10 +310,10 @@ const FactureListe: React.FC = () => {
 const FactureCard: React.FC<{
   facture: FactureListItem;
   onView: () => void;
-  onEdit: () => void;
+  onOpen: () => void;
   onDownload: () => void;
   downloading: boolean;
-}> = ({ facture, onView, onEdit, onDownload, downloading }) => {
+}> = ({ facture, onView, onOpen, onDownload, downloading }) => {
   const statusColor = (statut: string) => {
     const s = (statut || "").toLowerCase();
     if (s === "payé" || s === "validé" || s === "livré")
@@ -337,7 +337,10 @@ const FactureCard: React.FC<{
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-150">
+    <div
+      onClick={onOpen}
+      className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-orange-300 transition-all duration-150 cursor-pointer"
+    >
       <div className="p-4">
         <div className="flex items-start gap-3">
           {/* Icône facture */}
@@ -386,7 +389,7 @@ const FactureCard: React.FC<{
         {/* Actions */}
         <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
           <button
-            onClick={onView}
+            onClick={(e) => { e.stopPropagation(); onView(); }}
             className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-gray-600
                        rounded-lg hover:bg-gray-50 transition-colors"
           >
@@ -394,15 +397,7 @@ const FactureCard: React.FC<{
             Aperçu
           </button>
           <button
-            onClick={onEdit}
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-orange-600
-                       rounded-lg hover:bg-orange-50 transition-colors"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-            Modifier
-          </button>
-          <button
-            onClick={onDownload}
+            onClick={(e) => { e.stopPropagation(); onDownload(); }}
             disabled={downloading}
             className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium
                        bg-orange-600 text-white rounded-lg
