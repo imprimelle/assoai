@@ -102,7 +102,7 @@ export function getSkillsForContext(context: PageContext): string[] {
 
   // Skills spécifiques Wari (FactureBuilder) — ultra-light + catalogue
   if (context.forcedAgent === 'wari') {
-    return ['facture-wari', 'product-search'];
+    return ['facture-wari', 'wari-catalog'];
   }
 
   const base = ['assoai-development'];

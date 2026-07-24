@@ -88,7 +88,7 @@ const PROFILE_DEPLOYED_SKILLS: Record<string, string[]> = {
   'hermes-brico': ['cdc-generate', 'manufacturing-rules', 'material-calculator', 'enseigne-dimensions', 'product-search'],
   'hermes-pm': ['pm-queue-reader', 'kanban-manager', 'checklist-validator', 'phase-manager', 'communicator-bridge'],
   'hermes-pia': ['pia-finance', 'pia-reporting'],
-  'hermes-wari': ['facture-wari', 'product-search'],
+  'hermes-wari': ['facture-wari', 'wari-catalog'],
 };
 
 // Dérivation : si un template source est fourni, on détecte le type cible
