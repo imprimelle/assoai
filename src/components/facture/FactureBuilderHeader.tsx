@@ -64,8 +64,8 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
   };
 
   const inputClass =
-    "h-9 border border-gray-200 rounded-lg px-3 bg-white text-sm text-gray-700 placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-orange-400 outline-none w-full";
-  const labelClass = "block text-[11px] font-medium text-gray-400 mb-1";
+    "h-9 border border-gray-300 rounded-lg px-3 bg-white text-sm text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none w-full";
+  const labelClass = "block text-[11px] font-medium text-gray-500 mb-1";
 
   return (
     <div className="mb-4">
@@ -111,11 +111,11 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
 
       {/* Contenu dépliable */}
       {expanded && (
-        <div className="mt-2 bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-4">
+        <div className="mt-2 bg-white border border-gray-300 rounded-lg shadow-sm p-4 space-y-4">
           {/* ── Bloc Client (unifié @) ── */}
           <div>
             <label className={labelClass}>
-              <User size={11} className="inline mr-1 text-gray-300" /> Client
+              <User size={11} className="inline mr-1 text-gray-400" /> Client
             </label>
 
             {/* Champ unifié avec @ pour recherche client */}
@@ -131,7 +131,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
               <div>
-                <label className="text-[10px] text-gray-400 mb-0.5 block">Téléphone</label>
+                <label className="text-[11px] text-gray-500 mb-0.5 block">Téléphone</label>
                 <input
                   type="text"
                   data-highlight-key="client-telephone"
@@ -142,7 +142,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-gray-400 mb-0.5 block">Adresse</label>
+                <label className="text-[11px] text-gray-500 mb-0.5 block">Adresse</label>
                 <input
                   type="text"
                   data-highlight-key="client-adresse"
@@ -158,11 +158,11 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
           {/* ── Bloc Détails facture ── */}
           <div>
             <label className={labelClass}>
-              <Calendar size={11} className="inline mr-1 text-gray-300" /> Détails
+              <Calendar size={11} className="inline mr-1 text-gray-400" /> Détails
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div>
-                <label className="text-[10px] text-gray-400 mb-0.5 block">Date d'émission</label>
+                <label className="text-[11px] text-gray-500 mb-0.5 block">Date d'émission</label>
                 <input
                   type="date"
                   value={data.dateEmission?.split("T")[0] || ""}
@@ -171,7 +171,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-gray-400 mb-0.5 block">Statut</label>
+                <label className="text-[11px] text-gray-500 mb-0.5 block">Statut</label>
                 <select
                   data-highlight-key="statut"
                   value={data.statut || "Brouillon"}
@@ -185,7 +185,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 </select>
               </div>
               <div>
-                <label className="text-[10px] text-gray-400 mb-0.5 block">Délai livraison</label>
+                <label className="text-[11px] text-gray-500 mb-0.5 block">Délai livraison</label>
                 <input
                   type="text"
                   data-highlight-key="delaiLivraison"
@@ -196,7 +196,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-gray-400 mb-0.5 block">Échéancier</label>
+                <label className="text-[11px] text-gray-500 mb-0.5 block">Échéancier</label>
                 <input
                   type="text"
                   data-highlight-key="echeancier"
@@ -212,7 +212,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
           {/* ── Bloc Remise ── */}
           <div>
             <label className={labelClass}>
-              <Tag size={11} className="inline mr-1 text-gray-300" /> Remise
+              <Tag size={11} className="inline mr-1 text-gray-400" /> Remise
             </label>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
@@ -226,11 +226,11 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                     const base = (data.details || []).reduce((s, d) => s + d.sous_total, 0);
                     onChange({ ...data, reduction: val, total: base - val });
                   }}
-                  className="h-9 w-28 border border-gray-200 rounded-lg px-3 bg-white text-sm text-right"
+                  className="h-9 w-28 border border-gray-300 rounded-lg px-3 bg-white text-sm text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
                 />
-                <span className="text-xs text-gray-500">CFA</span>
+                <span className="text-xs text-gray-500 font-medium">CFA</span>
               </div>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-500">
                 sur {formatCFA((data.details || []).reduce((s, d) => s + d.sous_total, 0))}
               </span>
             </div>

@@ -396,9 +396,9 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
             <button
               type="button"
               onClick={addNewDetail}
-              className="flex items-center gap-2 w-full py-2.5 border-2 border-dashed border-orange-300
-                         rounded-lg text-sm text-orange-500 hover:text-orange-600 hover:border-orange-400
-                         hover:bg-orange-50/50 transition-all justify-center font-medium"
+              className="flex items-center gap-2 w-full py-2.5 border-2 border-dashed border-orange-400
+                         rounded-lg text-sm text-orange-600 hover:text-orange-700 hover:border-orange-500
+                         hover:bg-orange-100 transition-all justify-center font-medium"
             >
               <PlusCircle className="h-4 w-4" />
               Ajouter un article
@@ -408,16 +408,16 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
       </CollapsibleSection>
 
       {/* ── Total & Remise (bloc indépendant) ── */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+      <div className="bg-white border border-gray-300 rounded-lg p-4 mb-6 shadow-sm">
         {/* Sous-total */}
         <div className="flex justify-between items-center text-sm mb-2">
-          <span className="text-gray-500">Sous-total</span>
-          <span className="font-medium text-gray-700">{formatCFA(baseTotal)}</span>
+          <span className="text-gray-600 font-medium">Sous-total</span>
+          <span className="font-semibold text-gray-800">{formatCFA(baseTotal)}</span>
         </div>
 
           {/* Remise */}
-          <div className="flex justify-between items-center text-sm mb-1 pb-2 border-b border-gray-100">
-            <span className="text-gray-500">Remise</span>
+          <div className="flex justify-between items-center text-sm mb-1 pb-2 border-b border-gray-200">
+            <span className="text-gray-600 font-medium">Remise</span>
             {isEditMode ? (
               <div className="flex flex-col items-end gap-1.5">
                 <div className="flex items-center gap-2">
@@ -434,10 +434,10 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
                         setCurrentPercent(pct);
                         handleDataChange({ ...data, reduction: newReduction, total: newTotal });
                       }}
-                      className="w-20 h-8 border border-gray-200 rounded-lg px-2 text-xs text-right"
+                      className="w-20 h-8 border border-gray-300 bg-white rounded-lg px-2 text-xs text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
                       aria-label="Montant de la remise"
                     />
-                    <span className="text-xs text-gray-400">CFA</span>
+                    <span className="text-xs text-gray-500">CFA</span>
                   </div>
                   <span className="text-xs text-gray-300">|</span>
                   <div className="flex items-center gap-1">
@@ -453,10 +453,10 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
                         setCurrentPercent(pct);
                         handleDataChange({ ...data, reduction: newReduction, total: newTotal });
                       }}
-                      className="w-14 h-8 border border-gray-200 rounded-lg px-2 text-xs text-right"
+                      className="w-14 h-8 border border-gray-300 bg-white rounded-lg px-2 text-xs text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
                       aria-label="Pourcentage de remise"
                     />
-                    <span className="text-xs text-gray-400">%</span>
+                    <span className="text-xs text-gray-500">%</span>
                   </div>
                 </div>
                 <input
@@ -471,9 +471,9 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
                     setCurrentPercent(pct);
                     handleDataChange({ ...data, reduction: newReduction, total: newTotal });
                   }}
-                  className="w-36 h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer
-                             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
-                             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:shadow"
+                  className="w-36 h-1.5 bg-gray-300 rounded-full appearance-none cursor-pointer
+                             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+                             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:shadow-md"
                   aria-label="Slider de remise"
                 />
               </div>
@@ -486,8 +486,8 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
 
           {/* Total */}
           <div className="flex justify-between items-center">
-            <span className="text-base font-semibold text-gray-800">Total</span>
-            <span className="text-lg font-bold text-green-600">{formatCFA(data.total)}</span>
+            <span className="text-base font-bold text-gray-800">Total</span>
+            <span className="text-xl font-bold text-green-700">{formatCFA(data.total)}</span>
           </div>
         </div>
 

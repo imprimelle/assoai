@@ -32,9 +32,9 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
     <Collapsible
       open={isOpen}
       onOpenChange={setIsOpen}
-      className={`border border-gray-200 rounded-lg bg-gray-50 mb-4 overflow-hidden ${className}`}
+      className={`border border-gray-300 rounded-lg bg-white mb-4 overflow-hidden shadow-sm ${className}`}
     >
-      <CollapsibleTrigger className={`flex justify-between items-center w-full p-3 sm:p-4 text-left font-semibold text-base sm:text-lg hover:bg-gray-100 transition-colors ${titleClassName}`}>
+      <CollapsibleTrigger className={`flex justify-between items-center w-full p-3 sm:p-4 text-left font-semibold text-base sm:text-lg bg-gray-100 hover:bg-gray-200 transition-colors rounded-t-lg ${titleClassName}`}>
         <h3 className="truncate pr-2 leading-tight">{title}</h3>
         <div className="flex-shrink-0">
           {isOpen ? <ChevronUp className="h-4 w-4 sm:h-5 sm:w-5" /> : <ChevronDown className="h-4 w-4 sm:h-5 sm:w-5" />}
@@ -49,7 +49,7 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
               animate={{ height: "auto" }}
               exit={{ height: 0 }}
               transition={{ duration: 0.3 }}
-              className={`p-3 sm:p-4 border-t border-gray-200 ${contentClassName}`}
+              className={`p-3 sm:p-4 border-t border-gray-300 ${contentClassName}`}
             >
               {children}
             </motion.div>

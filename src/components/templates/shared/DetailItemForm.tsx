@@ -269,7 +269,7 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
   return (
     <div
       data-highlight-key={detailIndex !== undefined ? `detail-${detailIndex}` : undefined}
-      className="relative bg-white border border-gray-200 rounded-lg px-3 py-2 space-y-1.5 transition-colors duration-1000">
+      className="relative bg-white border border-gray-300 rounded-lg px-3 py-2 space-y-2 shadow-sm transition-colors duration-1000">
       {/* ── Ligne 1 : Description + Supprimer ── */}
       <div className="flex items-start gap-1.5">
         <div className="flex-1 min-w-0" ref={productWrapperRef}>
@@ -284,8 +284,8 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
                 onBlur={emitDescription}
                 data-placeholder="Description… @ pour chercher un produit"
                 className="w-full min-h-[36px] max-h-[80px] overflow-y-auto px-3 py-1.5 rounded-lg
-                           border border-gray-200 bg-white text-sm text-gray-700
-                           focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400 outline-none
+                           border border-gray-300 bg-gray-50/60 text-sm text-gray-800
+                           focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 focus:bg-white outline-none
                            whitespace-pre-wrap break-words
                            empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400
                            transition-shadow"
@@ -337,7 +337,7 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
           <button
             type="button"
             onClick={onDelete}
-            className="text-red-400 hover:text-red-600 hover:bg-red-50 p-0.5 rounded transition-colors shrink-0 mt-1"
+            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded-md transition-colors shrink-0 mt-1"
             title="Supprimer l'article"
           >
             <Trash2 size={13} />
@@ -346,23 +346,23 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
       </div>
 
       {/* ── Ligne 2 : Qté + PU ── */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1">
-          <span className="text-[10px] text-gray-400 font-medium shrink-0">Qté</span>
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-gray-500 font-medium shrink-0">Qté</span>
           {isEditable && !disableAmountEdit ? (
             <input
               type="number"
               min={1}
               value={quantite}
               onChange={(e) => onChange({ quantite: Number(e.target.value) || 1 })}
-              className="w-14 h-7 border border-gray-200 rounded-lg px-1.5 text-xs text-center"
+              className="w-14 h-7 border border-gray-300 bg-white rounded-lg px-1.5 text-xs text-center font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
             />
           ) : (
             <span className="text-xs font-medium w-14 text-center">{quantite}</span>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <span className="text-[10px] text-gray-400 font-medium shrink-0">PU</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-gray-500 font-medium shrink-0">PU</span>
           {isEditable && !disableAmountEdit ? (
             <input
               type="number"
@@ -370,7 +370,7 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
               step={500}
               value={prix}
               onChange={(e) => onChange({ prixUnitaire: Number(e.target.value) || 0 })}
-              className="w-24 h-7 border border-gray-200 rounded-lg px-1.5 text-xs text-right"
+              className="w-24 h-7 border border-gray-300 bg-white rounded-lg px-1.5 text-xs text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
             />
           ) : (
             <span className="text-xs text-right w-24">{formatCFA(prix)}</span>
@@ -404,8 +404,8 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
         <div className="flex-1" />
         <div className="text-right shrink-0">
-          <span className="text-[10px] text-gray-400 font-medium block">Total</span>
-          <span className="text-sm font-bold text-gray-800">{formatCFA(sousTotal)}</span>
+          <span className="text-[11px] text-gray-500 font-medium block">Total</span>
+          <span className="text-sm font-bold text-green-700">{formatCFA(sousTotal)}</span>
         </div>
       </div>
 
