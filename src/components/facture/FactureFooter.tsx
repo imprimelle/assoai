@@ -231,7 +231,7 @@ Actions disponibles :
 - updateDetail : { index: 0, changes: { quantite: 3 } }
 - removeDetail : { index: 0 }
 - setRemise : { value: 15000 }
-- setStatut : { value: "Brouillon"|"Vérifié"|"Payé"|"Livré" }
+- setStatut : { value: "Brouillon"|"demande"|"Vérifié"|"Payé"|"Livré" }
 - setEcheancier : { value: "30% à la commande, 70% à la livraison" }
 - setDelaiLivraison : { value: "2 semaines" }
 - updateField : { field: "dateEmission", value: "2026-07-24" }
