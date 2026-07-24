@@ -100,9 +100,9 @@ export function routeToProfile(context: PageContext): string {
 export function getSkillsForContext(context: PageContext): string[] {
   // Skills injectés dans le prompt par hermes-api.ts (préfixe assoai/ retiré pour le CLI)
 
-  // Skills spécifiques Wari (FactureBuilder) — ultra-light
+  // Skills spécifiques Wari (FactureBuilder) — ultra-light + catalogue
   if (context.forcedAgent === 'wari') {
-    return ['facture-wari'];
+    return ['facture-wari', 'product-search'];
   }
 
   const base = ['assoai-development'];

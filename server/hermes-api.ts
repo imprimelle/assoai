@@ -88,7 +88,7 @@ const PROFILE_DEPLOYED_SKILLS: Record<string, string[]> = {
   'hermes-brico': ['cdc-generate', 'manufacturing-rules', 'material-calculator', 'enseigne-dimensions', 'product-search'],
   'hermes-pm': ['pm-queue-reader', 'kanban-manager', 'checklist-validator', 'phase-manager', 'communicator-bridge'],
   'hermes-pia': ['pia-finance', 'pia-reporting'],
-  'hermes-wari': ['facture-wari'],
+  'hermes-wari': ['facture-wari', 'product-search'],
 };
 
 // Dérivation : si un template source est fourni, on détecte le type cible
@@ -541,7 +541,10 @@ app.post('/router', async (req, res) => {
     const deployedSkills = PROFILE_DEPLOYED_SKILLS[profile] || [];
     // Skills dont le nom entre en conflit avec des références dans assoai-development
     // → forcer leur injection en texte au lieu du --skills CLI
-    const BLOCKED_FROM_CLI = ['product-search', 'document-derivation', 'document-numbers'];
+    // Sauf pour Wari qui n'a pas assoai-development → pas de conflit
+    const BLOCKED_FROM_CLI = profile === 'hermes-wari'
+      ? ['document-derivation', 'document-numbers']
+      : ['product-search', 'document-derivation', 'document-numbers'];
     const skillsForCli = allSkills.filter(s =>
       (s === 'assoai-development' || deployedSkills.includes(s)) &&
       !BLOCKED_FROM_CLI.includes(s)
@@ -664,7 +667,9 @@ app.post('/router/stream', async (req, res) => {
     // Pattern PM : passer tous les skills via --skills (répétable)
     const hermesArgs = ['-p', profile, 'chat', '-q', fullPrompt, '--quiet'];
     const allSkills = (skills || []).map(s => s.replace(/^assoai\//, ''));
-    const BLOCKED_FROM_CLI = ['product-search', 'document-derivation', 'document-numbers'];
+    const BLOCKED_FROM_CLI = profile === 'hermes-wari'
+      ? ['document-derivation', 'document-numbers']
+      : ['product-search', 'document-derivation', 'document-numbers'];
     const cliSafeSkills = allSkills.filter(s => !BLOCKED_FROM_CLI.includes(s));
     for (const skill of cliSafeSkills) {
       hermesArgs.push('--skills', skill);
