@@ -4,6 +4,7 @@ import { Trash2, Download, Upload, X, Image as ImageIcon, Loader2 } from "lucide
 import { DetailItemFormProps } from "@/types";
 import { formatCFA } from "@/utils/format";
 import UnifiedAtInput from "@/components/shared/UnifiedAtInput";
+import type { AtSuggestion } from "@/components/shared/UnifiedAtInput";
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 
@@ -22,6 +23,13 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Sélection produit → MAJ prix unitaire ──
+  const handleProductSelect = (sugg: AtSuggestion) => {
+    if ((sugg.kind === "product" || sugg.kind === "variant") && sugg.data?.price) {
+      onChange({ prixUnitaire: sugg.data.price });
+    }
+  };
 
   // ── Upload ──
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,6 +72,7 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
             <UnifiedAtInput
               value={description}
               onChange={(v) => onChange({ description: v })}
+              onSuggestionSelect={handleProductSelect}
               mode="product"
               placeholder="Description… @ pour chercher un produit"
               multiline
