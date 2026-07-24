@@ -426,7 +426,7 @@ const AppContent = () => {
               path="/factures"
               element={
                 <RequireAuth persistentSessionId={persistentSessionId}>
-                  <FactureListe />
+                  <FactureListe user={currentUser} />
                 </RequireAuth>
               }
             />

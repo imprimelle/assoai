@@ -14,6 +14,8 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
+import NouvelleFactureDialog from "@/components/facture/NouvelleFactureDialog";
+import type { User } from "@/types/user";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,10 +36,15 @@ interface FactureListItem {
   version: number;
 }
 
-const FactureListe: React.FC = () => {
+interface FactureListeProps {
+  user: User | null;
+}
+
+const FactureListe: React.FC<FactureListeProps> = ({ user }) => {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [showNewDialog, setShowNewDialog] = useState(false);
 
   const {
     data: factures,
@@ -162,7 +169,7 @@ const FactureListe: React.FC = () => {
             )}
           </div>
         </div>
-        <Button size="sm" onClick={() => navigate("/facture-builder")} className="bg-orange-600 hover:bg-orange-700 text-white">
+        <Button size="sm" onClick={() => setShowNewDialog(true)} className="bg-orange-600 hover:bg-orange-700 text-white">
           <Plus className="h-4 w-4 mr-1.5" /> Nouvelle
         </Button>
       </div>
@@ -204,7 +211,7 @@ const FactureListe: React.FC = () => {
               {search ? "Aucune facture ne correspond à votre recherche" : "Aucune facture pour le moment"}
             </p>
             {!search && (
-              <Button variant="outline" size="sm" onClick={() => navigate("/facture-builder")}
+              <Button variant="outline" size="sm" onClick={() => setShowNewDialog(true)}
                 className="text-orange-600 border-orange-200 hover:bg-orange-50">
                 <Plus className="h-4 w-4 mr-1.5" /> Créer une facture
               </Button>
@@ -226,6 +233,15 @@ const FactureListe: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Dialogue nouvelle facture */}
+      {user && (
+        <NouvelleFactureDialog
+          open={showNewDialog}
+          onClose={() => setShowNewDialog(false)}
+          user={user}
+        />
+      )}
     </div>
   );
 };
