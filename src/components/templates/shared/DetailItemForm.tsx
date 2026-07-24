@@ -173,12 +173,11 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
     setProductQuery("");
     el.focus();
 
-    // MAJ prix unitaire
-    if (prod.price) {
-      onChange({ prixUnitaire: prod.price });
-    }
-    // Émettre la nouvelle description
-    emitDescription();
+    // Émettre description + prix en UN SEUL appel (anti-batching)
+    const text = el.innerText || "";
+    const updates: any = { description: text };
+    if (prod.price) updates.prixUnitaire = prod.price;
+    onChange(updates);
   }, [onChange, emitDescription]);
 
   // ── KeyDown : nav dropdown + Backspace suppression chip ──
