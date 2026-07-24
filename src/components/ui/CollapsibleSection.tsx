@@ -23,6 +23,11 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
+  // Synchroniser avec le toggle externe (ex: FactureFooter "tout déplier/replier")
+  React.useEffect(() => {
+    setIsOpen(defaultOpen);
+  }, [defaultOpen]);
+
   return (
     <Collapsible
       open={isOpen}

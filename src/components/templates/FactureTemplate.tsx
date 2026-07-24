@@ -34,6 +34,8 @@ interface FactureTemplateProps {
   hideMobileBar?: boolean;
   /** Masque les blocs d'infos (statut, client, détails, remise) — utilisé avec FactureBuilderHeader */
   hideInfoBlocks?: boolean;
+  /** Force l'ouverture/fermeture de la section Articles (toggle externe) */
+  articlesOpen?: boolean;
 }
 
 const FactureTemplate: React.FC<FactureTemplateProps> = ({
@@ -44,6 +46,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
   hideHeader = false,
   hideMobileBar = false,
   hideInfoBlocks = false,
+  articlesOpen,
 }) => {
   const [isEditMode, setIsEditMode] = useState(isEditable);
   const [data, setData] = useState<FactureData>({
@@ -368,7 +371,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
       {/* Articles */}
       <CollapsibleSection
         title={`Articles${data.details?.length ? ` · ${data.details.length}` : ""}`}
-        defaultOpen={true}
+        defaultOpen={articlesOpen ?? true}
         className="mb-6"
       >
         <div className="space-y-3">
@@ -392,9 +395,9 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
             <button
               type="button"
               onClick={addNewDetail}
-              className="flex items-center gap-2 w-full py-2.5 border-2 border-dashed border-gray-300
-                         rounded-lg text-sm text-gray-400 hover:text-orange-500 hover:border-orange-300
-                         hover:bg-orange-50/30 transition-all justify-center font-medium"
+              className="flex items-center gap-2 w-full py-2.5 border-2 border-dashed border-orange-300
+                         rounded-lg text-sm text-orange-500 hover:text-orange-600 hover:border-orange-400
+                         hover:bg-orange-50/50 transition-all justify-center font-medium"
             >
               <PlusCircle className="h-4 w-4" />
               Ajouter un article

@@ -95,6 +95,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const [saveError, setSaveError] = useState<string>("");
+  const [allOpen, setAllOpen] = useState(true);
 
   // Session dédiée pour le footer chat
   const footerSessionId = messageId
@@ -366,6 +367,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
             hideHeader={true}
             hideMobileBar={true}
             hideInfoBlocks={true}
+            articlesOpen={allOpen}
           />
         </div>
 
@@ -381,6 +383,8 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
           messageId={messageId}
           isEmpty={isEmpty}
           onFactureGenerated={handleFactureGenerated}
+          allOpen={allOpen}
+          onToggleAllOpen={() => setAllOpen((p) => !p)}
         />
       </div>
     </div>

@@ -85,6 +85,14 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0 ml-3">
+          {data.statut && data.statut !== "Brouillon" && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${statutColor(data.statut)}`}>
+              {data.statut}
+            </span>
+          )}
+          {data.total > 0 && (
+            <span className="text-xs font-bold text-green-600">{formatCFA(data.total)}</span>
+          )}
           {expanded ? (
             <ChevronUp size={16} className="text-gray-400" />
           ) : (
