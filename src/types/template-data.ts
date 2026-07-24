@@ -63,7 +63,7 @@ export interface Enseigne {
 export interface FactureData {
   factureNumero: string;
   dateEmission: string;
-  statut?: "Brouillon" | "demande" | "vérifié" | "Payé" | "Livré";
+  statut?: "Brouillon" | "Vérification" | "En attente" | "Validé";
   client: {
     nom: string;
     adresse: string;

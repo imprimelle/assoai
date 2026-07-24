@@ -36,7 +36,7 @@ type SortOrder = 'desc' | 'asc';
 
 // statuts valides par type de template
 const STATUS_SUGGESTIONS_BY_TEMPLATE: Record<TemplateType, string[]> = {
-  facture:           ["Brouillon", "demande", "Vérifié", "Payé", "Livré"],
+  facture:           ["Brouillon", "Vérification", "En attente", "Validé"],
   devis:             ["Brouillon", "En attente", "Accepté", "Refusé", "Expiré"],
   commande:          ["Brouillon", "En cours", "Expédiée", "Livrée", "Terminée"],
   cahier_des_charges:["Brouillon", "infographie", "demande", "Payé", "Livré"],

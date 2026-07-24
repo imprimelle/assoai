@@ -67,6 +67,7 @@ function getDefaultFactureData(): FactureData {
   return {
     factureNumero: "",
     dateEmission: new Date().toISOString().split("T")[0],
+    statut: "Brouillon",
     client: { nom: "", adresse: "" },
     details: [],
     total: 0,
@@ -173,6 +174,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
     if (loadedData) {
       const normalized = {
         ...loadedData,
+        statut: loadedData.statut || "Brouillon",
         details: loadedData.details || [],
         client: loadedData.client || { nom: "", adresse: "" },
         dateEmission: loadedData.dateEmission?.split("T")[0] || "",

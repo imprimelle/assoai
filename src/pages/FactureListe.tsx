@@ -271,10 +271,10 @@ const FactureCard: React.FC<{
 }> = ({ facture, onOpen, onDownload, onDelete, downloading }) => {
   const st = (facture.statut || "").toLowerCase();
   const statusBadge =
-    st === "payé" || st === "livré" ? "bg-emerald-100 text-emerald-700"
-    : st === "vérifié" ? "bg-amber-100 text-amber-700"
-    : st === "demande" ? "bg-blue-100 text-blue-700"
-    : "bg-gray-100 text-gray-500";
+    st === "validé" ? "bg-green-100 text-green-700"
+    : st === "vérification" ? "bg-amber-100 text-amber-700"
+    : st === "en attente" ? "bg-blue-100 text-blue-700"
+    : "bg-gray-100 text-gray-600";
 
   const formatDate = (ts: string) => {
     try { return new Date(ts).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }); }
