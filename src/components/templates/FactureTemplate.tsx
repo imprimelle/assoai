@@ -367,20 +367,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
 
       {/* Détails - Now Collapsible */}
       <CollapsibleSection title="Articles" defaultOpen={true} className="mb-6">
-        <div className="flex justify-end items-center mb-4">
-          {isEditMode && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={addNewDetail}
-              className="flex items-center"
-            >
-              <PlusCircle className="h-4 w-4 mr-1" /> Ajouter un article
-            </Button>
-          )}
-        </div>
-
-        <div className="space-y-4">
+        <div className="space-y-3">
           {data.details && data.details.map((item, index) => (
             <div key={item.id}>
               <DetailItemForm
@@ -395,6 +382,20 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
               />
             </div>
           ))}
+
+          {/* Ajouter un article — après le dernier, façon CDC Builder */}
+          {isEditMode && (
+            <button
+              type="button"
+              onClick={addNewDetail}
+              className="flex items-center gap-2 w-full py-2.5 border-2 border-dashed border-gray-300
+                         rounded-lg text-sm text-gray-400 hover:text-orange-500 hover:border-orange-300
+                         hover:bg-orange-50/30 transition-all justify-center font-medium"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Ajouter un article
+            </button>
+          )}
         </div>
 
         {/* Bloc de remise (€ + % & slider) */}
