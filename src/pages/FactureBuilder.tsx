@@ -374,12 +374,11 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
           )}
         </div>
 
-        {/* Header facture — collapsible, inspiré CDC Builder */}
+        {/* Header facture — collapsible, toujours fermé au démarrage */}
         <FactureBuilderHeader
           data={data}
           onChange={handleDataChange}
           messageId={messageId}
-          forceOpen={allOpen}
         />
 
         {/* Contenu : FactureTemplate (articles uniquement) */}

@@ -92,6 +92,7 @@ const NouvelleFactureDialog: React.FC<NouvelleFactureDialogProps> = ({
       const factureData: FactureData = {
         factureNumero: numero,
         dateEmission: new Date().toISOString().split("T")[0],
+        statut: "Brouillon",
         client: {
           nom: nom.trim(),
           adresse: adresse.trim(),

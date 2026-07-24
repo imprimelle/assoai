@@ -681,7 +681,7 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
         <div className="max-w-6xl mx-auto flex flex-col">
           {/* ── Barre d'actions ── */}
           {isEmpty ? (
-            /* Facture vide → bouton Discussion + Générer */
+            /* Facture vide → uniquement Discussion */
             <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
               <button
                 type="button"
@@ -700,27 +700,6 @@ Analyse : facture pour une enseigne drapeau avec installation. 3 articles : stru
                     {messages.length > 9 ? "9+" : messages.length}
                   </span>
                 )}
-              </button>
-
-              {/* Générer la facture — bouton vert large */}
-              <button
-                type="button"
-                onClick={handleGenerateFacture}
-                disabled={loading}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold
-                           bg-emerald-600 text-white
-                           hover:bg-emerald-500
-                           shadow-lg shadow-emerald-600/25 transition-all
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Wand2 size={16} />
-                )}
-                <span>
-                  {loading ? "Génération en cours…" : "Générer la facture"}
-                </span>
               </button>
             </div>
           ) : (
