@@ -398,14 +398,20 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
           )}
         </div>
 
-        {/* Bloc de remise (€ + % & slider) */}
-        <div className="mt-6 mb-4 sm:mb-6 p-4 bg-gray-50 rounded-lg w-full sm:w-64">
-          {isEditMode ? (
-            <>
-              <div className="flex justify-between items-center text-sm mb-1">
-                <span>Remise</span>
-                <div className="flex items-center space-x-2">
-                  {/* Montant (€) */}
+        {/* ── Résumé : Remise + Total ── */}
+        <div className="mt-6 bg-white border border-gray-200 rounded-lg p-4">
+          {/* Sous-total */}
+          <div className="flex justify-between items-center text-sm mb-2">
+            <span className="text-gray-500">Sous-total</span>
+            <span className="font-medium text-gray-700">{formatCFA(baseTotal)}</span>
+          </div>
+
+          {/* Remise */}
+          <div className="flex justify-between items-center text-sm mb-2 pb-2 border-b border-gray-100">
+            <span className="text-gray-500">Remise</span>
+            {isEditMode ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <input
                     type="number"
                     min={0}
@@ -413,19 +419,18 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
                     value={data.reduction ?? 0}
                     onChange={e => {
                       const newReduction = Number(e.currentTarget.value) || 0;
-                      const pct = baseTotal > 0
-                        ? Math.round((newReduction * 100) / baseTotal)
-                        : 0;
+                      const pct = baseTotal > 0 ? Math.round((newReduction * 100) / baseTotal) : 0;
                       const newTotal = baseTotal - newReduction;
                       setCurrentPercent(pct);
                       handleDataChange({ ...data, reduction: newReduction, total: newTotal });
                     }}
-                    className="w-20 px-1 py-0.5 border rounded text-right"
-                    aria-label="Montant de la remise en euros"
+                    className="w-20 h-8 border border-gray-200 rounded-lg px-2 text-xs text-right"
+                    aria-label="Montant de la remise"
                   />
-                  <span>CFA</span>
-
-                  {/* Pourcentage (%) */}
+                  <span className="text-xs text-gray-400">CFA</span>
+                </div>
+                <span className="text-xs text-gray-400">|</span>
+                <div className="flex items-center gap-1">
                   <input
                     type="number"
                     min={0}
@@ -438,46 +443,23 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
                       setCurrentPercent(pct);
                       handleDataChange({ ...data, reduction: newReduction, total: newTotal });
                     }}
-                    className="w-16 px-1 py-0.5 border rounded text-right"
+                    className="w-14 h-8 border border-gray-200 rounded-lg px-2 text-xs text-right"
                     aria-label="Pourcentage de remise"
                   />
-                  <span>%</span>
+                  <span className="text-xs text-gray-400">%</span>
                 </div>
               </div>
-
-              {/* Slider */}
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={currentPercent}
-                onChange={e => {
-                  const pct = Number(e.currentTarget.value);
-                  const newReduction = Math.round((baseTotal * pct) / 100);
-                  const newTotal = baseTotal - newReduction;
-                  setCurrentPercent(pct);
-                  handleDataChange({ ...data, reduction: newReduction, total: newTotal });
-                }}
-                className="w-full h-2 bg-gray-200 rounded-lg"
-                aria-label="Slider de remise"
-              />
-            </>
-          ) : (
-            <div className="flex justify-between items-center text-sm">
-              <span>Remise</span>
-              <span className="font-medium">
-                {formatCFA(data.reduction ?? 0)} ({currentPercent}%)
+            ) : (
+              <span className="text-orange-600 font-medium">
+                −{formatCFA(data.reduction ?? 0)} ({currentPercent}%)
               </span>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        <div className="mt-4 sm:mt-6 flex justify-end">
-          <div className="bg-gray-50 p-3 sm:p-4 rounded-lg w-full sm:w-64">
-            <div className="flex justify-between mb-1 sm:mb-2">
-              <span className="font-medium">Total</span>
-              <span className="font-bold">{formatCFA(data.total)}</span>
-            </div>
+          {/* Total */}
+          <div className="flex justify-between items-center">
+            <span className="text-base font-semibold text-gray-800">Total</span>
+            <span className="text-lg font-bold text-gray-900">{formatCFA(data.total)}</span>
           </div>
         </div>
       </CollapsibleSection>
