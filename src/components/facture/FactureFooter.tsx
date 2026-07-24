@@ -260,16 +260,20 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
       )
       .join("\n");
 
-    // 🆕 Données préchargées des produits mentionnés via @
+    // 🆕 Données préchargées des produits mentionnés via @ (directement depuis les chips)
     let preloadBlock = "";
-    if (preloadedProducts.length > 0) {
+    const allChips = [...chips];
+    // Ajouter aussi les produits préchargés des messages précédents
+    for (const pp of preloadedProducts) {
+      if (!allChips.some(c => c.productId === pp.id)) {
+        allChips.push({ productId: pp.id, name: pp.name, price: pp.price, variant: pp.variant });
+      }
+    }
+    if (allChips.length > 0) {
       preloadBlock = "\n📦 PRODUITS PRÉCHARGÉS (données complètes — utilise-les, ne les re-cherche pas) :\n";
-      for (const pp of preloadedProducts) {
-        preloadBlock += `- ${pp.name} (id: ${pp.id}) — Prix: ${formatCFA(pp.price)}`;
-        if (pp.variant) preloadBlock += ` [Variante: ${pp.variant}]`;
-        if (pp.bom?.length) {
-          preloadBlock += `\n  BOM: ${pp.bom.map(b => `${b.category}${b.condition_expr ? ` (${b.condition_expr})` : ''}`).join(', ')}`;
-        }
+      for (const chip of allChips) {
+        preloadBlock += `- ${chip.name} (id: ${chip.productId}) — Prix: ${formatCFA(chip.price)}`;
+        if (chip.variant) preloadBlock += ` [Variante: ${chip.variant}]`;
         preloadBlock += "\n";
       }
     }
