@@ -25,9 +25,11 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Sélection produit → MAJ prix unitaire ──
+  // setTimeout évite le batching React : handleSelect a déjà mis à jour
+  // la description via onChange, et onSuggestionSelect arrive dans le même tick.
   const handleProductSelect = (sugg: AtSuggestion) => {
     if ((sugg.kind === "product" || sugg.kind === "variant") && sugg.data?.price) {
-      onChange({ prixUnitaire: sugg.data.price });
+      setTimeout(() => onChange({ prixUnitaire: sugg.data.price }), 0);
     }
   };
 

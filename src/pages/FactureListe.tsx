@@ -304,9 +304,20 @@ const FactureCard: React.FC<{
       isSwiping.current = true;
     }
 
-    if (isSwiping.current && dx < 0) {
+    if (!isSwiping.current) return;
+
+    // dx < 0 : glisser vers la gauche (révèle trash)
+    // dx > 0 : glisser vers la droite (referme trash quand déjà ouvert)
+    if (translateX < 0) {
+      // Déjà swipé → permet dx positif pour refermer, dx négatif interdit au-delà de -80
+      setTranslateX(Math.max(-80, Math.min(0, translateX + dx * 0.3)));
+    } else if (dx < 0) {
+      // Premier swipe gauche
       setTranslateX(Math.max(dx, -100));
     }
+
+    // Reset touchStart pour éviter l'accumulation de delta
+    touchStartX.current = e.touches[0].clientX;
   };
 
   const handleTouchEnd = () => {
