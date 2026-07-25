@@ -358,6 +358,19 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
+  // 🆕 Auto-confirmation : statut → confirmée si reçu + avance remplis (mode commande)
+  useEffect(() => {
+    if (mode !== "commande") return;
+    const cmdData = data as CommandeData;
+    if (
+      cmdData.statut === "en_attente" &&
+      cmdData.recu_image_url &&
+      (cmdData as any).montantAvance > 0
+    ) {
+      setData((prev) => ({ ...prev, statut: "confirmée" }));
+    }
+  }, [mode, (data as CommandeData).recu_image_url, (data as any).montantAvance, (data as CommandeData).statut]);
+
   // 🆕 Suggestion action : expand header + scroll au champ
   const handleSuggestionAction = useCallback((fieldKey: string) => {
     // Expand le header
@@ -370,6 +383,44 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
       }
     }, 100);
   }, []);
+
+  // 🆕 Création projet : callback pour le footer
+  const handleCreateProject = useCallback(async (): Promise<{ projectId: string; projectName: string }> => {
+    const cmdData = data as CommandeData;
+    const projectId = crypto.randomUUID();
+    const projectName = cmdData.client.nom || `Projet ${cmdData.commandeNumero}`;
+
+    // 1. Créer le projet
+    const { error: projErr } = await supabase.from("projects").insert({
+      id: projectId,
+      name: projectName,
+      description: `Commande ${cmdData.commandeNumero} — ${cmdData.client.nom}`,
+      phase: null,
+      status: "actif",
+      session_id: `projet-${projectId.slice(0, 8)}`,
+      created_by: user.id,
+      templates: {
+        factures: factureMessageId ? [factureMessageId] : [],
+        commandes: commandeMessageId ? [commandeMessageId] : [],
+        cahiers_des_charges: [],
+        devis: [],
+      },
+    });
+    if (projErr) throw projErr;
+
+    // 2. Attacher les documents au projet (project_id dans messages)
+    if (factureMessageId) {
+      await supabase.from("messages").update({ project_id: projectId }).eq("id", factureMessageId);
+    }
+    if (commandeMessageId) {
+      await supabase.from("messages").update({ project_id: projectId }).eq("id", commandeMessageId);
+    }
+
+    // 3. Invalider les caches
+    queryClient.invalidateQueries({ queryKey: ["factureListe"] });
+
+    return { projectId, projectName };
+  }, [data, factureMessageId, commandeMessageId, user.id, queryClient]);
 
   // ── Toggle Commande ──
   const handleToggleCommande = useCallback(async () => {
@@ -829,6 +880,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
             onHighlightsChange={setHighlights}
             builderMode={mode}
             onSuggestionAction={handleSuggestionAction}
+            onCreateProject={handleCreateProject}
           />
         )}
 

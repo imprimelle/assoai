@@ -6,6 +6,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Bot,
   MessageCircle,
@@ -21,6 +22,10 @@ import {
   Wand2,
   Package,
   FileDown,
+  X,
+  ExternalLink,
+  Rocket,
+  CheckCircle,
 } from "lucide-react";
 import { routeMessage } from "@/services/hermesRouter";
 import type { FactureData, CommandeData, DetailItem, CommandeItem, FactureAction, FactureFooterMessage } from "@/types";
@@ -51,6 +56,8 @@ export interface FactureFooterProps {
   builderMode?: BuilderMode;
   /** Callback quand l'utilisateur clique sur une suggestion (expand header + scroll) */
   onSuggestionAction?: (fieldKey: string) => void;
+  /** Callback pour créer le projet (mode commande, tous champs remplis) */
+  onCreateProject?: () => Promise<{ projectId: string; projectName: string }>;
 }
 
 // ── Produit préchargé (données complètes pour le prompt Wari) ──
@@ -170,6 +177,7 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   onHighlightsChange,
   builderMode = "facture",
   onSuggestionAction,
+  onCreateProject,
 }) => {
   const isCommande = builderMode === "commande";
   const [expanded, setExpanded] = useState(false);
@@ -232,6 +240,33 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
 
     return fields;
   }, [isCommande, data]);
+
+  // 🆕 Dialogue projet
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const [projectSteps, setProjectSteps] = useState<string[]>([]);
+  const [projectResult, setProjectResult] = useState<{ projectId: string; projectName: string } | null>(null);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+
+  const navigate = useNavigate();
+
+  // 🆕 Handler création projet
+  const handleStartProject = async () => {
+    if (!onCreateProject || isCreatingProject) return;
+    setIsCreatingProject(true);
+    setProjectSteps([]);
+    setProjectResult(null);
+    try {
+      setProjectSteps(["Création du projet..."]);
+      const result = await onCreateProject();
+      setProjectSteps((prev) => [...prev, "Projet créé ✅"]);
+      setProjectSteps((prev) => [...prev, "Documents attachés ✅"]);
+      setProjectResult(result);
+    } catch (err: any) {
+      setProjectSteps((prev) => [...prev, `❌ Erreur: ${err.message || "inconnue"}`]);
+    } finally {
+      setIsCreatingProject(false);
+    }
+  };
 
   const contentEditableRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
@@ -870,6 +905,19 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
                   </span>
                 )}
               </button>
+            ) : isCommande && missingFields.length === 0 && onCreateProject ? (
+              /* 🆕 Tous les champs remplis → bouton COMMENCER LE PROJET */
+              <button
+                type="button"
+                onClick={() => setProjectDialogOpen(true)}
+                className="flex-1 flex items-center justify-center gap-2 px-4 h-9 rounded-lg text-sm font-bold
+                           bg-white text-gray-800 border-2 border-white
+                           hover:bg-gray-100 hover:border-gray-200 hover:shadow-lg
+                           transition-all duration-200"
+              >
+                <span className="text-base">🚀</span>
+                <span>COMMENCER LE PROJET</span>
+              </button>
             ) : (
               <>
             {/* 💬 Discussion */}
@@ -1147,6 +1195,112 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
           </div>
         </div>
       </div>
+
+      {/* 🆕 Dialogue COMMENCER LE PROJET */}
+      {projectDialogOpen && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4"
+          onClick={() => !isCreatingProject && setProjectDialogOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 fade-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Rocket size={18} className="text-orange-500" />
+                <h3 className="text-base font-semibold text-gray-800">
+                  {projectResult ? "Projet créé !" : "Commencer le projet"}
+                </h3>
+              </div>
+              {!isCreatingProject && (
+                <button
+                  onClick={() => setProjectDialogOpen(false)}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4">
+              {!projectResult && !isCreatingProject && (
+                <>
+                  <p className="text-sm text-gray-600 mb-1">
+                    Tous les champs de la commande sont renseignés.
+                  </p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Un nouveau projet sera créé avec les informations du client
+                    <strong className="text-gray-700"> {data.client.nom || "—"}</strong>.
+                    La facture et la commande y seront attachées.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setProjectDialogOpen(false)}
+                      className="flex-1 h-9 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 font-medium"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={handleStartProject}
+                      className="flex-1 h-9 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 flex items-center justify-center gap-1.5"
+                    >
+                      <Rocket size={14} />
+                      Lancer
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Progress steps */}
+              {isCreatingProject && projectSteps.length > 0 && (
+                <div className="space-y-2">
+                  {projectSteps.map((step, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      {step.includes("✅") ? (
+                        <CheckCircle size={16} className="text-green-500 shrink-0" />
+                      ) : step.includes("❌") ? (
+                        <X size={16} className="text-red-500 shrink-0" />
+                      ) : (
+                        <Loader2 size={16} className="animate-spin text-orange-500 shrink-0" />
+                      )}
+                      <span className={step.includes("❌") ? "text-red-600" : "text-gray-700"}>
+                        {step}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Result */}
+              {projectResult && (
+                <div className="space-y-3">
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                    <p className="text-sm font-semibold text-green-800">
+                      {projectResult.projectName}
+                    </p>
+                    <p className="text-xs text-green-600 mt-0.5">
+                      Facture et commande attachées
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setProjectDialogOpen(false);
+                      navigate(`/project/${projectResult.projectId}`);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 h-9 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600"
+                  >
+                    <ExternalLink size={14} />
+                    Ouvrir le projet
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
