@@ -193,23 +193,14 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   const missingFields = useMemo(() => {
     const fields: { key: string; label: string }[] = [];
 
-    // --- Champs communs facture & commande ---
+    // --- Champs communs (essentiels) ---
     if (!data.client?.nom?.trim()) {
       fields.push({ key: "client-nom", label: "Ajouter le nom du client" });
     }
-    if (!data.client?.telephone?.trim()) {
-      fields.push({ key: "client-telephone", label: "Ajouter le téléphone" });
-    }
-    if (!data.client?.adresse?.trim()) {
-      fields.push({ key: "client-adresse", label: "Ajouter l'adresse" });
-    }
 
     if (isCommande) {
-      // --- Champs spécifiques commande ---
+      // --- Champs spécifiques commande (visibles uniquement) ---
       const cmdData = data as CommandeData;
-      if (!cmdData.dateCommande) {
-        fields.push({ key: "dateCommande", label: "Ajouter la date de commande" });
-      }
       if (!cmdData.dateLivraison) {
         fields.push({ key: "dateLivraison", label: "Ajouter la date de livraison" });
       }
@@ -224,6 +215,12 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
       }
     } else {
       // --- Champs spécifiques facture ---
+      if (!data.client?.telephone?.trim()) {
+        fields.push({ key: "client-telephone", label: "Ajouter le téléphone" });
+      }
+      if (!data.client?.adresse?.trim()) {
+        fields.push({ key: "client-adresse", label: "Ajouter l'adresse" });
+      }
       const facData = data as FactureData;
       if (!facData.dateEmission) {
         fields.push({ key: "dateEmission", label: "Ajouter la date d'émission" });
