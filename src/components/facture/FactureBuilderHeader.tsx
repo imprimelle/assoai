@@ -462,6 +462,14 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                       </span>
                     </span>
                   )}
+                  {((data as any).montantAvance ?? 0) === 0 && data.total > 0 && (
+                    <span className="text-xs text-gray-500">
+                      sur{" "}
+                      <span className="font-bold text-green-700">
+                        {formatCFA(data.total)}
+                      </span>
+                    </span>
+                  )}
                 </div>
               </div>
             </>
