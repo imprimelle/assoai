@@ -139,6 +139,7 @@ export interface CommandeData {
   deliveryAddress?: DeliveryAddress;
   reduction?: number;  // Remise héritée de la facture source (montant CFA)
   echeancier?: string;  // Échéancier hérité de la facture source
+  montantAvance?: number;  // Avance versée (FCFA)
 }
 
 export interface CahierDesChargesData {

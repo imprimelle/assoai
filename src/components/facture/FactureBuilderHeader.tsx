@@ -18,6 +18,7 @@ import type { FactureData, CommandeData } from "@/types";
 import { formatCFA } from "@/utils/format";
 import UnifiedAtInput from "@/components/shared/UnifiedAtInput";
 import type { AtSuggestion } from "@/components/shared/UnifiedAtInput";
+import ImageUpload from "@/components/templates/shared/ImageUpload";
 import type { BuilderMode } from "@/pages/FactureBuilder";
 
 export interface FactureBuilderHeaderProps {
@@ -33,10 +34,10 @@ export interface FactureBuilderHeaderProps {
 
 function statutColor(s: string) {
   const l = (s || "").toLowerCase();
-  if (l === "validé") return "bg-green-100 text-green-700";
-  if (l === "vérification") return "bg-amber-100 text-amber-700";
-  if (l === "en attente") return "bg-blue-100 text-blue-700";
-  if (l === "brouillon") return "bg-gray-100 text-gray-600";
+  if (l === "validé" || l === "terminée" || l === "terminé") return "bg-green-100 text-green-700";
+  if (l === "vérification" || l === "confirmée" || l === "confirmé") return "bg-amber-100 text-amber-700";
+  if (l === "en attente" || l === "en_cours") return "bg-blue-100 text-blue-700";
+  if (l === "annulée" || l === "annulé") return "bg-red-100 text-red-700";
   return "bg-gray-100 text-gray-600";
 }
 
@@ -261,7 +262,10 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                   {isCommande ? (
                     <>
                       <option value="en_attente">En attente</option>
-                      <option value="Validé">Validé</option>
+                      <option value="confirmée">Confirmée</option>
+                      <option value="en_cours">En cours</option>
+                      <option value="terminée">Terminée</option>
+                      <option value="annulée">Annulée</option>
                     </>
                   ) : (
                     <>
@@ -312,38 +316,78 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
             </div>
           </div>
 
-          {/* 🆕 Ligne spécifique commande : image réception + lien facture */}
+          {/* 🆕 Section spécifique commande : date livraison, avance, reçu, lien facture */}
           {isCommande && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div>
-                <label className={labelClass}>
-                  <Image size={11} className="inline mr-1 text-gray-400" /> Image
-                  de réception
-                </label>
-                <input
-                  type="text"
-                  value={(data as CommandeData).recu_image_url || ""}
-                  onChange={(e) =>
-                    updateField("recu_image_url", e.target.value)
-                  }
-                  className={inputClass}
-                  placeholder="URL de l'image de réception"
-                />
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                <div>
+                  <label className="text-[11px] text-gray-500 mb-0.5 block">
+                    Date de livraison
+                  </label>
+                  <input
+                    type="date"
+                    value={(data as CommandeData).dateLivraison?.split("T")[0] || ""}
+                    onChange={(e) => updateField("dateLivraison", e.target.value)}
+                    className={isEditable ? inputClass : inputDisabledClass}
+                    disabled={!isEditable}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-gray-500 mb-0.5 block">
+                    Avance (FCFA)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={data.total}
+                    value={(data as any).montantAvance ?? 0}
+                    onChange={(e) => {
+                      const val = Number(e.target.value) || 0;
+                      onChange({ ...data, montantAvance: val } as CommandeData);
+                    }}
+                    className={isEditable ? inputClass : inputDisabledClass}
+                    disabled={!isEditable}
+                    placeholder="0"
+                  />
+                </div>
               </div>
-              <div>
-                <label className={labelClass}>
-                  <Receipt size={11} className="inline mr-1 text-gray-400" />{" "}
-                  Facture liée
-                </label>
-                <input
-                  type="text"
-                  value={(data as CommandeData).linked_facture_id || ""}
-                  disabled
-                  className={inputDisabledClass}
-                  placeholder="N° facture source"
-                />
+
+              {/* Reste à payer (si avance > 0) */}
+              {((data as any).montantAvance ?? 0) > 0 && (
+                <div className="flex justify-between items-center text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-2">
+                  <span className="text-green-700 font-medium">Reste à payer</span>
+                  <span className="font-bold text-green-700">
+                    {formatCFA(data.total - ((data as any).montantAvance ?? 0))}
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className={labelClass}>
+                    <Image size={11} className="inline mr-1 text-gray-400" /> Reçu
+                  </label>
+                  <ImageUpload
+                    imageUrl={(data as CommandeData).recu_image_url || null}
+                    onChange={(url) => updateField("recu_image_url", url)}
+                    isEditable={isEditable}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>
+                    <Receipt size={11} className="inline mr-1 text-gray-400" />{" "}
+                    Facture liée
+                  </label>
+                  <input
+                    type="text"
+                    value={(data as CommandeData).linked_facture_id || ""}
+                    disabled
+                    className={inputDisabledClass}
+                    placeholder="N° facture source"
+                  />
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {/* ── Bloc Remise ── */}

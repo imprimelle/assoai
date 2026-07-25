@@ -131,6 +131,7 @@ function deriveFactureToCommandeData(
   return {
     commandeNumero,
     dateCommande: new Date().toISOString().split("T")[0],
+    dateLivraison: "",
     client: { ...facData.client },
     items: derivedItems,
     total: derivedTotal,
@@ -142,6 +143,7 @@ function deriveFactureToCommandeData(
     echeancier: facData.echeancier,
     deliveryAddress: facData.deliveryAddress,
     recu_image_url: null,
+    montantAvance: 0,
   };
 }
 
