@@ -134,9 +134,6 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
     });
   };
 
-  // Montant brut avant remise - guard against undefined details
-  const baseTotal = data.details?.reduce((sum, item) => sum + item.sous_total, 0) || 0;
-
   // Nouveau (state + syncing)
   const [currentPercent, setCurrentPercent] = useState<number>(
     baseTotal > 0
