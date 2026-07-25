@@ -350,40 +350,26 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
             </div>
           </div>
 
-          {/* 🆕 Adresse de livraison (mode commande) */}
-          {isCommande && (
-            <div>
-              <label className={labelClass}>
-                📍 Adresse de livraison
-              </label>
-              <AddressPicker
-                value={(data as CommandeData).deliveryAddress}
-                onChange={(addr) => updateField("deliveryAddress", addr)}
-                isEditable={isEditable}
-              />
-            </div>
-          )}
-
           {/* 🆕 Section spécifique commande */}
           {isCommande && (
             <>
-              {/* Ligne 1 : Date de livraison */}
-              <div className="mb-2">
-                <label className="text-[11px] text-gray-500 mb-0.5 block">
-                  Date de livraison
-                </label>
-                <input
-                  type="date"
-                  value={(data as CommandeData).dateLivraison?.split("T")[0] || ""}
-                  onChange={(e) => updateField("dateLivraison", e.target.value)}
-                  className={isEditable ? inputClass : inputDisabledClass}
-                  disabled={!isEditable}
-                />
-              </div>
+              {/* Ligne 1 : Date livraison + Reçu + Facture liée */}
+              <div className="flex items-end gap-3 mb-3">
+                {/* Date de livraison */}
+                <div className="flex-1 min-w-0">
+                  <label className="text-[11px] text-gray-500 mb-0.5 block">
+                    Date de livraison
+                  </label>
+                  <input
+                    type="date"
+                    value={(data as CommandeData).dateLivraison?.split("T")[0] || ""}
+                    onChange={(e) => updateField("dateLivraison", e.target.value)}
+                    className={isEditable ? inputClass : inputDisabledClass}
+                    disabled={!isEditable}
+                  />
+                </div>
 
-              {/* Ligne 2 : Reçu (thumbnail compact) + Facture liée */}
-              <div className="flex items-center gap-3 mb-3">
-                {/* Reçu : thumbnail clickable */}
+                {/* Reçu : thumbnail compact */}
                 <div className="shrink-0">
                   <label className="text-[11px] text-gray-500 mb-0.5 block">
                     Reçu
@@ -443,8 +429,8 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 </div>
               </div>
 
-              {/* Ligne 3 : Avance + Reste */}
-              <div>
+              {/* Ligne 2 : Avance + Reste */}
+              <div className="mb-3">
                 <label className={labelClass}>
                   Avance (FCFA)
                 </label>
@@ -476,6 +462,20 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 </div>
               </div>
             </>
+          )}
+
+          {/* 🆕 Adresse de livraison (mode commande, dernière position) */}
+          {isCommande && (
+            <div>
+              <label className={labelClass}>
+                📍 Adresse de livraison
+              </label>
+              <AddressPicker
+                value={(data as CommandeData).deliveryAddress}
+                onChange={(addr) => updateField("deliveryAddress", addr)}
+                isEditable={isEditable}
+              />
+            </div>
           )}
 
           {/* ── Bloc Remise ── */}
