@@ -404,6 +404,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
                 quantite={item.quantite}
                 prix={item.prixUnitaire}
                 sousTotal={item.sous_total}
+                image_url={item.image_url}
                 detailIndex={index}
                 onDelete={() => removeDetail(index)}
                 onChange={(changes) => updateDetailItem(index, changes)}
