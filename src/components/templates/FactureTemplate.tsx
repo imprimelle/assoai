@@ -3,11 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { FactureData, DetailItem } from "@/types";
+import { FactureData, CommandeData, DetailItem } from "@/types";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { 
   Receipt, 
+  ShoppingCart,
   Pencil, 
   Eye, 
   Save, 
@@ -22,12 +23,13 @@ import CollapsibleSection from "../ui/CollapsibleSection";
 import StatusLine from "@/components/ui/StatusLine";
 import { formatCFA } from "@/utils/format";
 import { getStatusLineState } from "@/utils/status-utils";
+import type { BuilderMode } from "@/pages/FactureBuilder";
 
 interface FactureTemplateProps {
-  data: FactureData;
-  onSave?: (data: FactureData) => void;
+  data: FactureData | CommandeData;
+  onSave?: (data: FactureData | CommandeData) => void;
   isEditable?: boolean;
-  onChange?: (data: FactureData) => void;
+  onChange?: (data: FactureData | CommandeData) => void;
   /** Masque le header interne (titre FACTURE + boutons) — utilisé quand le header est géré par la page parent */
   hideHeader?: boolean;
   /** Masque la barre d'actions mobile fixe — utilisé quand le footer est géré par la page parent */
@@ -36,6 +38,8 @@ interface FactureTemplateProps {
   hideInfoBlocks?: boolean;
   /** Force l'ouverture/fermeture de la section Articles (toggle externe) */
   articlesOpen?: boolean;
+  /** Mode : facture ou commande */
+  mode?: BuilderMode;
 }
 
 const FactureTemplate: React.FC<FactureTemplateProps> = ({
@@ -47,11 +51,14 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
   hideMobileBar = false,
   hideInfoBlocks = false,
   articlesOpen,
+  mode = "facture",
 }) => {
+  const isCommande = mode === "commande";
   const [isEditMode, setIsEditMode] = useState(isEditable);
-  const [data, setData] = useState<FactureData>({
+  const [data, setData] = useState<FactureData | CommandeData>({
     ...initialData,
-    details: initialData.details || [],
+    details: (initialData as FactureData).details || [],
+    items: (initialData as CommandeData).items || [],
     client: initialData.client || { nom: "", adresse: "" }
   });
   const { toast } = useToast();
@@ -62,21 +69,36 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
   }, [isEditable]);
 
   useEffect(() => {
-    const normalizedData = {
+    const normalizedData: FactureData | CommandeData = {
       ...initialData,
-      details: initialData.details || [],
       client: initialData.client || { nom: "", adresse: "" },
-      dateEmission: initialData.dateEmission?.split("T")[0] || ""
     };
+    if (isCommande) {
+      (normalizedData as CommandeData).items = (initialData as CommandeData).items || [];
+      (normalizedData as CommandeData).dateCommande = (initialData as CommandeData).dateCommande?.split("T")[0] || "";
+    } else {
+      (normalizedData as FactureData).details = (initialData as FactureData).details || [];
+      (normalizedData as FactureData).dateEmission = (initialData as FactureData).dateEmission?.split("T")[0] || "";
+    }
     setData(normalizedData);
-  }, [initialData]);
+  }, [initialData, isCommande]);
 
-  const handleDataChange = (newData: FactureData) => {
+  const handleDataChange = (newData: FactureData | CommandeData) => {
     setData(newData);
     if (onChange) {
       onChange(newData);
     }
   };
+
+  // Helpers: obtenir/remplacer les articles selon le mode
+  const getItems = (d: FactureData | CommandeData): any[] =>
+    isCommande ? ((d as CommandeData).items || []) : ((d as FactureData).details || []);
+
+  const setItems = (d: FactureData | CommandeData, items: any[]): FactureData | CommandeData =>
+    isCommande ? { ...d, items } : { ...d, details: items };
+
+  // Montant brut avant remise
+  const baseTotal = getItems(data).reduce((sum: number, item: any) => sum + (item.sous_total ?? 0), 0);
 
   const handleSave = () => {
     setIsEditMode(false);
@@ -124,67 +146,61 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
 
   // Dès que data.reduction ou baseTotal change, on recalcule automatiquement le pourcentage
   useEffect(() => {
+    const reduction = (data as any).reduction ?? 0;
     const pct = baseTotal > 0
-      ? Math.round(((data.reduction ?? 0) / baseTotal) * 100)
+      ? Math.round((reduction / baseTotal) * 100)
       : 0;
     setCurrentPercent(pct);
-  }, [data.reduction, baseTotal]);
+  }, [(data as any).reduction, baseTotal]);
 
   const updateDetailItem = (index: number, changes: Partial<DetailItem>) => {
-    if (!data.details) {
-      return; // Guard against undefined details
-    }
-    
-    const current = data.details[index];
+    const items = getItems(data);
+    if (!items || index >= items.length) return;
+
+    const current = items[index];
     const updated = { ...current, ...changes };
     updated.sous_total = Number(updated.quantite) * Number(updated.prixUnitaire);
 
-    const newDetails = [...data.details];
-    newDetails[index] = updated;
+    const newItems = [...items];
+    newItems[index] = updated;
 
-    // Total après application de la remise stockée en €
-    const base = newDetails.reduce((sum, item) => sum + item.sous_total, 0);
-    const newTotal = base - (data.reduction ?? 0);
+    const base = newItems.reduce((sum: number, item: any) => sum + (item.sous_total ?? 0), 0);
+    const newTotal = base - ((data as any).reduction ?? 0);
 
-    handleDataChange({
-      ...data,
-      details: newDetails,
-      total: newTotal
-    });
+    handleDataChange(setItems({ ...data, total: newTotal }, newItems));
   };
 
   const addNewDetail = () => {
-    const newDetail: DetailItem = {
-      id: crypto.randomUUID(),
-      description: "",
-      quantite: 1,
-      prixUnitaire: 0,
-      sous_total: 0
-    };
-    
-    const newDetails = [...(data.details || []), newDetail];
-
-    handleDataChange({
-      ...data,
-      details: newDetails
-    });
+    const items = getItems(data);
+    if (isCommande) {
+      const newItem = {
+        id: crypto.randomUUID(),
+        nom: "",
+        quantite: 1,
+        prixUnitaire: 0,
+        sous_total: 0,
+      };
+      handleDataChange(setItems(data, [...items, newItem]));
+    } else {
+      const newDetail: DetailItem = {
+        id: crypto.randomUUID(),
+        description: "",
+        quantite: 1,
+        prixUnitaire: 0,
+        sous_total: 0,
+      };
+      handleDataChange(setItems(data, [...items, newDetail]));
+    }
   };
 
   const removeDetail = (index: number) => {
-    if (!data.details) {
-      return; // Guard against undefined details
-    }
-    
-    const newDetails = data.details.filter((_, i) => i !== index);
-    const newTotal = newDetails.reduce((sum, item) => sum + (item.quantite * item.prixUnitaire), 0);
-    
-    const newData = {
-      ...data,
-      details: newDetails,
-      total: newTotal
-    };
-    
-    handleDataChange(newData);
+    const items = getItems(data);
+    if (!items) return;
+
+    const newItems = items.filter((_: any, i: number) => i !== index);
+    const newTotal = newItems.reduce((sum: number, item: any) => sum + (item.quantite * item.prixUnitaire), 0);
+
+    handleDataChange(setItems({ ...data, total: newTotal }, newItems));
   };
 
   return (
@@ -192,13 +208,21 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
       {!hideHeader && (
       <div className="flex justify-between items-center mb-4 sm:mb-6">
         <div className="flex items-center">
-          <div className="bg-orange-100 p-2 rounded-full mr-3">
-            <Receipt className="h-6 w-6 text-orange-600" />
+          <div className={`p-2 rounded-full mr-3 ${isCommande ? "bg-purple-100" : "bg-orange-100"}`}>
+            {isCommande ? (
+              <ShoppingCart className="h-6 w-6 text-purple-600" />
+            ) : (
+              <Receipt className="h-6 w-6 text-orange-600" />
+            )}
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">FACTURE</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
+              {isCommande ? "COMMANDE" : "FACTURE"}
+            </h1>
             <p className="font-medium mt-1 text-md text-gray-600">
-              N° {data.factureNumero}
+              N° {isCommande
+                ? (data as CommandeData).commandeNumero
+                : (data as FactureData).factureNumero}
             </p>
           </div>
         </div>
@@ -370,16 +394,16 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
 
       {/* Articles */}
       <CollapsibleSection
-        title={`Articles${data.details?.length ? ` · ${data.details.length}` : ""}`}
+        title={`Articles${getItems(data).length ? ` · ${getItems(data).length}` : ""}`}
         defaultOpen={articlesOpen ?? true}
         className="mb-6"
       >
         <div className="space-y-3">
-          {data.details && data.details.map((item, index) => (
+          {getItems(data).map((item: any, index: number) => (
             <div key={item.id}>
               <DetailItemForm
                 id={item.id}
-                description={item.description}
+                description={isCommande ? (item.nom || "") : (item.description || "")}
                 quantite={item.quantite}
                 prix={item.prixUnitaire}
                 sousTotal={item.sous_total}
@@ -426,7 +450,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
                       type="number"
                       min={0}
                       max={baseTotal}
-                      value={data.reduction ?? 0}
+                      value={(data as any).reduction ?? 0}
                       onChange={e => {
                         const newReduction = Number(e.currentTarget.value) || 0;
                         const pct = baseTotal > 0 ? Math.round((newReduction * 100) / baseTotal) : 0;
@@ -462,7 +486,7 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
               </div>
             ) : (
               <span className="text-orange-600 font-medium">
-                −{formatCFA(data.reduction ?? 0)} ({currentPercent}%)
+                −{formatCFA((data as any).reduction ?? 0)} ({currentPercent}%)
               </span>
             )}
           </div>

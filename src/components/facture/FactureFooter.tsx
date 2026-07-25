@@ -23,15 +23,16 @@ import {
   FileDown,
 } from "lucide-react";
 import { routeMessage } from "@/services/hermesRouter";
-import type { FactureData, DetailItem, FactureAction, FactureFooterMessage } from "@/types";
+import type { FactureData, CommandeData, DetailItem, CommandeItem, FactureAction, FactureFooterMessage } from "@/types";
 import type { User } from "@/types/user";
 import { formatCFA } from "@/utils/format";
 import { useProducts } from "@/hooks/useProducts";
 import { smartSearch } from "@/utils/productSearch";
+import type { BuilderMode } from "@/pages/FactureBuilder";
 
 export interface FactureFooterProps {
-  data: FactureData;
-  onDataChange: (data: FactureData) => void;
+  data: FactureData | CommandeData;
+  onDataChange: (data: FactureData | CommandeData) => void;
   user: User;
   persistentSessionId: string;
   onSave: () => void;
@@ -46,6 +47,8 @@ export interface FactureFooterProps {
   downloadingPDF?: boolean;
   /** Highlights après application d'actions */
   onHighlightsChange?: (highlights: Record<string, "added" | "modified">) => void;
+  /** Mode : facture ou commande */
+  builderMode?: BuilderMode;
 }
 
 // ── Produit préchargé (données complètes pour le prompt Wari) ──
@@ -163,7 +166,9 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   onDownloadPDF,
   downloadingPDF = false,
   onHighlightsChange,
+  builderMode = "facture",
 }) => {
+  const isCommande = builderMode === "commande";
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<"modifier" | "demander">("modifier");
   const [messages, setMessages] = useState<FactureFooterMessage[]>([]);
@@ -258,17 +263,25 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   // ── Nettoyer les précharges quand les articles changent ──
   useEffect(() => {
     // Garder seulement les produits qui sont encore référencés dans les articles
-    const detailProductIds = new Set((data.details || []).map(d => (d as any).productId).filter(Boolean));
+    const items: any[] = isCommande
+      ? ((data as CommandeData).items || [])
+      : ((data as FactureData).details || []);
+    const detailProductIds = new Set(items.map(d => (d as any).productId).filter(Boolean));
     setPreloadedProducts(prev => prev.filter(p => detailProductIds.has(p.id)));
-  }, [data.details]);
+  }, [isCommande ? (data as CommandeData).items : (data as FactureData).details]);
 
   /** Construit le prompt Modifier — Wari décide s'il doit générer ou modifier */
   const buildModifierPrompt = (message: string, chips: { productId: string; name: string; price: number; variant?: string; dimensions?: string; sku?: string }[]): string => {
-    const articlesText = (data.details || [])
-      .map(
-        (d, i) =>
-          `  ${i + 1}. ${d.description || "(sans description)"} ×${d.quantite} = ${formatCFA(d.sous_total)}`,
-      )
+    // Items selon le mode
+    const items: any[] = isCommande
+      ? ((data as CommandeData).items || [])
+      : ((data as FactureData).details || []);
+
+    const articlesText = items
+      .map((d, i) => {
+        const label = isCommande ? (d.nom || "(sans nom)") : (d.description || "(sans description)");
+        return `  ${i + 1}. ${label} ×${d.quantite} = ${formatCFA(d.sous_total)}`;
+      })
       .join("\n");
 
     // 🆕 Bloc produits : chips @produit (données complètes) + flat list enrichie (tjs présente)
@@ -304,29 +317,38 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
       }
     }
 
-    const isEmpty = !data.details || data.details.length === 0;
-    const modeInstruction = isEmpty
-      ? `\n🆕 MODE GÉNÉRATION : La facture est VIDE (aucun article). Tu dois GÉNÉRER une facture complète et cohérente.`
-      : `\n✏️ MODE MODIFICATION : La facture a déjà ${data.details?.length || 0} article(s). Tu dois MODIFIER la facture existante.`;
+    const docType = isCommande ? "commande" : "facture";
+    const docLabel = isCommande ? "la commande" : "la facture";
+    const docNum = isCommande
+      ? ((data as CommandeData).commandeNumero || "Brouillon")
+      : ((data as FactureData).factureNumero || "Brouillon");
+    const docDate = isCommande
+      ? ((data as CommandeData).dateCommande || "?")
+      : ((data as FactureData).dateEmission || "?");
 
-    return `[Facture Builder — Wari]
+    const isEmpty = !items || items.length === 0;
+    const modeInstruction = isEmpty
+      ? `\n🆕 MODE GÉNÉRATION : ${docLabel} est VIDE (aucun article). Tu dois GÉNÉRER une ${docType} complète et cohérente.`
+      : `\n✏️ MODE MODIFICATION : ${docLabel} a déjà ${items.length} article(s). Tu dois MODIFIER ${docLabel} existante.`;
+
+    return `[${docType === "commande" ? "Commande" : "Facture"} Builder — Wari]
 ${modeInstruction}
 
-N°: ${data.factureNumero || "Brouillon"}
-Date: ${data.dateEmission || "?"}
+N°: ${docNum}
+Date: ${docDate}
 Client: ${data.client.nom || "?"}
 Adresse: ${data.client.adresse || "?"}
 Téléphone: ${data.client.telephone || "?"}
-Statut: ${data.statut || "Brouillon"}
+Statut: ${data.statut || (isCommande ? "en_attente" : "Brouillon")}
 
 Articles:
 ${articlesText || "  (aucun article)"}
 
-Remise: ${formatCFA(data.reduction ?? 0)}
-Échéancier: ${data.echeancier || "—"}
-Délai livraison: ${data.delaiLivraison || "—"}
+Remise: ${formatCFA((data as any).reduction ?? 0)}
+Échéancier: ${(data as any).echeancier || "—"}
+Délai livraison: ${(data as any).delaiLivraison || "—"}
 Total: ${formatCFA(data.total)}
-${preloadBlock}
+${isCommande ? `Facture liée: ${(data as CommandeData).linked_facture_id || "—"}\n` : ""}${preloadBlock}
 Instruction de l'utilisateur: ${message}
 
 ⚠️ FORMAT DE RÉPONSE OBLIGATOIRE :
@@ -339,10 +361,10 @@ Actions disponibles :
 - updateDetail : { index: 0, changes: { quantite: 3 } }
 - removeDetail : { index: 0 }
 - setRemise : { value: 15000 }
-- setStatut : { value: "Brouillon"|"demande"|"Vérifié"|"Payé"|"Livré" }
+- setStatut : { value: "Brouillon"|"Vérification"|"En attente"|"Validé" }
 - setEcheancier : { value: "30% à la commande, 70% à la livraison" }
 - setDelaiLivraison : { value: "2 semaines" }
-- updateField : { field: "dateEmission", value: "2026-07-24" }
+- updateField : { field: "dateEmission"|"dateCommande", value: "2026-07-24" }
 
 Exemple :
 Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "Vérifié".
@@ -358,18 +380,24 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
   /** Appliquer les actions Wari — avec highlights + scroll séquentiel */
   const applyActions = useCallback(
     (actions: FactureAction[]) => {
-      let newData = JSON.parse(JSON.stringify(data)) as FactureData;
+      // Deep copy selon le mode
+      const newData = JSON.parse(JSON.stringify(data)) as FactureData & CommandeData;
       const allHighlights: Record<string, "added" | "modified"> = {};
       const scrollOrder: string[] = [];
+
+      // Helper: obtenir le tableau d'articles selon le mode
+      const getItems = (d: typeof newData): any[] =>
+        isCommande ? (d.items || []) : (d.details || []);
+      const setItems = (d: typeof newData, items: any[]): typeof newData =>
+        isCommande ? { ...d, items } : { ...d, details: items };
 
       for (const action of actions) {
         switch (action.type) {
           case "updateClientField": {
             if (action.field && action.value !== undefined) {
-              newData = {
-                ...newData,
+              Object.assign(newData, {
                 client: { ...newData.client, [action.field]: action.value },
-              };
+              });
               const key = `client-${action.field}`;
               allHighlights[key] = "modified";
               scrollOrder.push(key);
@@ -380,18 +408,27 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
             if (action.item) {
               const qte = action.item.quantite || 1;
               const prix = action.item.prixUnitaire || 0;
-              const newItem: DetailItem = {
-                id: crypto.randomUUID?.() || `detail-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                description: action.item.description || "",
-                quantite: qte,
-                prixUnitaire: prix,
-                sous_total: qte * prix,
-              };
-              newData = {
-                ...newData,
-                details: [...(newData.details || []), newItem],
-              };
-              const idx = (newData.details || []).length - 1;
+              if (isCommande) {
+                const newItem: CommandeItem = {
+                  id: crypto.randomUUID?.() || `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  nom: action.item.description || "",
+                  quantite: qte,
+                  prixUnitaire: prix,
+                  sous_total: qte * prix,
+                };
+                Object.assign(newData, { items: [...(newData.items || []), newItem] });
+              } else {
+                const newItem: DetailItem = {
+                  id: crypto.randomUUID?.() || `detail-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  description: action.item.description || "",
+                  quantite: qte,
+                  prixUnitaire: prix,
+                  sous_total: qte * prix,
+                };
+                Object.assign(newData, { details: [...(newData.details || []), newItem] });
+              }
+              const items = getItems(newData);
+              const idx = items.length - 1;
               const key = `detail-${idx}`;
               allHighlights[key] = "added";
               scrollOrder.push(key);
@@ -399,12 +436,13 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
             break;
           }
           case "updateDetail": {
-            if (action.index != null && action.changes && newData.details?.[action.index]) {
-              const updated = { ...newData.details[action.index], ...action.changes };
+            const items = getItems(newData);
+            if (action.index != null && action.changes && items[action.index]) {
+              const updated = { ...items[action.index], ...action.changes };
               updated.sous_total = Number(updated.quantite) * Number(updated.prixUnitaire);
-              const newDetails = [...newData.details];
-              newDetails[action.index] = updated;
-              newData = { ...newData, details: newDetails };
+              const newItems = [...items];
+              newItems[action.index] = updated;
+              Object.assign(newData, setItems(newData, newItems));
               const key = `detail-${action.index}`;
               allHighlights[key] = "modified";
               scrollOrder.push(key);
@@ -412,31 +450,32 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
             break;
           }
           case "removeDetail": {
-            if (action.index != null && newData.details?.[action.index]) {
-              newData = { ...newData, details: newData.details.filter((_, i) => i !== action.index) };
+            const items = getItems(newData);
+            if (action.index != null && items[action.index]) {
+              Object.assign(newData, setItems(newData, items.filter((_, i) => i !== action.index)));
             }
             break;
           }
           case "setRemise": {
-            newData = { ...newData, reduction: action.value ?? 0 };
+            (newData as any).reduction = action.value ?? 0;
             allHighlights["remise"] = "modified";
             scrollOrder.push("remise");
             break;
           }
           case "setStatut": {
-            newData = { ...newData, statut: action.value };
+            newData.statut = action.value;
             allHighlights["statut"] = "modified";
             scrollOrder.push("statut");
             break;
           }
           case "setEcheancier": {
-            newData = { ...newData, echeancier: action.value };
+            (newData as any).echeancier = action.value;
             allHighlights["echeancier"] = "modified";
             scrollOrder.push("echeancier");
             break;
           }
           case "setDelaiLivraison": {
-            newData = { ...newData, delaiLivraison: action.value };
+            (newData as any).delaiLivraison = action.value;
             allHighlights["delaiLivraison"] = "modified";
             scrollOrder.push("delaiLivraison");
             break;
@@ -454,11 +493,12 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
       }
 
       // Recalculer le total
-      const base = (newData.details || []).reduce((sum, d) => sum + d.sous_total, 0);
-      newData.total = base - (newData.reduction ?? 0);
+      const items = getItems(newData);
+      const base = items.reduce((sum: number, d: any) => sum + (d.sous_total ?? 0), 0);
+      newData.total = base - ((newData as any).reduction ?? 0);
 
       // Appliquer le state d'un coup
-      console.log("[FactureFooter] applyActions: onDataChange avec", newData.details?.length || 0, "articles, total:", newData.total);
+      console.log("[FactureFooter] applyActions: onDataChange avec", items.length, "articles, total:", newData.total);
       onDataChange(newData);
 
       // Émettre les highlights

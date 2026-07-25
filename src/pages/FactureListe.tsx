@@ -35,6 +35,7 @@ interface FactureListItem {
   total: number;
   timestamp: string;
   version: number;
+  linkedCommandeId: string | null;
 }
 
 interface FactureListeProps {
@@ -83,6 +84,25 @@ const FactureListe: React.FC<FactureListeProps> = ({ user }) => {
         }
       }
 
+      // 🆕 Récupérer toutes les commandes pour mapper linked_facture_id → commandeNumero
+      let commandeMap: Record<string, string> = {};
+      const { data: commandes } = await supabase
+        .from("messages")
+        .select("template_data")
+        .eq("template_type", "commande")
+        .order("timestamp", { ascending: false })
+        .limit(200);
+      if (commandes) {
+        for (const c of commandes) {
+          const cmdData = c.template_data?.data;
+          const linkedFacture = cmdData?.linked_facture_id;
+          const cmdNumero = cmdData?.commandeNumero;
+          if (linkedFacture && cmdNumero && !commandeMap[linkedFacture]) {
+            commandeMap[linkedFacture] = cmdNumero;
+          }
+        }
+      }
+
       return (messages || []).map((m: any) => {
         const data = m.template_data?.data || {};
         return {
@@ -95,6 +115,7 @@ const FactureListe: React.FC<FactureListeProps> = ({ user }) => {
           total: data.total || 0,
           timestamp: m.timestamp,
           version: m.template_data?.version || data.version || 1,
+          linkedCommandeId: data.factureNumero ? commandeMap[data.factureNumero] || null : null,
         };
       });
     },
@@ -368,7 +389,7 @@ const FactureCard: React.FC<{
                    transition-transform duration-200 cursor-pointer group"
       >
         <div className="px-4 py-3">
-          {/* Ligne 1 : Client + Statut + Version */}
+          {/* Ligne 1 : Client + Statut + Version + Badge Commande */}
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2 min-w-0">
               <Receipt className="h-4 w-4 text-orange-400 shrink-0" />
@@ -376,6 +397,15 @@ const FactureCard: React.FC<{
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${statusBadge}`}>
                 {facture.statut}
               </span>
+              {facture.linkedCommandeId && (
+                <span
+                  className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0
+                             bg-purple-100 text-purple-700 border border-purple-200"
+                  title={`Commande liée : ${facture.linkedCommandeId}`}
+                >
+                  📋 {facture.linkedCommandeId}
+                </span>
+              )}
             </div>
             <span className="text-[10px] text-gray-400 font-mono shrink-0 ml-2">v{facture.version}</span>
           </div>
