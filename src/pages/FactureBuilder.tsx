@@ -181,6 +181,9 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
       };
       setData(normalized);
       setOriginalData(JSON.stringify(normalized));
+      // 🆕 Reset compteur après chargement initial
+      prevDataHashRef.current = JSON.stringify(normalized);
+      setChangeCount(0);
       // Nettoyer localStorage après chargement DB
       try { localStorage.removeItem(lsKey); } catch {}
     }
@@ -294,7 +297,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
       toast({
         title: "Enregistré ✅",
         description: `Facture « ${numero || "Brouillon"} » enregistrée.`,
-        className: "bg-white rounded-md",
+        className: "bg-orange-500 text-white border-orange-600 rounded-lg",
       });
     } catch (error: any) {
       setSaveStatus("error");
@@ -368,29 +371,6 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 pt-4">
-        {/* Toast de statut sauvegarde */}
-        {saveStatus !== "idle" && (
-          <div
-            className={`fixed top-4 right-4 z-[200] px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 toast-enter ${
-              saveStatus === "saving"
-                ? "bg-orange-100 text-orange-700 border border-orange-200"
-                : saveStatus === "saved"
-                  ? "bg-green-100 text-green-700 border border-green-200"
-                  : "bg-red-100 text-red-700 border border-red-200"
-            }`}
-          >
-            {saveStatus === "saving" && (
-              <Loader2 size={14} className="animate-spin" />
-            )}
-            {saveStatus === "saved" && <Check size={14} />}
-            {saveStatus === "error" && <AlertCircle size={14} />}
-            {saveStatus === "saving"
-              ? "Sauvegarde en cours…"
-              : saveStatus === "saved"
-                ? "✅ Facture sauvegardée !"
-                : `❌ ${saveError || "Erreur"}`}
-          </div>
-        )}
 
         {/* Barre de retour */}
         <div className="flex items-center justify-between mb-3">

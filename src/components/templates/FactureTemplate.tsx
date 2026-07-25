@@ -459,23 +459,6 @@ const FactureTemplate: React.FC<FactureTemplateProps> = ({
                     <span className="text-xs text-gray-400">%</span>
                   </div>
                 </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={currentPercent}
-                  onChange={e => {
-                    const pct = Number(e.currentTarget.value);
-                    const newReduction = Math.round((baseTotal * pct) / 100);
-                    const newTotal = baseTotal - newReduction;
-                    setCurrentPercent(pct);
-                    handleDataChange({ ...data, reduction: newReduction, total: newTotal });
-                  }}
-                  className="w-36 h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer
-                             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
-                             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:shadow"
-                  aria-label="Slider de remise"
-                />
               </div>
             ) : (
               <span className="text-orange-600 font-medium">
