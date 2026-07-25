@@ -278,7 +278,8 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 </select>
               </div>
 
-              {/* Délai livraison */}
+              {/* Délai livraison — masqué en mode commande */}
+              {!isCommande && (
               <div>
                 <label className="text-[11px] text-gray-500 mb-0.5 block">
                   Délai livraison
@@ -295,8 +296,10 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                   placeholder="Ex: 2 semaines"
                 />
               </div>
+              )}
 
-              {/* Échéancier */}
+              {/* Échéancier — masqué en mode commande */}
+              {!isCommande && (
               <div>
                 <label className="text-[11px] text-gray-500 mb-0.5 block">
                   Échéancier
@@ -313,13 +316,15 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                   placeholder="Ex: 50% à la commande"
                 />
               </div>
+              )}
             </div>
           </div>
 
-          {/* 🆕 Section spécifique commande : date livraison, avance, reçu, lien facture */}
+          {/* 🆕 Section spécifique commande : date livraison, reçu + avance, lien facture */}
           {isCommande && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                {/* Date de livraison */}
                 <div>
                   <label className="text-[11px] text-gray-500 mb-0.5 block">
                     Date de livraison
@@ -332,50 +337,9 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                     disabled={!isEditable}
                   />
                 </div>
+                {/* Facture liée (readonly) */}
                 <div>
                   <label className="text-[11px] text-gray-500 mb-0.5 block">
-                    Avance (FCFA)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={data.total}
-                    value={(data as any).montantAvance ?? 0}
-                    onChange={(e) => {
-                      const val = Number(e.target.value) || 0;
-                      onChange({ ...data, montantAvance: val } as CommandeData);
-                    }}
-                    className={isEditable ? inputClass : inputDisabledClass}
-                    disabled={!isEditable}
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-
-              {/* Reste à payer (si avance > 0) */}
-              {((data as any).montantAvance ?? 0) > 0 && (
-                <div className="flex justify-between items-center text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-2">
-                  <span className="text-green-700 font-medium">Reste à payer</span>
-                  <span className="font-bold text-green-700">
-                    {formatCFA(data.total - ((data as any).montantAvance ?? 0))}
-                  </span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className={labelClass}>
-                    <Image size={11} className="inline mr-1 text-gray-400" /> Reçu
-                  </label>
-                  <ImageUpload
-                    imageUrl={(data as CommandeData).recu_image_url || null}
-                    onChange={(url) => updateField("recu_image_url", url)}
-                    isEditable={isEditable}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>
-                    <Receipt size={11} className="inline mr-1 text-gray-400" />{" "}
                     Facture liée
                   </label>
                   <input
@@ -385,6 +349,56 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                     className={inputDisabledClass}
                     placeholder="N° facture source"
                   />
+                </div>
+              </div>
+
+              {/* 🆕 Reçu + Avance sur la même ligne, style bloc remise */}
+              <div className="bg-gray-50/80 border border-gray-200 rounded-lg p-3 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Reçu : ImageUpload */}
+                  <div>
+                    <label className={labelClass}>
+                      <Image size={11} className="inline mr-1 text-gray-400" /> Reçu
+                    </label>
+                    <ImageUpload
+                      imageUrl={(data as CommandeData).recu_image_url || null}
+                      onChange={(url) => updateField("recu_image_url", url)}
+                      isEditable={isEditable}
+                    />
+                  </div>
+
+                  {/* Avance + Reste */}
+                  <div>
+                    <label className={labelClass}>
+                      Avance (FCFA)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          max={data.total}
+                          value={(data as any).montantAvance ?? 0}
+                          onChange={(e) => {
+                            const val = Number(e.target.value) || 0;
+                            onChange({ ...data, montantAvance: val } as CommandeData);
+                          }}
+                          className="h-9 w-28 border border-gray-300 rounded-lg px-3 bg-white text-sm text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
+                          disabled={!isEditable}
+                          placeholder="0"
+                        />
+                        <span className="text-xs text-gray-500 font-medium">CFA</span>
+                      </div>
+                      {((data as any).montantAvance ?? 0) > 0 && (
+                        <span className="text-xs text-gray-500">
+                          Reste :{" "}
+                          <span className="font-bold text-green-700">
+                            {formatCFA(data.total - ((data as any).montantAvance ?? 0))}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </>

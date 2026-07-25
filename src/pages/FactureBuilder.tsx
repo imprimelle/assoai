@@ -374,6 +374,32 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
       return;
     }
 
+    // 🆕 Si une commande existe déjà (créée dans cette session), re-basculer sans re-créer
+    if (commandeMessageId) {
+      setIsDeriving(true);
+      try {
+        const { data: msg } = await supabase
+          .from("messages")
+          .select("template_data")
+          .eq("id", commandeMessageId)
+          .single();
+        if (msg?.template_data?.data) {
+          const cmdData = msg.template_data.data as CommandeData;
+          setData(cmdData);
+          setOriginalData(JSON.stringify(cmdData));
+          lastSavedHashRef.current = JSON.stringify(cmdData);
+          setChangeCount(0);
+          setMode("commande");
+        }
+      } catch {
+        // Si le fetch échoue, on laisse l'état existant
+        setMode("commande");
+      } finally {
+        setIsDeriving(false);
+      }
+      return;
+    }
+
     // 🔒 Garde-fou : la facture doit avoir un client et un numéro
     const facData = data as FactureData;
     if (!factureMessageId) {
