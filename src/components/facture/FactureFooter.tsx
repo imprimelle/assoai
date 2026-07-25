@@ -813,7 +813,7 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
             <button
               type="button"
               onClick={onSave}
-              disabled={saving}
+              disabled={saving || changeCount === 0}
               className="relative flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all
                          bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
               title={messageId ? "Mettre à jour la facture" : "Sauvegarder la facture"}

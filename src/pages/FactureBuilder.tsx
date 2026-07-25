@@ -103,9 +103,14 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
   const [highlights, setHighlights] = useState<Record<string, "added" | "modified">>({});
   const highlightsTimestampRef = useRef(0);
 
-  // 🆕 Compteur incrémental
+  // 🆕 Compteur : nombre de modifs non sauvegardées
   const [changeCount, setChangeCount] = useState(0);
-  const prevDataHashRef = useRef("");
+  const lastSavedHashRef = useRef(JSON.stringify(getDefaultFactureData()));
+
+  // 🆕 isDirty : true si data ≠ dernier état sauvegardé
+  const isDirty = useMemo(() => {
+    return JSON.stringify(data) !== lastSavedHashRef.current;
+  }, [data]);
 
   // Mettre à jour le timestamp quand les highlights changent
   useEffect(() => {
@@ -182,7 +187,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
       setData(normalized);
       setOriginalData(JSON.stringify(normalized));
       // 🆕 Reset compteur après chargement initial
-      prevDataHashRef.current = JSON.stringify(normalized);
+      lastSavedHashRef.current = JSON.stringify(normalized);
       setChangeCount(0);
       // Nettoyer localStorage après chargement DB
       try { localStorage.removeItem(lsKey); } catch {}
@@ -214,13 +219,12 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
     return () => clearTimeout(timer);
   }, [data, lsKey]);
 
-  // 🆕 Compteur incrémental (hash-based)
+  // 🆕 Compteur incrémental : incrémente à chaque modif non sauvegardée
   useEffect(() => {
-    const hash = JSON.stringify(data);
-    if (prevDataHashRef.current && prevDataHashRef.current !== hash) {
+    if (isDirty) {
       setChangeCount((c) => c + 1);
     }
-    prevDataHashRef.current = hash;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
   // ── Sauvegarde ──
@@ -288,6 +292,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
       }
 
       setOriginalData(JSON.stringify(finalData));
+      lastSavedHashRef.current = JSON.stringify(finalData);
       setSaveStatus("saved");
       setChangeCount(0); // 🆕 reset compteur
       // 🆕 Nettoyer localStorage après sauvegarde réussie
