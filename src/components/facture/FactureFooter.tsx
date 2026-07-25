@@ -181,20 +181,55 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // 🆕 Suggestions : champs manquants en mode commande
+  // 🆕 Suggestions : champs non renseignés (tous sauf remise)
   const missingFields = useMemo(() => {
-    if (!isCommande) return [];
-    const cmdData = data as CommandeData;
     const fields: { key: string; label: string }[] = [];
-    if (!cmdData.deliveryAddress?.label) {
-      fields.push({ key: "deliveryAddress", label: "Ajouter une adresse de livraison" });
+
+    // --- Champs communs facture & commande ---
+    if (!data.client?.nom?.trim()) {
+      fields.push({ key: "client-nom", label: "Ajouter le nom du client" });
     }
-    if (!cmdData.dateLivraison) {
-      fields.push({ key: "dateLivraison", label: "Ajouter une date de livraison" });
+    if (!data.client?.telephone?.trim()) {
+      fields.push({ key: "client-telephone", label: "Ajouter le téléphone" });
     }
-    if (!cmdData.recu_image_url) {
-      fields.push({ key: "recu", label: "Ajouter un reçu" });
+    if (!data.client?.adresse?.trim()) {
+      fields.push({ key: "client-adresse", label: "Ajouter l'adresse" });
     }
+
+    if (isCommande) {
+      // --- Champs spécifiques commande ---
+      const cmdData = data as CommandeData;
+      if (!cmdData.dateCommande) {
+        fields.push({ key: "dateCommande", label: "Ajouter la date de commande" });
+      }
+      if (!cmdData.dateLivraison) {
+        fields.push({ key: "dateLivraison", label: "Ajouter la date de livraison" });
+      }
+      if (!cmdData.recu_image_url) {
+        fields.push({ key: "recu", label: "Ajouter un reçu" });
+      }
+      if (!cmdData.deliveryAddress?.label) {
+        fields.push({ key: "deliveryAddress", label: "Ajouter l'adresse de livraison" });
+      }
+      if (!(cmdData as any).montantAvance || (cmdData as any).montantAvance === 0) {
+        fields.push({ key: "avance", label: "Ajouter une avance" });
+      }
+    } else {
+      // --- Champs spécifiques facture ---
+      const facData = data as FactureData;
+      if (!facData.dateEmission) {
+        fields.push({ key: "dateEmission", label: "Ajouter la date d'émission" });
+      }
+      if (!(facData as any).delaiLivraison?.trim()) {
+        fields.push({ key: "delaiLivraison", label: "Ajouter le délai de livraison" });
+      }
+      if (!(facData as any).echeancier?.trim()) {
+        fields.push({ key: "echeancier", label: "Ajouter l'échéancier" });
+      }
+    }
+
+    // Remise : JAMAIS suggérée (exception)
+
     return fields;
   }, [isCommande, data]);
 
@@ -815,14 +850,16 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
         <div className="max-w-6xl mx-auto flex flex-col">
           {/* ── Barre d'actions ── */}
           <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
-            {/* 🆕 Mode commande avec champs manquants → suggestion */}
-            {isCommande && missingFields.length > 0 && onSuggestionAction ? (
+            {/* 🆕 Champs manquants → suggestion (tous modes, sauf remise) */}
+            {missingFields.length > 0 && onSuggestionAction ? (
               <button
+                key={missingFields[0].label}
                 type="button"
                 onClick={() => onSuggestionAction(missingFields[0].key)}
                 className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium
                            bg-amber-500/30 text-amber-200 border border-amber-400/30
-                           hover:bg-amber-500/50 transition-all"
+                           hover:bg-amber-500/50 transition-all animate-in fade-in slide-in-from-bottom-2
+                           duration-300"
                 title={missingFields[0].label}
               >
                 <span className="text-[11px]">💡</span>

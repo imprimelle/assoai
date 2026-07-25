@@ -264,6 +264,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 </label>
                 <input
                   type="date"
+                  data-highlight-key={isCommande ? "dateCommande" : "dateEmission"}
                   value={
                     isCommande
                       ? (data as CommandeData).dateCommande?.split("T")[0] || ""
@@ -433,7 +434,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
               </div>
 
               {/* Ligne 2 : Avance + Reste */}
-              <div className="mb-3">
+              <div className="mb-3" data-highlight-key="avance">
                 <label className={labelClass}>
                   Avance (FCFA)
                 </label>
