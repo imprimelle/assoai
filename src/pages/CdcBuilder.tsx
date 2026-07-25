@@ -373,6 +373,10 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   useEffect(() => {
     if (loaderResult?.initialState) {
       setState(loaderResult.initialState);
+      // 🆕 Reset compteur après chargement initial
+      const { savedMessageId, ...trackable } = loaderResult.initialState as any;
+      lastSavedHashRef.current = JSON.stringify(trackable);
+      setChangeCount(0);
     }
   }, [loaderResult?.initialState]);
 
@@ -431,18 +435,21 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   // État de sauvegarde Supabase
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState("");
-  // Compteur de modifications non sauvegardées
+  // 🆕 Compteur : nombre de modifs non sauvegardées
   const [changeCount, setChangeCount] = useState(0);
-  const prevStateHash = useRef("");
+  const lastSavedHashRef = useRef("");
 
-  // Suivre les modifications du state (hors savedMessageId)
-  useEffect(() => {
+  // 🆕 isDirty : true si state ≠ dernier état sauvegardé
+  const isDirty = useMemo(() => {
     const { savedMessageId, ...trackable } = state as any;
-    const hash = JSON.stringify(trackable);
-    if (prevStateHash.current && prevStateHash.current !== hash) {
+    return JSON.stringify(trackable) !== lastSavedHashRef.current;
+  }, [state]);
+
+  // 🆕 Compteur incrémental : incrémente à chaque modif non sauvegardée
+  useEffect(() => {
+    if (isDirty) {
       setChangeCount((c) => c + 1);
     }
-    prevStateHash.current = hash;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
@@ -474,6 +481,10 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
         const parsed = JSON.parse(saved) as CdcBuilderState;
         if (parsed.enseignes?.length) {
           setState(parsed);
+          // 🆕 Reset compteur après restauration localStorage
+          const { savedMessageId, ...trackable } = parsed as any;
+          lastSavedHashRef.current = JSON.stringify(trackable);
+          setChangeCount(0);
         }
       }
     } catch {
@@ -688,6 +699,9 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
       }
 
       setSaveStatus("saved");
+      // 🆕 Reset compteur après sauvegarde
+      const { savedMessageId: _, ...trackable } = state as any;
+      lastSavedHashRef.current = JSON.stringify(trackable);
       setChangeCount(0);
       setTimeout(() => setSaveStatus("idle"), 3000);
     } catch (err: any) {
