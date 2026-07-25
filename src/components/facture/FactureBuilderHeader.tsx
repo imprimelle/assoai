@@ -3,7 +3,7 @@
 // v3: Mode dual facture/commande, champs adaptés selon le mode.
 // Inspiré de CdcBuilderHeader : barre résumée cliquable + contenu dépliable.
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -12,14 +12,18 @@ import {
   User,
   Calendar,
   Tag,
-  Image,
+  Upload,
+  Loader2,
 } from "lucide-react";
 import type { FactureData, CommandeData } from "@/types";
+import type { DeliveryAddress } from "@/types/material";
 import { formatCFA } from "@/utils/format";
 import UnifiedAtInput from "@/components/shared/UnifiedAtInput";
 import type { AtSuggestion } from "@/components/shared/UnifiedAtInput";
-import ImageUpload from "@/components/templates/shared/ImageUpload";
+import AddressPicker from "@/components/shared/AddressPicker";
 import type { BuilderMode } from "@/pages/FactureBuilder";
+import { supabase } from "@/integrations/supabase/client";
+import { v4 as uuidv4 } from "uuid";
 
 export interface FactureBuilderHeaderProps {
   data: FactureData | CommandeData;
@@ -50,6 +54,8 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
   isLocked = false,
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const [isUploadingRecu, setIsUploadingRecu] = useState(false);
+  const recuFileInputRef = useRef<HTMLInputElement>(null);
 
   // Synchroniser avec le toggle externe
   React.useEffect(() => {
@@ -83,6 +89,30 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
 
   const updateField = (field: string, value: any) => {
     onChange({ ...data, [field]: value });
+  };
+
+  // 🆕 Upload reçu vers Supabase Storage
+  const handleRecuUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingRecu(true);
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${uuidv4()}.${fileExt}`;
+      const filePath = `public/${fileName}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("images")
+        .upload(filePath, file);
+      if (uploadErr) throw uploadErr;
+      const { data: urlData } = supabase.storage
+        .from("images")
+        .getPublicUrl(filePath);
+      updateField("recu_image_url", urlData.publicUrl);
+    } catch {
+      console.error("Erreur upload reçu");
+    } finally {
+      setIsUploadingRecu(false);
+    }
   };
 
   const isEditable = !(mode === "facture" && isLocked);
@@ -320,25 +350,86 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
             </div>
           </div>
 
-          {/* 🆕 Section spécifique commande : date livraison, reçu + avance, lien facture */}
+          {/* 🆕 Adresse de livraison (mode commande) */}
+          {isCommande && (
+            <div>
+              <label className={labelClass}>
+                📍 Adresse de livraison
+              </label>
+              <AddressPicker
+                value={(data as CommandeData).deliveryAddress}
+                onChange={(addr) => updateField("deliveryAddress", addr)}
+                isEditable={isEditable}
+              />
+            </div>
+          )}
+
+          {/* 🆕 Section spécifique commande */}
           {isCommande && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                {/* Date de livraison */}
-                <div>
+              {/* Ligne 1 : Date de livraison */}
+              <div className="mb-2">
+                <label className="text-[11px] text-gray-500 mb-0.5 block">
+                  Date de livraison
+                </label>
+                <input
+                  type="date"
+                  value={(data as CommandeData).dateLivraison?.split("T")[0] || ""}
+                  onChange={(e) => updateField("dateLivraison", e.target.value)}
+                  className={isEditable ? inputClass : inputDisabledClass}
+                  disabled={!isEditable}
+                />
+              </div>
+
+              {/* Ligne 2 : Reçu (thumbnail compact) + Facture liée */}
+              <div className="flex items-center gap-3 mb-3">
+                {/* Reçu : thumbnail clickable */}
+                <div className="shrink-0">
                   <label className="text-[11px] text-gray-500 mb-0.5 block">
-                    Date de livraison
+                    Reçu
                   </label>
+                  {isUploadingRecu ? (
+                    <div className="w-[42px] h-[42px] rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center">
+                      <Loader2 size={16} className="animate-spin text-orange-500" />
+                    </div>
+                  ) : (data as CommandeData).recu_image_url ? (
+                    <button
+                      type="button"
+                      onClick={() => recuFileInputRef.current?.click()}
+                      className="w-[42px] h-[42px] rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm
+                                 hover:shadow-md hover:scale-105 transition-all duration-200 cursor-pointer"
+                      title="Voir/changer le reçu"
+                    >
+                      <img
+                        src={(data as CommandeData).recu_image_url!}
+                        alt="Reçu"
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => recuFileInputRef.current?.click()}
+                      disabled={!isEditable}
+                      className="w-[42px] h-[42px] rounded-lg bg-gray-100 border border-gray-200
+                                 flex items-center justify-center hover:bg-gray-200 transition-colors
+                                 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Ajouter un reçu"
+                    >
+                      <Upload size={15} className="text-gray-400" />
+                    </button>
+                  )}
                   <input
-                    type="date"
-                    value={(data as CommandeData).dateLivraison?.split("T")[0] || ""}
-                    onChange={(e) => updateField("dateLivraison", e.target.value)}
-                    className={isEditable ? inputClass : inputDisabledClass}
-                    disabled={!isEditable}
+                    ref={recuFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleRecuUpload}
                   />
                 </div>
-                {/* Facture liée (readonly) */}
-                <div>
+
+                {/* Facture liée */}
+                <div className="flex-1 min-w-0">
                   <label className="text-[11px] text-gray-500 mb-0.5 block">
                     Facture liée
                   </label>
@@ -352,53 +443,36 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 </div>
               </div>
 
-              {/* 🆕 Reçu + Avance sur la même ligne, style bloc remise */}
-              <div className="bg-gray-50/80 border border-gray-200 rounded-lg p-3 mb-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Reçu : ImageUpload */}
-                  <div>
-                    <label className={labelClass}>
-                      <Image size={11} className="inline mr-1 text-gray-400" /> Reçu
-                    </label>
-                    <ImageUpload
-                      imageUrl={(data as CommandeData).recu_image_url || null}
-                      onChange={(url) => updateField("recu_image_url", url)}
-                      isEditable={isEditable}
+              {/* Ligne 3 : Avance + Reste */}
+              <div>
+                <label className={labelClass}>
+                  Avance (FCFA)
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={0}
+                      max={data.total}
+                      value={(data as any).montantAvance ?? 0}
+                      onChange={(e) => {
+                        const val = Number(e.target.value) || 0;
+                        onChange({ ...data, montantAvance: val } as CommandeData);
+                      }}
+                      className="h-9 w-28 border border-gray-300 rounded-lg px-3 bg-white text-sm text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
+                      disabled={!isEditable}
+                      placeholder="0"
                     />
+                    <span className="text-xs text-gray-500 font-medium">CFA</span>
                   </div>
-
-                  {/* Avance + Reste */}
-                  <div>
-                    <label className={labelClass}>
-                      Avance (FCFA)
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          min={0}
-                          max={data.total}
-                          value={(data as any).montantAvance ?? 0}
-                          onChange={(e) => {
-                            const val = Number(e.target.value) || 0;
-                            onChange({ ...data, montantAvance: val } as CommandeData);
-                          }}
-                          className="h-9 w-28 border border-gray-300 rounded-lg px-3 bg-white text-sm text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
-                          disabled={!isEditable}
-                          placeholder="0"
-                        />
-                        <span className="text-xs text-gray-500 font-medium">CFA</span>
-                      </div>
-                      {((data as any).montantAvance ?? 0) > 0 && (
-                        <span className="text-xs text-gray-500">
-                          Reste :{" "}
-                          <span className="font-bold text-green-700">
-                            {formatCFA(data.total - ((data as any).montantAvance ?? 0))}
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  {((data as any).montantAvance ?? 0) > 0 && (
+                    <span className="text-xs text-gray-500">
+                      Reste :{" "}
+                      <span className="font-bold text-green-700">
+                        {formatCFA(data.total - ((data as any).montantAvance ?? 0))}
+                      </span>
+                    </span>
+                  )}
                 </div>
               </div>
             </>
