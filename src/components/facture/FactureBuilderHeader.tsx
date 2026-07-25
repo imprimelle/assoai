@@ -359,7 +359,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
               {/* Ligne 1 : Date livraison + Reçu + Facture liée */}
               <div className="flex items-end gap-3 mb-3">
                 {/* Date de livraison */}
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0" data-highlight-key="dateLivraison">
                   <label className="text-[11px] text-gray-500 mb-0.5 block">
                     Date de livraison
                   </label>
@@ -373,7 +373,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                 </div>
 
                 {/* Reçu : thumbnail compact */}
-                <div className="shrink-0">
+                <div className="shrink-0" data-highlight-key="recu">
                   <label className="text-[11px] text-gray-500 mb-0.5 block">
                     Reçu
                   </label>
@@ -477,7 +477,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
 
           {/* 🆕 Adresse de livraison (mode commande) — compact + dialogue */}
           {isCommande && (
-            <div>
+            <div data-highlight-key="deliveryAddress">
               {isEditable || (data as CommandeData).deliveryAddress?.label ? (
                 <button
                   type="button"

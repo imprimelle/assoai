@@ -358,6 +358,19 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
+  // 🆕 Suggestion action : expand header + scroll au champ
+  const handleSuggestionAction = useCallback((fieldKey: string) => {
+    // Expand le header
+    setHeaderOpen(true);
+    // Scroll au champ (timeout pour laisser l'expand se faire)
+    setTimeout(() => {
+      const el = document.querySelector(`[data-highlight-key="${fieldKey}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 100);
+  }, []);
+
   // ── Toggle Commande ──
   const handleToggleCommande = useCallback(async () => {
     if (isDeriving) return;
@@ -815,6 +828,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
             downloadingPDF={downloadingPDF}
             onHighlightsChange={setHighlights}
             builderMode={mode}
+            onSuggestionAction={handleSuggestionAction}
           />
         )}
 

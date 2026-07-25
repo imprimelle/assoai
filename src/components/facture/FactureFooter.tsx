@@ -49,6 +49,8 @@ export interface FactureFooterProps {
   onHighlightsChange?: (highlights: Record<string, "added" | "modified">) => void;
   /** Mode : facture ou commande */
   builderMode?: BuilderMode;
+  /** Callback quand l'utilisateur clique sur une suggestion (expand header + scroll) */
+  onSuggestionAction?: (fieldKey: string) => void;
 }
 
 // ── Produit préchargé (données complètes pour le prompt Wari) ──
@@ -167,6 +169,7 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   downloadingPDF = false,
   onHighlightsChange,
   builderMode = "facture",
+  onSuggestionAction,
 }) => {
   const isCommande = builderMode === "commande";
   const [expanded, setExpanded] = useState(false);
@@ -177,6 +180,23 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   // Micro
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+
+  // 🆕 Suggestions : champs manquants en mode commande
+  const missingFields = useMemo(() => {
+    if (!isCommande) return [];
+    const cmdData = data as CommandeData;
+    const fields: { key: string; label: string }[] = [];
+    if (!cmdData.deliveryAddress?.label) {
+      fields.push({ key: "deliveryAddress", label: "Ajouter une adresse de livraison" });
+    }
+    if (!cmdData.dateLivraison) {
+      fields.push({ key: "dateLivraison", label: "Ajouter une date de livraison" });
+    }
+    if (!cmdData.recu_image_url) {
+      fields.push({ key: "recu", label: "Ajouter un reçu" });
+    }
+    return fields;
+  }, [isCommande, data]);
 
   const contentEditableRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
@@ -795,6 +815,26 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
         <div className="max-w-6xl mx-auto flex flex-col">
           {/* ── Barre d'actions ── */}
           <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
+            {/* 🆕 Mode commande avec champs manquants → suggestion */}
+            {isCommande && missingFields.length > 0 && onSuggestionAction ? (
+              <button
+                type="button"
+                onClick={() => onSuggestionAction(missingFields[0].key)}
+                className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium
+                           bg-amber-500/30 text-amber-200 border border-amber-400/30
+                           hover:bg-amber-500/50 transition-all"
+                title={missingFields[0].label}
+              >
+                <span className="text-[11px]">💡</span>
+                <span>{missingFields[0].label}</span>
+                {missingFields.length > 1 && (
+                  <span className="text-[9px] text-amber-300/70 ml-0.5">
+                    +{missingFields.length - 1}
+                  </span>
+                )}
+              </button>
+            ) : (
+              <>
             {/* 💬 Discussion */}
             <button
               type="button"
@@ -871,6 +911,7 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
                 </span>
               )}
             </button>
+            )}
           </div>
 
           {/* ── Chat expandé ── */}
