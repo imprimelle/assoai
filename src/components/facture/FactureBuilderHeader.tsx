@@ -16,6 +16,7 @@ import {
   Loader2,
   MapPin,
   X,
+  Banknote,
 } from "lucide-react";
 import type { FactureData, CommandeData } from "@/types";
 import type { DeliveryAddress } from "@/types/material";
@@ -432,47 +433,6 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
                   />
                 </div>
               </div>
-
-              {/* Ligne 2 : Avance + Reste */}
-              <div className="mb-3" data-highlight-key="avance">
-                <label className={labelClass}>
-                  Avance (FCFA)
-                </label>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      min={0}
-                      max={data.total}
-                      value={(data as any).montantAvance ?? 0}
-                      onChange={(e) => {
-                        const val = Number(e.target.value) || 0;
-                        onChange({ ...data, montantAvance: val } as CommandeData);
-                      }}
-                      className="h-9 w-28 border border-gray-300 rounded-lg px-3 bg-white text-sm text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
-                      disabled={!isEditable}
-                      placeholder="0"
-                    />
-                    <span className="text-xs text-gray-500 font-medium">CFA</span>
-                  </div>
-                  {((data as any).montantAvance ?? 0) > 0 && (
-                    <span className="text-xs text-gray-500">
-                      Reste :{" "}
-                      <span className="font-bold text-green-700">
-                        {formatCFA(data.total - ((data as any).montantAvance ?? 0))}
-                      </span>
-                    </span>
-                  )}
-                  {((data as any).montantAvance ?? 0) === 0 && data.total > 0 && (
-                    <span className="text-xs text-gray-500">
-                      sur{" "}
-                      <span className="font-bold text-green-700">
-                        {formatCFA(data.total)}
-                      </span>
-                    </span>
-                  )}
-                </div>
-              </div>
             </>
           )}
 
@@ -579,6 +539,49 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
               </span>
             </div>
           </div>
+
+          {/* 🆕 Avance (mode commande) — après remise */}
+          {isCommande && (
+            <div data-highlight-key="avance">
+              <label className={labelClass}>
+                <Banknote size={11} className="inline mr-1 text-gray-400" /> Avance (FCFA)
+              </label>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={0}
+                    max={data.total}
+                    value={(data as any).montantAvance ?? 0}
+                    onChange={(e) => {
+                      const val = Number(e.target.value) || 0;
+                      onChange({ ...data, montantAvance: val } as CommandeData);
+                    }}
+                    className="h-9 w-28 border border-gray-300 rounded-lg px-3 bg-white text-sm text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
+                    disabled={!isEditable}
+                    placeholder="0"
+                  />
+                  <span className="text-xs text-gray-500 font-medium">CFA</span>
+                </div>
+                {((data as any).montantAvance ?? 0) > 0 && (
+                  <span className="text-xs text-gray-500">
+                    Reste :{" "}
+                    <span className="font-bold text-green-700">
+                      {formatCFA(data.total - ((data as any).montantAvance ?? 0))}
+                    </span>
+                  </span>
+                )}
+                {((data as any).montantAvance ?? 0) === 0 && data.total > 0 && (
+                  <span className="text-xs text-gray-500">
+                    sur{" "}
+                    <span className="font-bold text-green-700">
+                      {formatCFA(data.total)}
+                    </span>
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
