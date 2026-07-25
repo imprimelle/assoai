@@ -412,7 +412,6 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
         {/* Contenu : FactureTemplate (articles uniquement) */}
         <div className="pb-24">
           <FactureTemplate
-            key={`facture-${data.details?.length || 0}-${data.total}`}
             data={data}
             isEditable={true}
             onChange={handleDataChange}
