@@ -14,6 +14,8 @@ import {
   Tag,
   Upload,
   Loader2,
+  MapPin,
+  X,
 } from "lucide-react";
 import type { FactureData, CommandeData } from "@/types";
 import type { DeliveryAddress } from "@/types/material";
@@ -55,6 +57,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [isUploadingRecu, setIsUploadingRecu] = useState(false);
+  const [addressDialogOpen, setAddressDialogOpen] = useState(false);
   const recuFileInputRef = useRef<HTMLInputElement>(null);
 
   // Synchroniser avec le toggle externe
@@ -464,17 +467,55 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
             </>
           )}
 
-          {/* 🆕 Adresse de livraison (mode commande, dernière position) */}
+          {/* 🆕 Adresse de livraison (mode commande) — compact + dialogue */}
           {isCommande && (
             <div>
-              <label className={labelClass}>
-                📍 Adresse de livraison
-              </label>
-              <AddressPicker
-                value={(data as CommandeData).deliveryAddress}
-                onChange={(addr) => updateField("deliveryAddress", addr)}
-                isEditable={isEditable}
-              />
+              {isEditable || (data as CommandeData).deliveryAddress?.label ? (
+                <button
+                  type="button"
+                  onClick={() => setAddressDialogOpen(true)}
+                  className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg border border-gray-200
+                             bg-white hover:border-orange-300 hover:shadow-sm transition-all duration-150"
+                >
+                  <MapPin size={14} className="text-orange-500 shrink-0" />
+                  <span className="text-sm text-gray-700 truncate">
+                    {(data as CommandeData).deliveryAddress?.label || "Ajouter une adresse de livraison"}
+                  </span>
+                </button>
+              ) : null}
+
+              {/* Dialogue AddressPicker */}
+              {addressDialogOpen && (
+                <div
+                  className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
+                  onClick={() => setAddressDialogOpen(false)}
+                >
+                  <div
+                    className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
+                      <span className="text-sm font-semibold text-gray-700">
+                        Adresse de livraison
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAddressDialogOpen(false)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-auto">
+                      <AddressPicker
+                        value={(data as CommandeData).deliveryAddress}
+                        onChange={(addr) => updateField("deliveryAddress", addr)}
+                        isEditable={true}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
