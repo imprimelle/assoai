@@ -187,9 +187,9 @@ const TemplatePreview: React.FC<TemplatePreviewProps> = ({
     <Collapsible
       open={isOpen}
       onOpenChange={setIsOpen}
-      className={`border rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer w-full max-w-full relative ${className}`}
+      className={`border rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-200 group ${className}`}
     >
-      <CollapsibleTrigger className="w-full text-left p-3" onClick={(e) => e.stopPropagation()}>
+      <CollapsibleTrigger className="w-full text-left px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="flex-shrink-0 bg-brand-orange bg-opacity-10 p-2 rounded-full text-brand-orange mr-2">
@@ -226,7 +226,7 @@ const TemplatePreview: React.FC<TemplatePreviewProps> = ({
         )}
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="px-3 pb-3">
+      <CollapsibleContent className="px-4 pb-4">
         <AnimatePresence initial={false}>
           {isOpen && (
             <motion.div
