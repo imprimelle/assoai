@@ -1,9 +1,9 @@
 // src/components/cdc-builder/CdcBuilderTable.tsx
 // Tableau de matériaux groupé par section (Découpe, Éclairage, Outillage, Métal, Vinyl).
-// v5: swipe-to-reveal checkbox sur chaque ligne Découpe/Vinyl — plus de toggle mode sélection.
+// v6: long-press (600ms) pour sélection, dialogue groupage amélioré, tous les matériaux éligibles.
 
 import React, { useMemo, useCallback, useState } from "react";
-import { Plus, Layers } from "lucide-react";
+import { Plus, Layers, X } from "lucide-react";
 import CdcBuilderRow from "./CdcBuilderRow";
 import MaterialSuggestions from "@/components/materials/MaterialSuggestions";
 import type { MaterialItem } from "@/types";
@@ -18,7 +18,6 @@ const DEFAULT_SECTIONS = [
   "Vinyl",
 ] as const;
 
-/** Sections éligibles aux groupes */
 const GROUPABLE_SECTIONS = ["Découpe", "Vinyl"];
 
 const sectionBadge: Record<string, string> = {
@@ -37,7 +36,6 @@ const sectionIcon: Record<string, string> = {
   Vinyl: "🎨",
 };
 
-// --- Conversion ---
 export function rowsToSections(
   rows: FlatMaterialRow[],
 ): Record<string, MaterialItem[]> {
@@ -59,7 +57,6 @@ export function sectionsToRows(
   return rows;
 }
 
-// --- Props ---
 export interface CdcBuilderTableProps {
   rows: FlatMaterialRow[];
   defaultDimensions: { largeur: number; hauteur: number };
@@ -92,42 +89,46 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     return map;
   }, [rows]);
 
-  // Checkboxes persistantes — pas de mode à activer
-  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [groupDialogSection, setGroupDialogSection] = useState<string | null>(null);
 
-  const handleCheckChange = useCallback(
-    (itemId: string, checked: boolean) => {
-      setCheckedItems((prev) => {
+  /** Long-press sur une ligne → toggle sélection */
+  const handleLongPress = useCallback(
+    (itemId: string, section: string) => {
+      setSelectedIds((prev) => {
         const next = new Set(prev);
-        if (checked) next.add(itemId);
-        else next.delete(itemId);
+        if (next.has(itemId)) {
+          next.delete(itemId);
+        } else {
+          next.add(itemId);
+        }
+        // Si ≥2 sélectionnés dans la même section → ouvrir le dialogue
+        const sectionRows = rows.filter(
+          (r) => r.section === section && !r.item.groupe_enfants,
+        );
+        const inSection = sectionRows.filter((r) => next.has(r.item.id)).length;
+        if (inSection >= 2) {
+          setGroupDialogSection(section);
+        }
         return next;
       });
     },
-    [],
+    [rows],
   );
 
-  /** Créer un groupe à partir des lignes cochées */
-  const handleGroupSelected = useCallback(
-    (section: string) => {
-      const selectedRows = rows.filter(
-        (r) => r.section === section && checkedItems.has(r.item.id) && !r.item.groupe_enfants,
-      );
-      if (selectedRows.length < 2) return;
-      setGroupDialogSection(section);
-    },
-    [rows, checkedItems],
-  );
+  /** Désélectionner tout */
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
 
-  /** Confirmer la création du groupe avec un matériau feuille */
+  /** Confirmer le groupe avec un matériau */
   const handleConfirmGroup = useCallback(
     (entry: MaterialCatalogEntry) => {
       if (!groupDialogSection) return;
       const section = groupDialogSection;
 
       const selectedRows = rows.filter(
-        (r) => r.section === section && checkedItems.has(r.item.id) && !r.item.groupe_enfants,
+        (r) => r.section === section && selectedIds.has(r.item.id) && !r.item.groupe_enfants,
       );
 
       const enfants: MaterialItem[] = selectedRows.map((r) => ({
@@ -174,8 +175,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         groupe_hauteur: entry.hauteur_std ?? undefined,
       };
 
-      const selectedIds = new Set(checkedItems);
-      let filtered = rows.filter((r) => !(r.section === section && selectedIds.has(r.item.id)));
+      const idsToRemove = new Set(selectedIds);
+      let filtered = rows.filter((r) => !(r.section === section && idsToRemove.has(r.item.id)));
       filtered = filtered.map((r) => {
         if (r.section === section) {
           const newIndex = filtered.filter(
@@ -189,10 +190,10 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       filtered.push({ section, index: groupCount, item: groupItem });
 
       onRowsChange(filtered);
-      setCheckedItems(new Set());
+      setSelectedIds(new Set());
       setGroupDialogSection(null);
     },
-    [rows, checkedItems, groupDialogSection, onRowsChange],
+    [rows, selectedIds, groupDialogSection, onRowsChange],
   );
 
   const handleAddRow = useCallback(
@@ -272,8 +273,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         if (r.section === section && r.index > index) return { ...r, index: r.index - 1 };
         return r;
       });
-      // Nettoyer les checkboxes pour les items supprimés
-      setCheckedItems((prev) => {
+      setSelectedIds((prev) => {
         const next = new Set(prev);
         const removed = rows.find((r) => r.section === section && r.index === index);
         if (removed) next.delete(removed.item.id);
@@ -293,7 +293,6 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         if (r.section === fromSection && r.index > fromIndex) return { ...r, index: r.index - 1 };
         return r;
       });
-
       const newItem: MaterialItem = {
         id: crypto.randomUUID?.() || `mat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         nom: preset.nom || "",
@@ -311,7 +310,6 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       };
       const targetCount = filtered.filter(r => r.section === toSection).length;
       filtered.push({ section: toSection, index: targetCount, item: newItem });
-
       onRowsChange(filtered);
     },
     [rows, onRowsChange],
@@ -321,14 +319,41 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     (s) => (grouped.get(s) || []).length > 0,
   );
 
+  // Récupérer les noms des plaques sélectionnées pour le dialogue
+  const selectedNames = useMemo(() => {
+    return rows
+      .filter((r) => selectedIds.has(r.item.id))
+      .map((r) => r.item.nom || "Sans nom")
+      .slice(0, 5);
+  }, [rows, selectedIds]);
+
+  const totalSelected = selectedIds.size;
+
   return (
     <div className="space-y-4">
+      {/* 🆕 Indicateur de sélection active */}
+      {totalSelected > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
+          <span className="text-indigo-700 font-medium">
+            {totalSelected} plaque{totalSelected > 1 ? "s" : ""} sélectionnée{totalSelected > 1 ? "s" : ""}
+          </span>
+          <span className="text-gray-400">— appui long pour sélectionner</span>
+          <button
+            type="button"
+            onClick={clearSelection}
+            className="ml-auto text-gray-400 hover:text-red-500 p-0.5"
+            title="Tout désélectionner"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {nonEmptySections.map((section) => {
         const sectionRows = grouped.get(section) || [];
         const canGroup = GROUPABLE_SECTIONS.includes(section);
-        // Compter les items cochés dans CETTE section uniquement
         const checkedInSection = sectionRows.filter(
-          (r) => checkedItems.has(r.item.id) && !r.item.groupe_enfants,
+          (r) => selectedIds.has(r.item.id) && !r.item.groupe_enfants,
         ).length;
 
         return (
@@ -339,12 +364,12 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                 <span className="text-xs font-semibold uppercase tracking-wide">{section}</span>
                 <span className="text-[10px] opacity-50">({sectionRows.length})</span>
               </div>
-              {/* 🆕 Bouton Grouper — apparaît quand ≥2 checkboxes cochées dans cette section */}
+              {/* 🆕 Bouton Grouper + compteur */}
               {canGroup && checkedInSection >= 2 && (
                 <button
                   type="button"
-                  onClick={() => handleGroupSelected(section)}
-                  className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-indigo-500 text-white hover:bg-indigo-600 font-medium transition-colors"
+                  onClick={() => setGroupDialogSection(section)}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md bg-indigo-500 text-white hover:bg-indigo-600 font-medium transition-colors shadow-sm"
                 >
                   <Layers size={12} />
                   Grouper ({checkedInSection})
@@ -372,7 +397,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                       enseigneBadge={rowMeta?.[`${section}-${r.item.id}`]?.enseigneBadge}
                       flashType={highlights?.[`${section}-${r.index}`]}
                       enseigneId={enseigneId}
-                      // 🆕 Props groupe
+                      // Props groupe
                       onChangeEnfants={
                         isGroup
                           ? (enfants) => handleChangeEnfants(section, r.index, enfants)
@@ -388,10 +413,10 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                           ? () => handleAddEnfant(section, r.index)
                           : undefined
                       }
-                      // 🆕 Swipe-to-check — uniquement pour sections groupables, non-groupes
-                      showSwipeCheck={canGroup && !isGroup}
-                      checked={checkedItems.has(r.item.id)}
-                      onCheckChange={(checked) => handleCheckChange(r.item.id, checked)}
+                      // 🆕 Long-press
+                      selectable={canGroup && !isGroup}
+                      selected={selectedIds.has(r.item.id)}
+                      onLongPress={() => handleLongPress(r.item.id, section)}
                     />
                   </div>
                 );
@@ -427,7 +452,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         </div>
       ))}
 
-      {/* Dialogue de choix du matériau feuille */}
+      {/* 🆕 Dialogue groupage amélioré */}
       {groupDialogSection && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center p-4"
@@ -436,27 +461,73 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 fade-in duration-200"
           >
+            {/* En-tête */}
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-base font-semibold text-gray-800 flex items-center gap-2">
                 <Layers size={18} className="text-indigo-500" />
-                Choisir le matériau Feuille
+                Créer un groupe — {groupDialogSection}
               </h3>
               <p className="text-xs text-gray-500 mt-1">
-                {checkedItems.size} plaques → 1 feuille dans « {groupDialogSection} »
+                {totalSelected} plaque{totalSelected > 1 ? "s" : ""} → 1 feuille
               </p>
             </div>
+
+            {/* Plaques sélectionnées */}
+            <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
+              <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-2">
+                Plaques à grouper
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedNames.map((name, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-white border border-gray-200 text-gray-700"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                    {name}
+                  </span>
+                ))}
+                {rows.filter((r) => selectedIds.has(r.item.id)).length > 5 && (
+                  <span className="text-xs text-gray-400 px-1">
+                    +{rows.filter((r) => selectedIds.has(r.item.id)).length - 5} autres
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-2">
+                Surface totale :{" "}
+                <strong>
+                  {rows
+                    .filter((r) => selectedIds.has(r.item.id))
+                    .reduce((s, r) => s + (r.item.largeur || 0) * (r.item.hauteur || 0) * (r.item.quantite || 1), 0)
+                    .toFixed(2)} m²
+                </strong>
+              </p>
+            </div>
+
+            {/* Choix du matériau feuille */}
             <div className="px-5 py-4">
+              <label className="block text-xs font-medium text-gray-600 mb-2">
+                Choisir le matériau de la feuille
+              </label>
               <MaterialSuggestions
                 categorie={groupDialogSection}
                 onSelect={handleConfirmGroup}
-                placeholder={`Chercher une feuille ${groupDialogSection}…`}
+                placeholder={`Chercher dans ${groupDialogSection}…`}
               />
+              <p className="text-[10px] text-gray-400 mt-2">
+                Tous les matériaux de la section sont éligibles. Leurs dimensions serviront de dimensions de feuille.
+              </p>
             </div>
-            <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+
+            {/* Actions */}
+            <div className="px-5 py-3 border-t border-gray-100 flex gap-2 justify-end">
               <button
-                onClick={() => setGroupDialogSection(null)}
+                onClick={() => {
+                  setGroupDialogSection(null);
+                  clearSelection();
+                }}
                 className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5"
               >
                 Annuler

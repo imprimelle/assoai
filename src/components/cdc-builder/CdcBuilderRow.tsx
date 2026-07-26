@@ -1,8 +1,8 @@
 // src/components/cdc-builder/CdcBuilderRow.tsx
 // Ligne éditable inline du tableau CDC Builder — 3 colonnes adaptatives par section.
-// v6: swipe-to-reveal checkbox (remplace showCheckbox statique).
+// v7: long-press (600ms) pour sélection + groupage, remplace le swipe.
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Trash2, ChevronDown, ChevronUp, Plus, Check } from "lucide-react";
 import MaterialCell from "./MaterialCell";
 import {
@@ -24,12 +24,9 @@ const showCouleur = (section: string, item: MaterialItem) =>
 const showEpaisseur = (section: string) =>
   ["Métal", "Découpe"].includes(section);
 
-/** Sections éligibles aux groupes */
-const GROUPABLE_SECTIONS = ["Découpe", "Vinyl"];
-
-// --- Constantes swipe ---
-const SWIPE_REVEAL = 52;   // px à révéler pour montrer la checkbox
-const SWIPE_THRESHOLD = 30; // seuil pour snap ouvert/fermé
+// --- Constantes long-press ---
+const LONG_PRESS_MS = 600;
+const LONG_PRESS_MOVE_TOLERANCE = 15; // px de tolérance avant annulation
 
 // --- Props ---
 export interface CdcBuilderRowProps {
@@ -46,10 +43,10 @@ export interface CdcBuilderRowProps {
   onChangeEnfants?: (enfants: MaterialItem[]) => void;
   onDeleteEnfant?: (enfantIndex: number) => void;
   onAddEnfant?: () => void;
-  // --- 🆕 Swipe-to-check ---
-  showSwipeCheck?: boolean;
-  checked?: boolean;
-  onCheckChange?: (checked: boolean) => void;
+  // --- 🆕 Long-press selection ---
+  selectable?: boolean;
+  selected?: boolean;
+  onLongPress?: () => void;
 }
 
 const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
@@ -65,64 +62,64 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   onChangeEnfants,
   onDeleteEnfant,
   onAddEnfant,
-  showSwipeCheck = false,
-  checked = false,
-  onCheckChange,
+  selectable = false,
+  selected = false,
+  onLongPress,
 }) => {
   const { section, item } = row;
   const [expanded, setExpanded] = useState(false);
   const isGroup = !!(item.groupe_enfants && item.groupe_enfants.length > 0);
-  const canGroup = GROUPABLE_SECTIONS.includes(section);
 
-  // --- Swipe state ---
-  const [swipeX, setSwipeX] = useState(0);
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
-  const isSwipingRef = useRef(false);
+  // --- Long-press state ---
+  const [pressing, setPressing] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressStartPos = useRef({ x: 0, y: 0 });
+  const firedRef = useRef(false);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    isSwipingRef.current = false;
+  const clearTimer = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
   }, []);
 
+  useEffect(() => {
+    return () => clearTimer();
+  }, [clearTimer]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!selectable || isGroup || disabled) return;
+    pressStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    firedRef.current = false;
+    longPressTimer.current = setTimeout(() => {
+      setPressing(false);
+      firedRef.current = true;
+      onLongPress?.();
+    }, LONG_PRESS_MS);
+    setPressing(true);
+  }, [selectable, isGroup, disabled, onLongPress]);
+
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const dx = e.touches[0].clientX - touchStartX.current;
-    const dy = Math.abs(e.touches[0].clientY - touchStartY.current);
-
-    // Détecter si c'est un swipe horizontal (pas un scroll vertical)
-    if (!isSwipingRef.current) {
-      if (Math.abs(dx) > 10 && dx > dy * 0.5) {
-        isSwipingRef.current = true;
-      }
+    if (!pressing || firedRef.current) return;
+    const dx = Math.abs(e.touches[0].clientX - pressStartPos.current.x);
+    const dy = Math.abs(e.touches[0].clientY - pressStartPos.current.y);
+    if (dx > LONG_PRESS_MOVE_TOLERANCE || dy > LONG_PRESS_MOVE_TOLERANCE) {
+      clearTimer();
+      setPressing(false);
     }
-    if (!isSwipingRef.current) return;
-
-    e.preventDefault();
-
-    if (swipeX > 0) {
-      // Déjà ouvert → amortir le retour
-      setSwipeX(Math.max(0, Math.min(SWIPE_REVEAL, swipeX + dx * 0.3)));
-    } else if (dx > 0) {
-      // Swipe droite → ouvrir
-      setSwipeX(Math.min(dx, SWIPE_REVEAL + 20));
-    }
-    touchStartX.current = e.touches[0].clientX;
-  }, [swipeX]);
+  }, [pressing, clearTimer]);
 
   const handleTouchEnd = useCallback(() => {
-    if (swipeX > SWIPE_THRESHOLD) {
-      setSwipeX(SWIPE_REVEAL);
-    } else {
-      setSwipeX(0);
-    }
-    isSwipingRef.current = false;
-  }, [swipeX]);
+    clearTimer();
+    setPressing(false);
+  }, [clearTimer]);
 
-  const handleCheckClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onCheckChange?.(!checked);
-  }, [checked, onCheckChange]);
+  // Desktop: right-click = long-press
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (!selectable || isGroup || disabled) return;
+    e.preventDefault();
+    onLongPress?.();
+  }, [selectable, isGroup, disabled, onLongPress]);
 
   const handleNum = (
     field: "quantite" | "largeur" | "hauteur",
@@ -191,7 +188,6 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           placeholder="Nom plaque"
         />
       </div>
-
       <div className="flex items-center gap-1.5 shrink-0">
         <div className="flex items-center gap-0.5">
           <span className="text-[10px] text-gray-300">×</span>
@@ -223,13 +219,11 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         )}
         <span className="text-[10px] text-gray-400 w-12 text-center">{enfant.unite || "plaque"}</span>
       </div>
-
       <span className="text-[10px] text-indigo-500 w-16 text-right tabular-nums">
         {enfant.largeur && enfant.hauteur
           ? ((enfant.largeur * enfant.hauteur * (enfant.quantite || 1)).toFixed(2) + " m²")
           : "—"}
       </span>
-
       {!disabled && onDeleteEnfant && (
         <button type="button" onClick={() => onDeleteEnfant(index)}
           className="text-red-300 hover:text-red-500 p-0.5 transition-colors shrink-0"
@@ -243,42 +237,33 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   return (
     <div
       data-highlight-key={enseigneId ? `${enseigneId}-${section}-${row.index}` : undefined}
-      className={`relative ${
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onContextMenu={handleContextMenu}
+      className={`relative select-none ${
         flashType ? `flash-${flashType}` : ""
+      } ${
+        selected ? "ring-2 ring-indigo-400 bg-indigo-50/60 rounded-lg" : ""
+      } ${
+        pressing ? "scale-[0.98] bg-indigo-50/40 rounded-lg transition-transform duration-150" : ""
       }`}
     >
-      {/* 🆕 Fond swipe — checkbox révélée au swipe droit */}
-      {showSwipeCheck && (
-        <div
-          className="absolute inset-y-0 left-0 flex items-center"
-          style={{ width: SWIPE_REVEAL, opacity: swipeX > SWIPE_THRESHOLD ? 1 : 0.3 }}
-        >
-          <button
-            type="button"
-            onClick={handleCheckClick}
-            className={`w-6 h-6 mx-auto rounded border-2 flex items-center justify-center transition-colors ${
-              checked
-                ? "bg-indigo-500 border-indigo-500 text-white"
-                : "border-gray-300 bg-white text-transparent hover:border-indigo-400"
-            }`}
-          >
-            {checked && <Check size={14} />}
-          </button>
-        </div>
+      {/* 🆕 Badge sélection */}
+      {selected && (
+        <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-indigo-500 shadow-sm" />
       )}
 
-      {/* Carte swipeable */}
+      {/* Contenu de la ligne */}
       <div
-        onTouchStart={showSwipeCheck ? handleTouchStart : undefined}
-        onTouchMove={showSwipeCheck ? handleTouchMove : undefined}
-        onTouchEnd={showSwipeCheck ? handleTouchEnd : undefined}
-        style={{ transform: `translateX(${swipeX}px)` }}
-        className={`transition-transform duration-200 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
+        className={`overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
           isGroup ? "border-l-2 border-l-indigo-300" : ""
+        } ${
+          selected ? "border-l-2 border-l-indigo-500" : ""
         }`}
       >
         <div className="flex items-center gap-2 min-w-[620px] md:min-w-0">
-          {/* 🆕 Chevron dropdown pour les groupes */}
+          {/* Chevron dropdown pour les groupes */}
           {isGroup && (
             <button
               type="button"
@@ -288,6 +273,13 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             >
               {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
+          )}
+
+          {/* Badge sélection inline */}
+          {selected && (
+            <div className="shrink-0 w-5 h-5 rounded bg-indigo-500 flex items-center justify-center">
+              <Check size={12} className="text-white" />
+            </div>
           )}
 
           {/* Colonne 1 : Matériau */}
