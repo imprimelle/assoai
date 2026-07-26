@@ -88,6 +88,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isSwipingRef = useRef(false);
+  const rowRef = useRef<HTMLDivElement>(null);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (!selectable || isGroup || disabled) return;
@@ -127,20 +128,39 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     }
   }, [swipeX]);
 
-  // 🆕 Fermer le swipe sans animation au clic ailleurs
+  // 🆕 Fermer les swipes au clic hors de la ligne
   useEffect(() => {
-    if (swipeX >= 0 && noAnim) {
+    const onClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Ignorer si le clic est dans cette ligne
+      if (rowRef.current?.contains(target)) return;
+      // Fermer le swipe principal
+      if (swipeX !== 0) {
+        setNoAnim(true);
+        setSwipeX(0);
+      }
+      // Fermer les swipes enfants
+      setChildSwipes(prev => {
+        const hasActive = Object.values(prev).some(v => v !== 0);
+        if (!hasActive) return prev;
+        setChildNoAnim(true);
+        setTimeout(() => setChildNoAnim(false), 50);
+        const cleared: Record<string, number> = {};
+        for (const k of Object.keys(prev)) cleared[k] = 0;
+        return cleared;
+      });
+    };
+    document.addEventListener('mousedown', onClickOutside, true);
+    return () => document.removeEventListener('mousedown', onClickOutside, true);
+  }, [swipeX, childSwipes]);
+
+  // Réactiver l'animation après un reset
+  useEffect(() => {
+    if (noAnim && swipeX === 0) {
       const t = setTimeout(() => setNoAnim(false), 50);
       return () => clearTimeout(t);
     }
-    if (swipeX !== 0) return;
-    const onClickOutside = () => {
-      setNoAnim(true);
-      setSwipeX(0);
-    };
-    document.addEventListener('click', onClickOutside, true);
-    return () => document.removeEventListener('click', onClickOutside, true);
-  }, [swipeX, noAnim]);
+  }, [noAnim, swipeX]);
 
   const handleCheckClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -358,6 +378,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
 
   return (
     <div
+      ref={rowRef}
       data-highlight-key={enseigneId ? `${enseigneId}-${section}-${row.index}` : undefined}
       className={`relative overflow-hidden ${
         flashType ? `flash-${flashType}` : ""
