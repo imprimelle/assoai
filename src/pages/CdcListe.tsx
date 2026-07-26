@@ -110,7 +110,7 @@ const CdcListe: React.FC = () => {
         const st = s(c.statut);
         switch (statusFilter) {
           case "production":
-            return ["achat", "fabrication", "installation"].includes(st);
+            return ["vérification", "achat", "fabrication", "installation"].includes(st);
           case "brouillon":
             return st === "brouillon";
           case "termine":
@@ -309,12 +309,14 @@ const CdcCard: React.FC<{
     st === "terminé" || st === "validé" || st === "valide" || st === "livré" || st === "payé"
       ? "bg-green-100 text-green-700"
       : st === "fabrication"
-        ? "bg-amber-100 text-amber-700"
-        : st === "installation"
-          ? "bg-indigo-100 text-indigo-700"
-          : st === "achat"
-            ? "bg-blue-100 text-blue-700"
-            : "bg-gray-100 text-gray-600";
+        ? "bg-orange-100 text-orange-700"
+        : st === "vérification"
+          ? "bg-amber-100 text-amber-700"
+          : st === "installation"
+            ? "bg-indigo-100 text-indigo-700"
+            : st === "achat"
+              ? "bg-blue-100 text-blue-700"
+              : "bg-gray-100 text-gray-600";
 
   const formatDate = (ts: string) => {
     try {

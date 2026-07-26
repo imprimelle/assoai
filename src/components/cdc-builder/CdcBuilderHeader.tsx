@@ -171,12 +171,14 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
     st === "terminé" || st === "validé" || st === "valide" || st === "livré" || st === "payé"
       ? "bg-green-100 text-green-700 border-green-200"
       : st === "fabrication"
-        ? "bg-amber-100 text-amber-700 border-amber-200"
-        : st === "installation"
-          ? "bg-indigo-100 text-indigo-700 border-indigo-200"
-          : st === "achat"
-            ? "bg-blue-100 text-blue-700 border-blue-200"
-            : "bg-gray-100 text-gray-600 border-gray-200";
+        ? "bg-orange-100 text-orange-700 border-orange-200"
+        : st === "vérification"
+          ? "bg-amber-100 text-amber-700 border-amber-200"
+          : st === "installation"
+            ? "bg-indigo-100 text-indigo-700 border-indigo-200"
+            : st === "achat"
+              ? "bg-blue-100 text-blue-700 border-blue-200"
+              : "bg-gray-100 text-gray-600 border-gray-200";
 
   const phaseLabel = projectPhase
     ? projectPhase.charAt(0).toUpperCase() + projectPhase.slice(1)

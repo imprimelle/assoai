@@ -21,6 +21,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
+import { ClipboardCheck, MessageSquareText } from "lucide-react";
 import EnseigneDialog from "@/components/cdc-builder/EnseigneDialog";
 import CdcBuilderTable, {
   sectionsToRows,
@@ -440,6 +441,9 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   // État de sauvegarde Supabase
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState("");
+  // Dialogue de vérification
+  const [showVerifDialog, setShowVerifDialog] = useState(false);
+  const [verifNotes, setVerifNotes] = useState("");
   // 🆕 Compteur : nombre de modifs non sauvegardées
   const [changeCount, setChangeCount] = useState(0);
   const lastSavedHashRef = useRef("");
@@ -651,12 +655,20 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
       projectName: string;
       cdcNumero: string;
       commandeId: string;
-      deliveryAddress: CdcBuilderState["deliveryAddress"];
+      statut: string;
+      deliveryAddress: { label: string; lat: number; lng: number };
     }>) => {
       setState((prev) => ({ ...prev, ...changes }));
     },
     [],
   );
+
+  // ── Handler vérification ──
+  const handleSetVerification = useCallback(() => {
+    setState((prev) => ({ ...prev, statut: "vérification" }));
+    setShowVerifDialog(false);
+    setVerifNotes("");
+  }, []);
 
   // ── Sauvegarde vers Supabase ──
   const handleSaveCdc = useCallback(async () => {
@@ -741,7 +753,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           </div>
         )}
 
-        {/* Barre de retour vers la liste + aperçu */}
+        {/* Barre de retour vers la liste + aperçu + vérification */}
         <div className="flex items-center justify-between mb-3">
           <button
             type="button"
@@ -753,18 +765,42 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
             <ArrowLeft className="h-4 w-4" />
             <span>Liste des CDC</span>
           </button>
-          {state.savedMessageId && (
+          <div className="flex items-center gap-1.5">
+            {/* Bouton Vérifier — passe le statut à "vérification" directement */}
             <button
               type="button"
-              onClick={() => window.open(`/public/doc/${state.savedMessageId}`, "_blank")}
-              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600
-                         transition-colors px-2 py-1 rounded-lg hover:bg-indigo-50"
-              title="Aperçu du CDC"
+              onClick={() => setState((prev) => ({ ...prev, statut: "vérification" }))}
+              className="flex items-center gap-1.5 text-sm font-medium text-amber-600 hover:text-amber-700
+                         bg-amber-50 hover:bg-amber-100 border border-amber-200
+                         transition-colors px-3 py-1.5 rounded-lg"
+              title="Marquer comme en vérification"
             >
-              <Eye className="h-4 w-4" />
-              <span>Aperçu</span>
+              <ClipboardCheck className="h-4 w-4" />
+              <span>Vérifier</span>
             </button>
-          )}
+            {/* Bouton Dialogue — ouvre un dialogue de vérification détaillé */}
+            <button
+              type="button"
+              onClick={() => setShowVerifDialog(true)}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600
+                         transition-colors px-2 py-1.5 rounded-lg hover:bg-indigo-50"
+              title="Ouvrir le dialogue de vérification"
+            >
+              <MessageSquareText className="h-4 w-4" />
+            </button>
+            {state.savedMessageId && (
+              <button
+                type="button"
+                onClick={() => window.open(`/public/doc/${state.savedMessageId}`, "_blank")}
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600
+                           transition-colors px-2 py-1 rounded-lg hover:bg-indigo-50"
+                title="Aperçu du CDC"
+              >
+                <Eye className="h-4 w-4" />
+                <span>Aperçu</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Header — toujours visible, compact */}
@@ -888,6 +924,101 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           onSave={handleSaveEnseigne}
           onClose={() => setDialogOpen(false)}
         />
+
+        {/* Dialogue vérification */}
+        {showVerifDialog && (
+          <div
+            className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+            style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
+            onClick={() => setShowVerifDialog(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 fade-in duration-200"
+            >
+              {/* En-tête */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <ClipboardCheck className="h-5 w-5 text-amber-500" />
+                  <h3 className="text-base font-semibold text-gray-800">
+                    Vérification du CDC
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowVerifDialog(false)}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Résumé */}
+              <div className="px-5 py-4 space-y-3">
+                <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">N° CDC</span>
+                    <span className="font-mono font-semibold text-indigo-600">{state.cdcNumero}</span>
+                  </div>
+                  {state.commandeId && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">N° Commande</span>
+                      <span className="font-mono font-semibold text-emerald-600">{state.commandeId}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Enseignes</span>
+                    <span className="font-semibold text-gray-700">{state.enseignes.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Statut actuel</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                      (state.statut || "").toLowerCase() === "terminé"
+                        ? "bg-green-100 text-green-700"
+                        : (state.statut || "").toLowerCase() === "vérification"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-gray-100 text-gray-600"
+                    }`}>
+                      {state.statut || "Brouillon"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Zone de notes */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                    Observations
+                  </label>
+                  <textarea
+                    value={verifNotes}
+                    onChange={(e) => setVerifNotes(e.target.value)}
+                    placeholder="Notes de vérification (optionnel)…"
+                    rows={3}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700
+                               placeholder:text-gray-400 focus:ring-2 focus:ring-amber-500/40 focus:border-amber-400
+                               outline-none resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
+                <button
+                  onClick={() => setShowVerifDialog(false)}
+                  className="flex-1 h-9 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 font-medium"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleSetVerification}
+                  className="flex-1 h-9 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 flex items-center justify-center gap-1.5"
+                >
+                  <ClipboardCheck className="h-4 w-4" />
+                  Confirmer la vérification
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer Brico */}
         <CdcBuilderFooter
