@@ -21,8 +21,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
-import { ClipboardCheck } from "lucide-react";
-import { ShoppingCart } from "lucide-react";
+import { ClipboardCheck, ShoppingCart, Hammer, Wrench, CheckCircle } from "lucide-react";
 import EnseigneDialog from "@/components/cdc-builder/EnseigneDialog";
 import CdcBuilderTable, {
   sectionsToRows,
@@ -445,6 +444,13 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   // Dialogue de vérification
   const [showVerifDialog, setShowVerifDialog] = useState(false);
   const [verifNotes, setVerifNotes] = useState("");
+  // Dialogue de transition (fabriquer / installer / terminer)
+  const [transitionTarget, setTransitionTarget] = useState<{
+    title: string;
+    label: string;
+    targetStatut: string;
+  } | null>(null);
+  const [transitionNotes, setTransitionNotes] = useState("");
   // 🆕 Compteur : nombre de modifs non sauvegardées
   const [changeCount, setChangeCount] = useState(0);
   const lastSavedHashRef = useRef("");
@@ -671,6 +677,14 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
     setVerifNotes("");
   }, []);
 
+  // ── Handler transition générique (fabriquer / installer / terminer) ──
+  const handleTransition = useCallback(() => {
+    if (!transitionTarget) return;
+    setState((prev) => ({ ...prev, statut: transitionTarget.targetStatut }));
+    setTransitionTarget(null);
+    setTransitionNotes("");
+  }, [transitionTarget]);
+
   // ── Sauvegarde vers Supabase ──
   const handleSaveCdc = useCallback(async () => {
     if (saveStatus === "saving") return;
@@ -767,7 +781,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
             <span>Liste des CDC</span>
           </button>
           <div className="flex items-center gap-1.5">
-            {/* Bouton Vérifier — gris, ouvre le dialogue, masqué si déjà en Production */}
+            {/* Bouton Vérifier — gris, ouvre le dialogue, si Brouillon ou Terminé */}
             {!["vérification", "achat", "fabrication", "installation"].includes((state.statut || "").toLowerCase()) && (
               <button
                 type="button"
@@ -781,11 +795,11 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
                 <span>Vérifier</span>
               </button>
             )}
-            {/* Bouton Achat — gris, visible seulement si statut = vérification */}
+            {/* Bouton Achat — si statut = vérification */}
             {(state.statut || "").toLowerCase() === "vérification" && (
               <button
                 type="button"
-                onClick={() => setState((prev) => ({ ...prev, statut: "achat" }))}
+                onClick={() => setTransitionTarget({ title: "Passer en achat", label: "Achat", targetStatut: "achat" })}
                 className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700
                            hover:bg-gray-100 border border-gray-200
                            transition-colors px-3 py-1.5 rounded-lg"
@@ -793,6 +807,48 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
               >
                 <ShoppingCart className="h-4 w-4" />
                 <span>Achat</span>
+              </button>
+            )}
+            {/* Bouton Fabriquer — si statut = achat */}
+            {(state.statut || "").toLowerCase() === "achat" && (
+              <button
+                type="button"
+                onClick={() => setTransitionTarget({ title: "Lancer la fabrication", label: "Fabrication", targetStatut: "fabrication" })}
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700
+                           hover:bg-gray-100 border border-gray-200
+                           transition-colors px-3 py-1.5 rounded-lg"
+                title="Lancer la fabrication"
+              >
+                <Hammer className="h-4 w-4" />
+                <span>Fabriquer</span>
+              </button>
+            )}
+            {/* Bouton Installer — si statut = fabrication */}
+            {(state.statut || "").toLowerCase() === "fabrication" && (
+              <button
+                type="button"
+                onClick={() => setTransitionTarget({ title: "Lancer l'installation", label: "Installation", targetStatut: "installation" })}
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700
+                           hover:bg-gray-100 border border-gray-200
+                           transition-colors px-3 py-1.5 rounded-lg"
+                title="Lancer l'installation"
+              >
+                <Wrench className="h-4 w-4" />
+                <span>Installer</span>
+              </button>
+            )}
+            {/* Bouton Terminé — si statut = installation */}
+            {(state.statut || "").toLowerCase() === "installation" && (
+              <button
+                type="button"
+                onClick={() => setTransitionTarget({ title: "Marquer comme terminé", label: "Terminé", targetStatut: "terminé" })}
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700
+                           hover:bg-gray-100 border border-gray-200
+                           transition-colors px-3 py-1.5 rounded-lg"
+                title="Marquer comme terminé"
+              >
+                <CheckCircle className="h-4 w-4" />
+                <span>Terminé</span>
               </button>
             )}
             {state.savedMessageId && (
@@ -1021,6 +1077,93 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
                 >
                   <ClipboardCheck className="h-4 w-4" />
                   Confirmer la vérification
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Dialogue de transition (Achat / Fabriquer / Installer / Terminé) */}
+        {transitionTarget && (
+          <div
+            className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+            style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
+            onClick={() => setTransitionTarget(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 fade-in duration-200"
+            >
+              {/* En-tête */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h3 className="text-base font-semibold text-gray-800">
+                  {transitionTarget.title}
+                </h3>
+                <button
+                  onClick={() => setTransitionTarget(null)}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Résumé */}
+              <div className="px-5 py-4 space-y-3">
+                <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">N° CDC</span>
+                    <span className="font-mono font-semibold text-indigo-600">{state.cdcNumero}</span>
+                  </div>
+                  {state.commandeId && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">N° Commande</span>
+                      <span className="font-mono font-semibold text-emerald-600">{state.commandeId}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Statut actuel</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-gray-100 text-gray-600">
+                      {state.statut || "Brouillon"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Nouveau statut</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-green-100 text-green-700">
+                      {transitionTarget.label}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Zone de notes */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                    Observations
+                  </label>
+                  <textarea
+                    value={transitionNotes}
+                    onChange={(e) => setTransitionNotes(e.target.value)}
+                    placeholder="Notes (optionnel)…"
+                    rows={3}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700
+                               placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400
+                               outline-none resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
+                <button
+                  onClick={() => setTransitionTarget(null)}
+                  className="flex-1 h-9 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 font-medium"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleTransition}
+                  className="flex-1 h-9 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 flex items-center justify-center gap-1.5"
+                >
+                  Confirmer
                 </button>
               </div>
             </div>
