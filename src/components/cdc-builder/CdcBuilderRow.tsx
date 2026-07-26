@@ -128,48 +128,6 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     }
   }, [swipeX]);
 
-  // 🆕 Fermer le swipe : onClick local + mousedown global
-  const swipeXRef = useRef(swipeX);
-  swipeXRef.current = swipeX;
-  const childSwipesRef = useRef(childSwipes);
-  childSwipesRef.current = childSwipes;
-
-  // onClick local : ferme quand on clique sur la ligne swipée (sauf checkbox)
-  const handleCardClick = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('[data-swipe-check]')) return;
-    if (swipeXRef.current !== 0) {
-      e.stopPropagation();
-      setNoAnim(true);
-      setSwipeX(0);
-    }
-    if (Object.values(childSwipesRef.current).some(v => v !== 0)) {
-      setChildNoAnim(true);
-      setChildSwipes({});
-      setTimeout(() => setChildNoAnim(false), 50);
-    }
-  }, []);
-
-  // mousedown/touchstart global : ferme le swipe partout
-  useEffect(() => {
-    const closeAll = () => {
-      if (swipeXRef.current !== 0) {
-        setNoAnim(true);
-        setSwipeX(0);
-      }
-      if (Object.values(childSwipesRef.current).some(v => v !== 0)) {
-        setChildNoAnim(true);
-        setChildSwipes({});
-        setTimeout(() => setChildNoAnim(false), 50);
-      }
-    };
-    document.addEventListener('mousedown', closeAll, true);
-    document.addEventListener('touchstart', closeAll, { capture: true, passive: true });
-    return () => {
-      document.removeEventListener('mousedown', closeAll, true);
-      document.removeEventListener('touchstart', closeAll, true);
-    };
-  }, []);
-
   // Réactiver l'animation après un reset
   useEffect(() => {
     if (noAnim && swipeX === 0) {
@@ -391,6 +349,15 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
               )}
             </div>
           </div>
+
+          {/* 🆕 Backdrop overlay enfant — ferme le swipe dissocier */}
+          {sX !== 0 && (
+            <div
+              onClick={(e) => { e.stopPropagation(); setChildNoAnim(true); setChildSwipes(prev => ({ ...prev, [enfant.id]: 0 })); setTimeout(() => setChildNoAnim(false), 50); }}
+              className="fixed inset-0 z-40"
+              style={{ background: 'transparent' }}
+            />
+          )}
         </div>
       </div>
     );
@@ -440,7 +407,6 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         onTouchStart={selectable ? handleTouchStart : undefined}
         onTouchMove={selectable ? handleTouchMove : undefined}
         onTouchEnd={selectable ? handleTouchEnd : undefined}
-        onClick={handleCardClick}
         style={{ transform: `translateX(${swipeX}px)` }}
         className={`${!isGroup && !noAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
           selected ? "border-l-2 border-l-indigo-500" : ""
@@ -564,6 +530,15 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           </div>
         </div>
       </div>
+
+      {/* 🆕 Backdrop overlay — ferme le swipe au clic n'importe où */}
+      {swipeX !== 0 && (
+        <div
+          onClick={(e) => { e.stopPropagation(); setNoAnim(true); setSwipeX(0); }}
+          className="fixed inset-0 z-40"
+          style={{ background: 'transparent' }}
+        />
+      )}
 
       {/* 🆕 Enfants du groupe — layout identique aux lignes normales, indentation réduite */}
       {isGroup && expanded && (
