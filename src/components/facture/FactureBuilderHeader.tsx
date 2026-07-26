@@ -216,7 +216,7 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
           {/* 🆕 Bouton Ouvrir le projet */}
           {projectId && (
             <a
-              href={`/project/${projectId}`}
+              href={`/projects/${projectId}`}
               className="flex items-center justify-center gap-2 w-full py-2 rounded-lg
                          bg-blue-50 border border-blue-200 text-blue-700 text-sm font-semibold
                          hover:bg-blue-100 hover:border-blue-300 transition-all"

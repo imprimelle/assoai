@@ -395,9 +395,11 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
   const handleSuggestionAction = useCallback((fieldKey: string) => {
     // Expand le header
     setHeaderOpen(true);
+    // Rediriger articles-photos → premier article
+    const scrollKey = fieldKey === "articles-photos" ? "detail-0" : fieldKey;
     // Scroll au champ (timeout pour laisser l'expand se faire)
     setTimeout(() => {
-      const el = document.querySelector(`[data-highlight-key="${fieldKey}"]`);
+      const el = document.querySelector(`[data-highlight-key="${scrollKey}"]`);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
       }

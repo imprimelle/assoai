@@ -235,6 +235,14 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
 
     // Remise : JAMAIS suggérée (exception)
 
+    // 🆕 Vérifier que chaque article a une photo
+    const items: any[] = isCommande
+      ? ((data as CommandeData).items || [])
+      : ((data as FactureData).details || []);
+    if (items.length > 0 && items.some((item) => !item.image_url)) {
+      fields.push({ key: "articles-photos", label: "Ajouter une photo à chaque article" });
+    }
+
     return fields;
   }, [isCommande, data]);
 
@@ -1285,7 +1293,7 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
                   <button
                     onClick={() => {
                       setProjectDialogOpen(false);
-                      navigate(`/project/${projectResult.projectId}`);
+                      navigate(`/projects/${projectResult.projectId}`);
                     }}
                     className="w-full flex items-center justify-center gap-2 h-9 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600"
                   >
