@@ -36,6 +36,7 @@ const CdcListe: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"tout" | "production" | "brouillon" | "termine">("tout");
 
   const {
     data: cdcs,
@@ -97,18 +98,42 @@ const CdcListe: React.FC = () => {
     staleTime: 30_000,
   });
 
-  // ── Recherche dynamique ──
+  // ── Recherche dynamique + filtre statut ──
   const filteredCdcs = useMemo(() => {
     if (!cdcs) return [];
-    if (!search.trim()) return cdcs;
-    const q = search.toLowerCase().trim();
-    return cdcs.filter(
-      (c) =>
-        c.titre.toLowerCase().includes(q) ||
-        c.cdcNumero.toLowerCase().includes(q) ||
-        (c.projectName && c.projectName.toLowerCase().includes(q)),
-    );
-  }, [cdcs, search]);
+    let result = cdcs;
+
+    // Filtre par statut
+    if (statusFilter !== "tout") {
+      const s = (statut: string) => statut.toLowerCase().trim();
+      result = result.filter((c) => {
+        const st = s(c.statut);
+        switch (statusFilter) {
+          case "production":
+            return ["demande", "en cours", "vérification", "en attente"].includes(st);
+          case "brouillon":
+            return st === "brouillon";
+          case "termine":
+            return ["validé", "valide", "terminé", "livré"].includes(st);
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Filtre par recherche texte
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      result = result.filter(
+        (c) =>
+          c.titre.toLowerCase().includes(q) ||
+          c.cdcNumero.toLowerCase().includes(q) ||
+          (c.projectName && c.projectName.toLowerCase().includes(q)),
+      );
+    }
+
+    return result;
+  }, [cdcs, search, statusFilter]);
 
   const handleDelete = async (id: string) => {
     const { error: delErr } = await supabase
@@ -182,6 +207,32 @@ const CdcListe: React.FC = () => {
                        placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400
                        outline-none transition-shadow"
           />
+        </div>
+      </div>
+
+      {/* Filtres par statut */}
+      <div className="px-4 py-2.5 bg-white border-b border-gray-100 shrink-0">
+        <div className="flex gap-2">
+          {(
+            [
+              { key: "tout", label: "Tout" },
+              { key: "production", label: "Production" },
+              { key: "brouillon", label: "Brouillon" },
+              { key: "termine", label: "Terminé" },
+            ] as const
+          ).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setStatusFilter(key)}
+              className={`px-3.5 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                statusFilter === key
+                  ? "border-orange-400 bg-orange-50 text-orange-600"
+                  : "border-gray-300 bg-white text-gray-500 hover:border-gray-400 hover:text-gray-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
