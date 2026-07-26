@@ -113,38 +113,46 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     setSelectedIds(new Set());
   }, []);
 
-  /** 🆕 Dissocier un groupe → restaurer les plaques */
-  const handleUngroup = useCallback(
-    (section: string, index: number) => {
-      const row = rows.find((r) => r.section === section && r.index === index);
+  /** 🆕 Dissocier un enfant du groupe → le sortir comme ligne indépendante */
+  const handleDissocierEnfant = useCallback(
+    (section: string, groupIndex: number, enfantIndex: number) => {
+      const row = rows.find((r) => r.section === section && r.index === groupIndex);
       if (!row?.item.groupe_enfants) return;
+      
+      const enfant = row.item.groupe_enfants[enfantIndex];
+      if (!enfant) return;
 
-      const enfants = row.item.groupe_enfants.map((e) => ({
-        ...e,
-        id: crypto.randomUUID?.() || `pla-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      }));
+      // Enlever l'enfant du groupe
+      const newEnfants = row.item.groupe_enfants.filter((_, i) => i !== enfantIndex);
+      
+      // Si plus d'enfant, supprimer le groupe entièrement
+      let newRows: FlatMaterialRow[];
+      if (newEnfants.length === 0) {
+        newRows = rows.filter((r) => !(r.section === section && r.index === groupIndex));
+      } else {
+        newRows = rows.map((r) =>
+          r.section === section && r.index === groupIndex
+            ? { ...r, item: { ...r.item, groupe_enfants: newEnfants } }
+            : r,
+        );
+      }
 
-      // Supprimer le groupe, insérer les enfants à sa place
-      let newRows = rows.filter(
-        (r) => !(r.section === section && r.index === index),
-      );
+      // Ré-indexer
       newRows = newRows.map((r) => {
-        if (r.section === section && r.index > index) return { ...r, index: r.index - 1 };
+        if (r.section === section && r.index > groupIndex) return { ...r, index: r.index - 1 };
         return r;
       });
 
-      // Insérer les enfants
-      const insertAt = newRows.filter((r) => r.section === section && r.index < index).length;
-      for (const enfant of enfants) {
-        newRows.splice(insertAt, 0, {
-          section,
-          index: insertAt,
-          item: enfant,
-        });
-      }
+      // Ajouter l'enfant comme ligne indépendante après la position du groupe
+      const newItem: MaterialItem = {
+        ...enfant,
+        id: crypto.randomUUID?.() || `pla-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      };
+      const insertAt = newRows.filter((r) => r.section === section && r.index <= groupIndex).length;
+      newRows.splice(insertAt, 0, { section, index: insertAt, item: newItem });
 
-      // Re-index
-      newRows = newRows.map((r) => {
+      // Re-index final
+      newRows = newRows.map((r, i) => {
         if (r.section === section) {
           const newIdx = newRows.filter(
             (fr) => fr.section === section && newRows.indexOf(fr) < newRows.indexOf(r),
@@ -455,8 +463,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                       selectable={canGroup && !isGroup}
                       selected={selectedIds.has(r.item.id)}
                       onToggleSelect={() => handleToggleSelect(r.item.id)}
-                      // 🆕 Dissocier
-                      onUngroup={isGroup ? () => handleUngroup(section, r.index) : undefined}
+                      // 🆕 Dissocier enfant
+                      onDissocierEnfant={isGroup ? (ei: number) => handleDissocierEnfant(section, r.index, ei) : undefined}
                     />
                   </div>
                 );

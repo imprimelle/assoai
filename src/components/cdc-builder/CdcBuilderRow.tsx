@@ -49,8 +49,8 @@ export interface CdcBuilderRowProps {
   selectable?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
-  // 🆕 Dissocier un groupe
-  onUngroup?: () => void;
+  // 🆕 Dissocier un enfant du groupe
+  onDissocierEnfant?: (enfantIndex: number) => void;
 }
 
 const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
@@ -69,22 +69,23 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   selectable = false,
   selected = false,
   onToggleSelect,
-  onUngroup,
+  onDissocierEnfant,
 }) => {
   const { section, item } = row;
   const [expanded, setExpanded] = useState(false);
   const isGroup = !!(item.groupe_enfants && item.groupe_enfants.length > 0);
+
+  // 🆕 Swipe par enfant (dissocier)
+  const [childSwipes, setChildSwipes] = useState<Record<string, number>>({});
+  const childTouchStart = useRef(0);
+  const childIsSwiping = useRef(false);
+  const childCurrentId = useRef<string | null>(null);
 
   // --- Swipe state (sélection) ---
   const [swipeX, setSwipeX] = useState(0);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isSwipingRef = useRef(false);
-
-  // --- 🆕 Swipe state (groupe → dissocier) ---
-  const [groupSwipeX, setGroupSwipeX] = useState(0);
-  const groupTouchStartX = useRef(0);
-  const groupIsSwipingRef = useRef(false);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (!selectable || isGroup || disabled) return;
@@ -127,40 +128,6 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     e.stopPropagation();
     onToggleSelect?.();
   }, [onToggleSelect]);
-
-  // --- 🆕 Handlers swipe groupe (droite → dissocier) ---
-  const handleGroupTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isGroup || disabled) return;
-    groupTouchStartX.current = e.touches[0].clientX;
-    groupIsSwipingRef.current = false;
-  }, [isGroup, disabled]);
-
-  const handleGroupTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isGroup || disabled) return;
-    const dx = e.touches[0].clientX - groupTouchStartX.current;
-    if (!groupIsSwipingRef.current) {
-      if (dx > 8) groupIsSwipingRef.current = true;
-      else return;
-    }
-    e.preventDefault();
-    if (groupSwipeX > 0) {
-      setGroupSwipeX(Math.max(0, Math.min(SWIPE_REVEAL + 10, groupSwipeX + dx * 0.3)));
-    } else if (dx > 0) {
-      setGroupSwipeX(Math.min(dx, SWIPE_REVEAL + 10));
-    }
-    groupTouchStartX.current = e.touches[0].clientX;
-  }, [isGroup, disabled, groupSwipeX]);
-
-  const handleGroupTouchEnd = useCallback(() => {
-    if (!groupIsSwipingRef.current) return;
-    groupIsSwipingRef.current = false;
-    setGroupSwipeX(groupSwipeX > SWIPE_THRESHOLD ? SWIPE_REVEAL : 0);
-  }, [groupSwipeX]);
-
-  const handleUngroupClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onUngroup?.();
-  }, [onUngroup]);
 
   const handleNum = (
     field: "quantite" | "largeur" | "hauteur",
@@ -221,96 +188,145 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     return Math.max(0, feuilleSurface - occupee);
   };
 
-  // 🆕 Rendu d'un enfant : même structure qu'une ligne normale
-  const renderEnfantRow = (enfant: MaterialItem, index: number) => (
-    <div key={enfant.id} className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-1.5 border-b border-gray-100 last:border-b-0 scrollbar-subtle">
-      <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-3">
-        {/* Nom — MaterialCell comme une ligne normale */}
-        <div className="w-[200px] shrink-0">
-          <MaterialCell
-            value={enfant.nom}
-            onChange={(nom) => handleEnfantChange(index, { nom })}
-            onCatalogSelect={(preset, entry) => handleEnfantCatalog(index, preset, entry)}
-            onClear={() => handleEnfantChange(index, { nom: "" })}
-            disabled={disabled}
-          />
+  // 🆕 Rendu d'un enfant avec swipe dissocier
+  const renderEnfantRow = (enfant: MaterialItem, index: number) => {
+    const sX = childSwipes[enfant.id] || 0;
+    const checkOp = sX < 0 ? Math.min(1, Math.abs(sX) / SWIPE_REVEAL) : 0;
+
+    const onStart = (e: React.TouchEvent) => {
+      if (disabled) return;
+      childTouchStart.current = e.touches[0].clientX;
+      childIsSwiping.current = false;
+      childCurrentId.current = enfant.id;
+    };
+    const onMove = (e: React.TouchEvent) => {
+      if (disabled || childCurrentId.current !== enfant.id) return;
+      const dx = e.touches[0].clientX - childTouchStart.current;
+      if (!childIsSwiping.current) {
+        if (Math.abs(dx) > 8) childIsSwiping.current = true;
+        else return;
+      }
+      e.preventDefault();
+      if (sX < 0) {
+        setChildSwipes(prev => ({ ...prev, [enfant.id]: Math.max(-SWIPE_MAX, Math.min(0, sX + dx * 0.4)) }));
+      } else if (dx < 0) {
+        setChildSwipes(prev => ({ ...prev, [enfant.id]: Math.max(dx, -SWIPE_MAX) }));
+      }
+      childTouchStart.current = e.touches[0].clientX;
+    };
+    const onEnd = () => {
+      if (!childIsSwiping.current) return;
+      childIsSwiping.current = false;
+      setChildSwipes(prev => ({ ...prev, [enfant.id]: sX < -SWIPE_THRESHOLD ? -SWIPE_REVEAL : 0 }));
+    };
+
+    return (
+      <div key={enfant.id} className="relative overflow-hidden">
+        {/* Fond dissocier à droite */}
+        <div
+          className="absolute inset-y-0 right-0 flex items-center justify-center bg-amber-50 rounded-r-lg"
+          style={{ width: SWIPE_REVEAL + 20, opacity: checkOp, transition: "opacity 0.15s" }}
+        >
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDissocierEnfant?.(index); }}
+            className="text-[10px] font-medium text-amber-700 hover:text-amber-900 px-1 py-1 rounded"
+          >
+            ✂ Dissocier
+          </button>
         </div>
 
-        {/* Qté + L + H + Unité — mêmes largeurs que la ligne parent */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <div className="flex items-center gap-0.5">
-            <span className="text-[10px] text-gray-300">×</span>
-            <input type="number" inputMode="decimal" min={1}
-              value={enfant.quantite ?? 1}
-              onChange={(e) => handleEnfantNum(enfant, index, "quantite", e.target.value)}
-              disabled={disabled}
-              className={`${cellInput} w-[44px] text-center tabular-nums text-xs`} />
-          </div>
-          <div className="flex items-center gap-0.5">
-            <span className="text-[10px] text-gray-300 w-2">L</span>
-            <input type="number" inputMode="decimal" min={0} step={0.1}
-              value={enfant.largeur ?? ""}
-              onChange={(e) => handleEnfantNum(enfant, index, "largeur", e.target.value)}
-              disabled={disabled}
-              className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
-          </div>
-          {showHauteur(section) ? (
-            <div className="flex items-center gap-0.5">
-              <span className="text-[10px] text-gray-300 w-2">H</span>
-              <input type="number" inputMode="decimal" min={0} step={0.1}
-                value={enfant.hauteur ?? ""}
-                onChange={(e) => handleEnfantNum(enfant, index, "hauteur", e.target.value)}
+        <div
+          onTouchStart={onStart}
+          onTouchMove={onMove}
+          onTouchEnd={onEnd}
+          style={{ transform: `translateX(${sX}px)` }}
+          className="transition-transform duration-200 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-1.5 border-b border-gray-100 last:border-b-0 scrollbar-subtle"
+        >
+          <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-3">
+            <div className="w-[200px] shrink-0">
+              <MaterialCell
+                value={enfant.nom}
+                onChange={(nom) => handleEnfantChange(index, { nom })}
+                onCatalogSelect={(preset, entry) => handleEnfantCatalog(index, preset, entry)}
+                onClear={() => handleEnfantChange(index, { nom: "" })}
                 disabled={disabled}
-                className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
+              />
             </div>
-          ) : (
-            <span className="text-gray-300 text-xs w-[52px] text-center">—</span>
-          )}
-          <input list={`unite-enf-${enfant.id}`} value={enfant.unite || "plaque"}
-            onChange={(e) => handleEnfantChange(index, { unite: e.target.value })}
-            disabled={disabled}
-            className={`${cellInput} w-[72px] text-xs`} placeholder="unité" />
-          <datalist id={`unite-enf-${enfant.id}`}>
-            {withCurrent(UNITES, enfant.unite).map((u) => <option key={u} value={u} />)}
-          </datalist>
-        </div>
-
-        {/* Épaisseur + Couleur + Supprimer — mêmes largeurs */}
-        <div className="flex items-center gap-2 shrink-0">
-          {showEpaisseur(section) ? (
-            <select value={enfant.epaisseur || ""}
-              onChange={(e) => handleEnfantChange(index, { epaisseur: e.target.value })}
-              disabled={disabled}
-              className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm focus:ring-2 focus:ring-indigo-500 w-[110px]">
-              <option value="">Épaisseur</option>
-              {withCurrent(EPAISSEURS, enfant.epaisseur).map((ep) => <option key={ep} value={ep}>{ep}</option>)}
-            </select>
-          ) : (
-            <span className="text-gray-300 text-sm w-[110px] text-center">—</span>
-          )}
-          {showCouleur(section, enfant) ? (
-            <select value={enfant.couleur || ""}
-              onChange={(e) => handleEnfantChange(index, { couleur: e.target.value })}
-              disabled={disabled}
-              className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm focus:ring-2 focus:ring-indigo-500 w-[130px]">
-              <option value="">Couleur</option>
-              {withCurrent(
-                enfant.couleurs_dispo?.length ? enfant.couleurs_dispo : COULEURS,
-                enfant.couleur,
-              ).map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          ) : null}
-          {!disabled && onDeleteEnfant && (
-            <button type="button" onClick={() => onDeleteEnfant(index)}
-              className="text-red-400 hover:text-red-600 p-1 transition-colors shrink-0"
-              title="Retirer cette plaque du groupe">
-              <Trash2 size={16} />
-            </button>
-          )}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-0.5">
+                <span className="text-[10px] text-gray-300">×</span>
+                <input type="number" inputMode="decimal" min={1}
+                  value={enfant.quantite ?? 1}
+                  onChange={(e) => handleEnfantNum(enfant, index, "quantite", e.target.value)}
+                  disabled={disabled}
+                  className={`${cellInput} w-[44px] text-center tabular-nums text-xs`} />
+              </div>
+              <div className="flex items-center gap-0.5">
+                <span className="text-[10px] text-gray-300 w-2">L</span>
+                <input type="number" inputMode="decimal" min={0} step={0.1}
+                  value={enfant.largeur ?? ""}
+                  onChange={(e) => handleEnfantNum(enfant, index, "largeur", e.target.value)}
+                  disabled={disabled}
+                  className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
+              </div>
+              {showHauteur(section) ? (
+                <div className="flex items-center gap-0.5">
+                  <span className="text-[10px] text-gray-300 w-2">H</span>
+                  <input type="number" inputMode="decimal" min={0} step={0.1}
+                    value={enfant.hauteur ?? ""}
+                    onChange={(e) => handleEnfantNum(enfant, index, "hauteur", e.target.value)}
+                    disabled={disabled}
+                    className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
+                </div>
+              ) : (
+                <span className="text-gray-300 text-xs w-[52px] text-center">—</span>
+              )}
+              <input list={`unite-enf-${enfant.id}`} value={enfant.unite || "plaque"}
+                onChange={(e) => handleEnfantChange(index, { unite: e.target.value })}
+                disabled={disabled}
+                className={`${cellInput} w-[72px] text-xs`} placeholder="unité" />
+              <datalist id={`unite-enf-${enfant.id}`}>
+                {withCurrent(UNITES, enfant.unite).map((u) => <option key={u} value={u} />)}
+              </datalist>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {showEpaisseur(section) ? (
+                <select value={enfant.epaisseur || ""}
+                  onChange={(e) => handleEnfantChange(index, { epaisseur: e.target.value })}
+                  disabled={disabled}
+                  className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm focus:ring-2 focus:ring-indigo-500 w-[110px]">
+                  <option value="">Épaisseur</option>
+                  {withCurrent(EPAISSEURS, enfant.epaisseur).map((ep) => <option key={ep} value={ep}>{ep}</option>)}
+                </select>
+              ) : (
+                <span className="text-gray-300 text-sm w-[110px] text-center">—</span>
+              )}
+              {showCouleur(section, enfant) ? (
+                <select value={enfant.couleur || ""}
+                  onChange={(e) => handleEnfantChange(index, { couleur: e.target.value })}
+                  disabled={disabled}
+                  className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm focus:ring-2 focus:ring-indigo-500 w-[130px]">
+                  <option value="">Couleur</option>
+                  {withCurrent(
+                    enfant.couleurs_dispo?.length ? enfant.couleurs_dispo : COULEURS,
+                    enfant.couleur,
+                  ).map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              ) : null}
+              {!disabled && onDeleteEnfant && (
+                <button type="button" onClick={() => onDeleteEnfant(index)}
+                  className="text-red-400 hover:text-red-600 p-1 transition-colors shrink-0"
+                  title="Retirer cette plaque du groupe">
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const checkOpacity = swipeX < 0
     ? Math.min(1, Math.abs(swipeX) / SWIPE_REVEAL)
@@ -349,33 +365,12 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         </div>
       )}
 
-      {/* 🆕 Fond swipe groupe — bouton Dissocier à gauche */}
-      {isGroup && onUngroup && (
-        <div
-          className="absolute inset-y-0 left-0 flex items-center justify-center bg-amber-50 rounded-l-lg"
-          style={{
-            width: SWIPE_REVEAL + 14,
-            opacity: groupSwipeX > SWIPE_THRESHOLD ? 1 : 0.3,
-            transition: "opacity 0.15s",
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleUngroupClick}
-            className="text-xs font-medium text-amber-700 hover:text-amber-900 px-2 py-1 rounded"
-            title="Dissocier les plaques de la feuille"
-          >
-            ✂ Dissocier
-          </button>
-        </div>
-      )}
-
       {/* Carte swipeable */}
       <div
-        onTouchStart={isGroup ? handleGroupTouchStart : (selectable ? handleTouchStart : undefined)}
-        onTouchMove={isGroup ? handleGroupTouchMove : (selectable ? handleTouchMove : undefined)}
-        onTouchEnd={isGroup ? handleGroupTouchEnd : (selectable ? handleTouchEnd : undefined)}
-        style={{ transform: `translateX(${isGroup ? groupSwipeX : swipeX}px)` }}
+        onTouchStart={selectable ? handleTouchStart : undefined}
+        onTouchMove={selectable ? handleTouchMove : undefined}
+        onTouchEnd={selectable ? handleTouchEnd : undefined}
+        style={{ transform: `translateX(${swipeX}px)` }}
         className={`transition-transform duration-200 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
           selected ? "border-l-2 border-l-indigo-500" : ""
         }`}
