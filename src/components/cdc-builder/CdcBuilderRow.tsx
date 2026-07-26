@@ -182,7 +182,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   // 🆕 Rendu d'un enfant : même structure qu'une ligne normale
   const renderEnfantRow = (enfant: MaterialItem, index: number) => (
     <div key={enfant.id} className="py-1.5 border-b border-gray-100 last:border-b-0">
-      <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-5">
+      <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-3">
         {/* Nom — MaterialCell comme une ligne normale */}
         <div className="w-[200px] shrink-0">
           <MaterialCell
@@ -330,7 +330,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             <button
               type="button"
               onClick={() => setExpanded(!expanded)}
-              className="text-gray-400 hover:text-gray-600 px-1 py-0.5 transition-colors shrink-0 text-xs font-bold rounded hover:bg-gray-100"
+              className="text-gray-400 hover:text-gray-600 px-0.5 py-0.5 transition-colors shrink-0 text-xs font-bold rounded hover:bg-gray-100"
               title={expanded ? "Replier" : "Déplier"}
             >
               F
@@ -438,7 +438,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
 
       {/* 🆕 Enfants du groupe — layout identique aux lignes normales, indentation réduite */}
       {isGroup && expanded && (
-        <div className="ml-5 pl-2 border-l border-gray-200 bg-gray-50/20 rounded-r-lg">
+        <div className="ml-3 pl-1 border-l border-gray-200 bg-gray-50/20 rounded-r-lg">
           {/* Enfants */}
           {(item.groupe_enfants || []).map((enfant, i) => renderEnfantRow(enfant, i))}
 
