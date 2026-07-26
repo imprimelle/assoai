@@ -187,7 +187,7 @@ const TemplatePreview: React.FC<TemplatePreviewProps> = ({
     <Collapsible
       open={isOpen}
       onOpenChange={setIsOpen}
-      className={`bg-white rounded-xl shadow-md border border-gray-200 cursor-pointer overflow-hidden w-full max-w-full relative ${className}`}
+      className={`border rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer w-full max-w-full relative ${className}`}
     >
       <CollapsibleTrigger className="w-full text-left p-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">

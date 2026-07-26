@@ -118,7 +118,7 @@ export function TemplateList({
       {templates.map((message) => (
         <div
           key={message.id}
-          className="cursor-pointer transition-all hover:scale-[1.01]"
+          className="cursor-pointer transition-all hover:shadow-md"
           onClick={() => onSelectTemplate(message.id)}
         >
           {message.template && (
