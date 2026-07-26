@@ -525,7 +525,10 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
       {/* 🆕 Backdrop overlay — ferme le swipe au clic n'importe où */}
       {(swipeX !== 0 || Object.values(childSwipes).some(v => v !== 0)) && (
         <div
-          onClick={() => { setNoAnim(true); setSwipeX(0); setChildNoAnim(true); setChildSwipes({}); setTimeout(() => setChildNoAnim(false), 50); }}
+          onClick={(e) => { 
+            if ((e.target as HTMLElement).closest('[data-swipe-check]')) return;
+            setNoAnim(true); setSwipeX(0); setChildNoAnim(true); setChildSwipes({}); setTimeout(() => setChildNoAnim(false), 50); 
+          }}
           className="fixed inset-0 z-40 bg-black/5"
         />
       )}
