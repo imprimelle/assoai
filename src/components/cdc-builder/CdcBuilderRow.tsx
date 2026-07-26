@@ -49,6 +49,8 @@ export interface CdcBuilderRowProps {
   selectable?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
+  // 🆕 Dissocier un groupe
+  onUngroup?: () => void;
 }
 
 const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
@@ -67,16 +69,22 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   selectable = false,
   selected = false,
   onToggleSelect,
+  onUngroup,
 }) => {
   const { section, item } = row;
   const [expanded, setExpanded] = useState(false);
   const isGroup = !!(item.groupe_enfants && item.groupe_enfants.length > 0);
 
-  // --- Swipe state ---
+  // --- Swipe state (sélection) ---
   const [swipeX, setSwipeX] = useState(0);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isSwipingRef = useRef(false);
+
+  // --- 🆕 Swipe state (groupe → dissocier) ---
+  const [groupSwipeX, setGroupSwipeX] = useState(0);
+  const groupTouchStartX = useRef(0);
+  const groupIsSwipingRef = useRef(false);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (!selectable || isGroup || disabled) return;
@@ -119,6 +127,40 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     e.stopPropagation();
     onToggleSelect?.();
   }, [onToggleSelect]);
+
+  // --- 🆕 Handlers swipe groupe (droite → dissocier) ---
+  const handleGroupTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isGroup || disabled) return;
+    groupTouchStartX.current = e.touches[0].clientX;
+    groupIsSwipingRef.current = false;
+  }, [isGroup, disabled]);
+
+  const handleGroupTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isGroup || disabled) return;
+    const dx = e.touches[0].clientX - groupTouchStartX.current;
+    if (!groupIsSwipingRef.current) {
+      if (dx > 8) groupIsSwipingRef.current = true;
+      else return;
+    }
+    e.preventDefault();
+    if (groupSwipeX > 0) {
+      setGroupSwipeX(Math.max(0, Math.min(SWIPE_REVEAL + 10, groupSwipeX + dx * 0.3)));
+    } else if (dx > 0) {
+      setGroupSwipeX(Math.min(dx, SWIPE_REVEAL + 10));
+    }
+    groupTouchStartX.current = e.touches[0].clientX;
+  }, [isGroup, disabled, groupSwipeX]);
+
+  const handleGroupTouchEnd = useCallback(() => {
+    if (!groupIsSwipingRef.current) return;
+    groupIsSwipingRef.current = false;
+    setGroupSwipeX(groupSwipeX > SWIPE_THRESHOLD ? SWIPE_REVEAL : 0);
+  }, [groupSwipeX]);
+
+  const handleUngroupClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onUngroup?.();
+  }, [onUngroup]);
 
   const handleNum = (
     field: "quantite" | "largeur" | "hauteur",
@@ -307,12 +349,33 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         </div>
       )}
 
+      {/* 🆕 Fond swipe groupe — bouton Dissocier à gauche */}
+      {isGroup && onUngroup && (
+        <div
+          className="absolute inset-y-0 left-0 flex items-center justify-center bg-amber-50 rounded-l-lg"
+          style={{
+            width: SWIPE_REVEAL + 14,
+            opacity: groupSwipeX > SWIPE_THRESHOLD ? 1 : 0.3,
+            transition: "opacity 0.15s",
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleUngroupClick}
+            className="text-xs font-medium text-amber-700 hover:text-amber-900 px-2 py-1 rounded"
+            title="Dissocier les plaques de la feuille"
+          >
+            ✂ Dissocier
+          </button>
+        </div>
+      )}
+
       {/* Carte swipeable */}
       <div
-        onTouchStart={selectable ? handleTouchStart : undefined}
-        onTouchMove={selectable ? handleTouchMove : undefined}
-        onTouchEnd={selectable ? handleTouchEnd : undefined}
-        style={{ transform: `translateX(${swipeX}px)` }}
+        onTouchStart={isGroup ? handleGroupTouchStart : (selectable ? handleTouchStart : undefined)}
+        onTouchMove={isGroup ? handleGroupTouchMove : (selectable ? handleTouchMove : undefined)}
+        onTouchEnd={isGroup ? handleGroupTouchEnd : (selectable ? handleTouchEnd : undefined)}
+        style={{ transform: `translateX(${isGroup ? groupSwipeX : swipeX}px)` }}
         className={`transition-transform duration-200 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
           selected ? "border-l-2 border-l-indigo-500" : ""
         }`}

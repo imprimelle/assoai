@@ -113,6 +113,52 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     setSelectedIds(new Set());
   }, []);
 
+  /** 🆕 Dissocier un groupe → restaurer les plaques */
+  const handleUngroup = useCallback(
+    (section: string, index: number) => {
+      const row = rows.find((r) => r.section === section && r.index === index);
+      if (!row?.item.groupe_enfants) return;
+
+      const enfants = row.item.groupe_enfants.map((e) => ({
+        ...e,
+        id: crypto.randomUUID?.() || `pla-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      }));
+
+      // Supprimer le groupe, insérer les enfants à sa place
+      let newRows = rows.filter(
+        (r) => !(r.section === section && r.index === index),
+      );
+      newRows = newRows.map((r) => {
+        if (r.section === section && r.index > index) return { ...r, index: r.index - 1 };
+        return r;
+      });
+
+      // Insérer les enfants
+      const insertAt = newRows.filter((r) => r.section === section && r.index < index).length;
+      for (const enfant of enfants) {
+        newRows.splice(insertAt, 0, {
+          section,
+          index: insertAt,
+          item: enfant,
+        });
+      }
+
+      // Re-index
+      newRows = newRows.map((r) => {
+        if (r.section === section) {
+          const newIdx = newRows.filter(
+            (fr) => fr.section === section && newRows.indexOf(fr) < newRows.indexOf(r),
+          ).length;
+          return { ...r, index: newIdx };
+        }
+        return r;
+      });
+
+      onRowsChange(newRows);
+    },
+    [rows, onRowsChange],
+  );
+
   /** Confirmer le groupe avec un matériau */
   const handleConfirmGroup = useCallback(
     (entry: MaterialCatalogEntry) => {
@@ -356,8 +402,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                 <span className="text-xs font-semibold uppercase tracking-wide">{section}</span>
                 <span className="text-[10px] opacity-50">({sectionRows.length})</span>
               </div>
-              {/* 🆕 Bouton Feuille — apparaît quand ≥2 checkboxes cochées dans cette section */}
-              {canGroup && checkedInSection >= 2 && (
+              {/* 🆕 Bouton Feuille — apparaît quand ≥1 plaque cochée */}
+              {canGroup && checkedInSection >= 1 && (
                 <button
                   type="button"
                   onClick={() => setGroupDialogSection(section)}
@@ -409,6 +455,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                       selectable={canGroup && !isGroup}
                       selected={selectedIds.has(r.item.id)}
                       onToggleSelect={() => handleToggleSelect(r.item.id)}
+                      // 🆕 Dissocier
+                      onUngroup={isGroup ? () => handleUngroup(section, r.index) : undefined}
                     />
                   </div>
                 );
