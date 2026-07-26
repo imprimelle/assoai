@@ -349,15 +349,6 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
               )}
             </div>
           </div>
-
-          {/* 🆕 Backdrop overlay enfant — ferme le swipe dissocier */}
-          {sX !== 0 && (
-            <div
-              onClick={(e) => { e.stopPropagation(); setChildNoAnim(true); setChildSwipes(prev => ({ ...prev, [enfant.id]: 0 })); setTimeout(() => setChildNoAnim(false), 50); }}
-              className="fixed inset-0 z-40"
-              style={{ background: 'transparent' }}
-            />
-          )}
         </div>
       </div>
     );
@@ -532,11 +523,10 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
       </div>
 
       {/* 🆕 Backdrop overlay — ferme le swipe au clic n'importe où */}
-      {swipeX !== 0 && (
+      {(swipeX !== 0 || Object.values(childSwipes).some(v => v !== 0)) && (
         <div
-          onClick={(e) => { e.stopPropagation(); setNoAnim(true); setSwipeX(0); }}
-          className="fixed inset-0 z-40"
-          style={{ background: 'transparent' }}
+          onClick={() => { setNoAnim(true); setSwipeX(0); setChildNoAnim(true); setChildSwipes({}); setTimeout(() => setChildNoAnim(false), 50); }}
+          className="fixed inset-0 z-40 bg-black/5"
         />
       )}
 
