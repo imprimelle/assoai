@@ -6,7 +6,7 @@ import React, { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Trash2, Settings2, Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { Trash2, Settings2, Plus, ChevronDown, ChevronUp, Layers } from "lucide-react";
 import MaterialSuggestions from "@/components/materials/MaterialSuggestions";
 import { UNITES, COULEURS, EPAISSEURS, withCurrent } from "@/constants/materials";
 import type { MaterialItem } from "@/types";
@@ -68,6 +68,7 @@ const MaterialTable: React.FC<MaterialTableProps> = ({
 }) => {
   const [activeCat, setActiveCat] = useState<string | "all">("all");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>({});
 
   // Catégories réellement présentes (ordre : connues d'abord, inconnues ensuite).
   const presentCats = useMemo(() => {
@@ -99,6 +100,8 @@ const MaterialTable: React.FC<MaterialTableProps> = ({
   const rowKey = (r: FlatMaterialRow) => `${r.section}-${r.item.id}`;
   const toggleExpand = (r: FlatMaterialRow) =>
     setExpanded((prev) => ({ ...prev, [rowKey(r)]: !prev[rowKey(r)] }));
+  const toggleGroupExpand = (r: FlatMaterialRow) =>
+    setGroupExpanded((prev) => ({ ...prev, [rowKey(r)]: !prev[rowKey(r)] }));
 
   const handleNum = (
     r: FlatMaterialRow,
@@ -283,17 +286,30 @@ const MaterialTable: React.FC<MaterialTableProps> = ({
                 const { item, section } = r;
                 const surf = surfaceOf(item);
                 const isOpen = !!expanded[rowKey(r)];
+                const isGroupOpen = !!groupExpanded[rowKey(r)];
+                const isGroup = !!(item.groupe_enfants && item.groupe_enfants.length > 0);
                 return (
                   <React.Fragment key={rowKey(r)}>
-                    <tr className="bg-gray-50">
+                    <tr className={isGroup ? "bg-indigo-50/50 border-l-2 border-l-indigo-300" : "bg-gray-50"}>
                       <td className="px-2 py-1">
                         <span
                           className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${badgeClass(
                             section,
                           )}`}
                         >
+                          {isGroup && (
+                            <button
+                              type="button"
+                              onClick={() => toggleGroupExpand(r)}
+                              className="inline-flex items-center mr-1 text-indigo-500 hover:text-indigo-700"
+                              title={isGroupOpen ? "Replier" : "Déplier"}
+                            >
+                              {isGroupOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                            </button>
+                          )}
                           {section}
                           {item.material_id && " 📦"}
+                          {isGroup && " 📐"}
                         </span>
                       </td>
                       <td className="px-2 py-1">
@@ -428,7 +444,26 @@ const MaterialTable: React.FC<MaterialTableProps> = ({
                         </td>
                       )}
                     </tr>
-                    {isEditable && isOpen && (
+                    {/* 🆕 Enfants du groupe (desktop) */}
+                    {isGroup && isGroupOpen && (item.groupe_enfants || []).map((enfant, ei) => (
+                      <tr key={`${rowKey(r)}-enfant-${ei}`} className="bg-indigo-50/20">
+                        <td className="px-2 py-1"></td>
+                        <td className="px-2 py-1 pl-8">
+                          <span className="text-xs text-gray-600">{enfant.nom || `Plaque ${ei + 1}`}</span>
+                        </td>
+                        <td className="px-2 py-1 text-center text-xs tabular-nums">{fmtNum(enfant.quantite)}</td>
+                        <td className="px-2 py-1 text-xs">{enfant.unite || "plaque"}</td>
+                        <td className="px-2 py-1 text-center text-xs tabular-nums">{fmtNum(enfant.largeur)}</td>
+                        <td className="px-2 py-1 text-center text-xs tabular-nums">{fmtNum(enfant.hauteur)}</td>
+                        <td className="px-2 py-1 text-center text-xs text-indigo-600">
+                          {enfant.largeur && enfant.hauteur
+                            ? ((enfant.largeur * enfant.hauteur * (enfant.quantite || 1)).toFixed(2) + " m²")
+                            : "—"}
+                        </td>
+                        {isEditable && <td className="px-2 py-1"></td>}
+                      </tr>
+                    ))}
+                    {isEditable && isOpen && !isGroup && (
                       <tr className="bg-indigo-50/40">
                         <td colSpan={8} className="px-3 py-2 rounded-b">
                           {renderAdvanced(r)}

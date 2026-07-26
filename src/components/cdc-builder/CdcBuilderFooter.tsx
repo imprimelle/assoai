@@ -599,6 +599,89 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
             }
             break;
           }
+          case "group": {
+            // 🆕 Action de groupe : fusionne N plaques en une feuille
+            if (action.groupe && action.indices && action.indices.length >= 2) {
+              const feuilleSurface =
+                (action.groupe.largeur_feuille || 0) *
+                (action.groupe.hauteur_feuille || 0);
+              const occupee = action.groupe.enfants.reduce(
+                (sum, e) =>
+                  sum + (e.largeur || 0) * (e.hauteur || 0) * (e.quantite || 1),
+                0,
+              );
+              const chuteSurface = Math.max(0, feuilleSurface - occupee);
+
+              const enfants: MaterialItem[] = [
+                ...action.groupe.enfants.map((e) => ({
+                  ...e,
+                  id:
+                    e.id ||
+                    crypto.randomUUID?.() ||
+                    `enf-${Date.now()}-${Math.random()
+                      .toString(36)
+                      .slice(2, 6)}`,
+                  unite: e.unite || "plaque",
+                })),
+                // Ajouter la chute si surface > 0
+                ...(chuteSurface > 0.001
+                  ? [
+                      {
+                        id:
+                          crypto.randomUUID?.() ||
+                          `chu-${Date.now()}-${Math.random()
+                            .toString(36)
+                            .slice(2, 6)}`,
+                        nom: "Chute",
+                        quantite: 1,
+                        unite: "plaque",
+                        largeur:
+                          Math.round(Math.sqrt(chuteSurface) * 100) / 100,
+                        hauteur:
+                          Math.round(Math.sqrt(chuteSurface) * 100) / 100,
+                      } as MaterialItem,
+                    ]
+                  : []),
+              ];
+
+              const groupItem: MaterialItem = {
+                id:
+                  crypto.randomUUID?.() ||
+                  `grp-${Date.now()}-${Math.random()
+                    .toString(36)
+                    .slice(2, 6)}`,
+                nom: action.groupe.nom,
+                quantite: 1,
+                unite: "Feuille",
+                largeur: action.groupe.largeur_feuille,
+                hauteur: action.groupe.hauteur_feuille,
+                material_id: action.groupe.material_id,
+                format_standard: action.groupe.format,
+                groupe_enfants: enfants,
+                groupe_material_id: action.groupe.material_id,
+                groupe_nom: action.groupe.nom,
+                groupe_format: action.groupe.format,
+                groupe_largeur: action.groupe.largeur_feuille,
+                groupe_hauteur: action.groupe.hauteur_feuille,
+              };
+
+              // Supprimer les lignes aux indices spécifiés (ordre décroissant)
+              const sortedIndices = [...action.indices].sort((a, b) => b - a);
+              let newSection = [...section];
+              for (const idx of sortedIndices) {
+                if (idx >= 0 && idx < newSection.length) {
+                  newSection = newSection.filter((_, i) => i !== idx);
+                }
+              }
+              // Ajouter le groupe
+              newSection.push(groupItem);
+              currentSections[action.section] = newSection;
+              highlightKey = `${action.section}-${newSection.length - 1}`;
+              allHighlights[highlightKey] = "added";
+              anyModified = true;
+            }
+            break;
+          }
         }
 
         newMateriaux[ensId] = currentSections;

@@ -1,9 +1,9 @@
 // src/components/cdc-builder/CdcBuilderRow.tsx
 // Ligne éditable inline du tableau CDC Builder — 3 colonnes adaptatives par section.
-// v4: scrollbar subtile, bouton suppression retiré (géré par poubelle ligne entière).
+// v5: support des groupes (Feuille → Plaques) avec dropdown chevron.
 
-import React from "react";
-import { Trash2 } from "lucide-react";
+import React, { useState } from "react";
+import { Trash2, ChevronDown, ChevronUp, Plus } from "lucide-react";
 import MaterialCell from "./MaterialCell";
 import {
   UNITES,
@@ -24,6 +24,9 @@ const showCouleur = (section: string, item: MaterialItem) =>
 const showEpaisseur = (section: string) =>
   ["Métal", "Découpe"].includes(section);
 
+/** Sections éligibles aux groupes */
+const GROUPABLE_SECTIONS = ["Découpe", "Vinyl"];
+
 // --- Props ---
 export interface CdcBuilderRowProps {
   row: FlatMaterialRow;
@@ -39,6 +42,17 @@ export interface CdcBuilderRowProps {
   flashType?: "added" | "modified";
   /** ID de l'enseigne propriétaire — utilisé pour la clé de scroll / highlight */
   enseigneId?: string;
+  // --- 🆕 Props groupe ---
+  /** Appelé quand les enfants du groupe changent */
+  onChangeEnfants?: (enfants: MaterialItem[]) => void;
+  /** Supprimer un enfant */
+  onDeleteEnfant?: (enfantIndex: number) => void;
+  /** Ajouter un enfant */
+  onAddEnfant?: () => void;
+  /** Checkbox de sélection (pour le mode "Grouper") */
+  showCheckbox?: boolean;
+  checked?: boolean;
+  onCheckChange?: (checked: boolean) => void;
 }
 
 const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
@@ -51,8 +65,17 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   enseigneBadge,
   flashType,
   enseigneId,
+  onChangeEnfants,
+  onDeleteEnfant,
+  onAddEnfant,
+  showCheckbox = false,
+  checked = false,
+  onCheckChange,
 }) => {
   const { section, item } = row;
+  const [expanded, setExpanded] = useState(false);
+  const isGroup = !!(item.groupe_enfants && item.groupe_enfants.length > 0);
+  const canGroup = GROUPABLE_SECTIONS.includes(section);
 
   const handleNum = (
     field: "quantite" | "largeur" | "hauteur",
@@ -76,17 +99,143 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     }
   };
 
+  /** Handler pour les champs numériques d'un enfant */
+  const handleEnfantNum = (
+    enfant: MaterialItem,
+    field: "quantite" | "largeur" | "hauteur",
+    raw: string,
+  ) => {
+    const enfants = [...(item.groupe_enfants || [])];
+    const idx = enfants.findIndex(e => e.id === enfant.id);
+    if (idx < 0) return;
+    if (raw === "") {
+      enfants[idx] = { ...enfants[idx], [field]: field === "quantite" ? 1 : 0 };
+    } else {
+      const parsed = Number(raw);
+      if (Number.isNaN(parsed)) return;
+      enfants[idx] = { ...enfants[idx], [field]: Math.max(0, parsed) };
+    }
+    onChangeEnfants?.(enfants);
+  };
+
   const cellInput =
     "h-9 border border-gray-200 rounded px-2 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none";
+
+  /** Calcule la surface de chute */
+  const surfaceChute = (): number => {
+    if (!isGroup) return 0;
+    const feuilleSurface = (item.largeur || 0) * (item.hauteur || 0);
+    const occupee = (item.groupe_enfants || []).reduce((sum, e) => {
+      return sum + (e.largeur || 0) * (e.hauteur || 0) * (e.quantite || 1);
+    }, 0);
+    return Math.max(0, feuilleSurface - occupee);
+  };
+
+  /** Rendu d'une ligne enfant (plaque) */
+  const renderEnfantRow = (enfant: MaterialItem, index: number) => (
+    <div key={enfant.id} className="flex items-center gap-2 py-1.5 border-b border-indigo-100 last:border-b-0">
+      {/* Nom */}
+      <div className="w-[180px] shrink-0">
+        <input
+          type="text"
+          value={enfant.nom}
+          onChange={(e) => {
+            const enfants = [...(item.groupe_enfants || [])];
+            enfants[index] = { ...enfants[index], nom: e.target.value };
+            onChangeEnfants?.(enfants);
+          }}
+          disabled={disabled}
+          className={`${cellInput} w-full text-xs`}
+          placeholder="Nom plaque"
+        />
+      </div>
+
+      {/* Qté + L + H + Unité */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-0.5">
+          <span className="text-[10px] text-gray-300">×</span>
+          <input type="number" inputMode="decimal" min={1}
+            value={enfant.quantite ?? 1}
+            onChange={(e) => handleEnfantNum(enfant, "quantite", e.target.value)}
+            disabled={disabled}
+            className={`${cellInput} w-[44px] text-center tabular-nums text-xs`} />
+        </div>
+
+        <div className="flex items-center gap-0.5">
+          <span className="text-[10px] text-gray-300 w-2">L</span>
+          <input type="number" inputMode="decimal" min={0} step={0.1}
+            value={enfant.largeur ?? ""}
+            onChange={(e) => handleEnfantNum(enfant, "largeur", e.target.value)}
+            disabled={disabled}
+            className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
+        </div>
+
+        {showHauteur(section) ? (
+          <div className="flex items-center gap-0.5">
+            <span className="text-[10px] text-gray-300 w-2">H</span>
+            <input type="number" inputMode="decimal" min={0} step={0.1}
+              value={enfant.hauteur ?? ""}
+              onChange={(e) => handleEnfantNum(enfant, "hauteur", e.target.value)}
+              disabled={disabled}
+              className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
+          </div>
+        ) : (
+          <span className="text-gray-300 text-xs w-[52px] text-center">—</span>
+        )}
+
+        <span className="text-[10px] text-gray-400 w-12 text-center">{enfant.unite || "plaque"}</span>
+      </div>
+
+      {/* Surface enfant */}
+      <span className="text-[10px] text-indigo-500 w-16 text-right tabular-nums">
+        {enfant.largeur && enfant.hauteur
+          ? ((enfant.largeur * enfant.hauteur * (enfant.quantite || 1)).toFixed(2) + " m²")
+          : "—"}
+      </span>
+
+      {/* Bouton supprimer enfant */}
+      {!disabled && onDeleteEnfant && (
+        <button type="button" onClick={() => onDeleteEnfant(index)}
+          className="text-red-300 hover:text-red-500 p-0.5 transition-colors shrink-0"
+          title="Retirer cette plaque du groupe">
+          <Trash2 size={13} />
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div
       data-highlight-key={enseigneId ? `${enseigneId}-${section}-${row.index}` : undefined}
       className={`overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
+        isGroup ? "border-l-2 border-l-indigo-300" : ""
+      } ${
         flashType ? `flash-${flashType}` : ""
       }`}
     >
       <div className="flex items-center gap-2 min-w-[620px] md:min-w-0">
+        {/* 🆕 Checkbox de sélection (mode Grouper) */}
+        {showCheckbox && canGroup && !isGroup && (
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(e) => onCheckChange?.(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
+          />
+        )}
+
+        {/* 🆕 Chevron dropdown pour les groupes */}
+        {isGroup && (
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="text-indigo-400 hover:text-indigo-600 p-0.5 transition-colors shrink-0"
+            title={expanded ? "Replier le groupe" : "Déplier le groupe"}
+          >
+            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+        )}
+
         {/* Colonne 1 : Matériau */}
         <div className="w-[200px] shrink-0">
           {enseigneBadge && (
@@ -109,6 +258,12 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             onClear={() => onChange({ nom: "" })}
             disabled={disabled}
           />
+          {/* 🆕 Badge groupe */}
+          {isGroup && (
+            <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-600">
+              📐 Groupe · {(item.groupe_enfants || []).length} plaque{(item.groupe_enfants || []).length > 1 ? "s" : ""}
+            </span>
+          )}
         </div>
 
         {/* Colonne 2 : Paramètres — Qté en premier */}
@@ -126,7 +281,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           <div className="flex items-center gap-0.5">
             <span className="text-[10px] text-gray-300 w-2">L</span>
             <input type="number" inputMode="decimal" min={0} step={0.1}
-              value={item.largeur ?? ""} placeholder={String(defaultDimensions.largeur)}
+              value={item.largeur ?? ""} placeholder={isGroup ? "Feuille L" : String(defaultDimensions.largeur)}
               onChange={(e) => handleNum("largeur", e.target.value)}
               disabled={disabled}
               className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
@@ -136,7 +291,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             <div className="flex items-center gap-0.5">
               <span className="text-[10px] text-gray-300 w-2">H</span>
               <input type="number" inputMode="decimal" min={0} step={0.1}
-                value={item.hauteur ?? ""} placeholder={String(defaultDimensions.hauteur)}
+                value={item.hauteur ?? ""} placeholder={isGroup ? "Feuille H" : String(defaultDimensions.hauteur)}
                 onChange={(e) => handleNum("hauteur", e.target.value)}
                 disabled={disabled}
                 className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
@@ -190,6 +345,43 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           )}
         </div>
       </div>
+
+      {/* 🆕 Enfants du groupe (dépliés) */}
+      {isGroup && expanded && (
+        <div className="ml-7 mt-2 pl-3 border-l-2 border-indigo-200 bg-indigo-50/30 rounded-r-lg">
+          {/* Récap surface */}
+          <div className="flex items-center gap-4 text-[10px] text-gray-500 mb-1.5 pt-1">
+            <span>Surface feuille : <strong className="text-indigo-600">{((item.largeur || 0) * (item.hauteur || 0)).toFixed(2)} m²</strong></span>
+            <span>Surface utilisée : <strong className="text-indigo-600">{(item.groupe_enfants || []).reduce((s, e) => s + (e.largeur || 0) * (e.hauteur || 0) * (e.quantite || 1), 0).toFixed(2)} m²</strong></span>
+            <span>Chute : <strong className={surfaceChute() > 0 ? "text-amber-600" : "text-green-600"}>{surfaceChute().toFixed(2)} m²</strong></span>
+          </div>
+
+          {/* En-tête des colonnes enfants */}
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-gray-400 mb-1">
+            <span className="w-[180px] shrink-0">Plaque</span>
+            <span className="w-[44px] text-center">Qté</span>
+            <span className="w-[52px] text-center">L (m)</span>
+            <span className="w-[52px] text-center">H (m)</span>
+            <span className="w-12 text-center">Unité</span>
+            <span className="w-16 text-right">Surface</span>
+          </div>
+
+          {/* Liste des enfants */}
+          {(item.groupe_enfants || []).map((enfant, i) => renderEnfantRow(enfant, i))}
+
+          {/* Bouton Ajouter une plaque */}
+          {!disabled && onAddEnfant && (
+            <button
+              type="button"
+              onClick={onAddEnfant}
+              className="flex items-center gap-1 mt-1.5 mb-1 text-xs text-indigo-400 hover:text-indigo-600 font-medium transition-colors py-1"
+            >
+              <Plus size={12} />
+              Ajouter une plaque
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 };

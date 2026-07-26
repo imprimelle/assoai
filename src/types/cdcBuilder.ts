@@ -42,11 +42,24 @@ export interface CdcBuilderFooterMessage {
 }
 
 export interface BricoAction {
-  type: "add" | "update" | "delete";
+  type: "add" | "update" | "delete" | "group";
   section: string;
+  enseigneIndex?: number;  // requis pour add/delete/group
   index?: number;
   item?: MaterialItem;
   changes?: Partial<MaterialItem>;
+  /** 🆕 Action de groupe : fusionne N plaques en une feuille */
+  groupe?: {
+    material_id: string;       // FK → materials.id de la feuille
+    nom: string;               // nom du matériau feuille
+    format?: string;           // format feuille
+    largeur_feuille: number;   // dimension feuille en mètres
+    hauteur_feuille: number;   // dimension feuille en mètres
+    enfants: MaterialItem[];   // les plaques à inclure
+    // chute calculée automatiquement par le frontend
+  };
+  /** Indices des lignes à grouper (pour action type "group") */
+  indices?: number[];
 }
 
 /** Réponse structurée retournée par le backend après parsing des actions CDC */
