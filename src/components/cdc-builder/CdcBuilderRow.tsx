@@ -128,26 +128,42 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     }
   }, [swipeX]);
 
-  // 🆕 Fermer le swipe au clic sur la ligne (si déjà ouvert)
+  // 🆕 Fermer le swipe : onClick local + mousedown global
   const swipeXRef = useRef(swipeX);
   swipeXRef.current = swipeX;
   const childSwipesRef = useRef(childSwipes);
   childSwipesRef.current = childSwipes;
+
+  // onClick local : ferme quand on clique sur la ligne swipée (sauf checkbox)
   const handleCardClick = useCallback((e: React.MouseEvent) => {
-    // Ne pas interférer avec le clic sur la checkbox
     if ((e.target as HTMLElement).closest('[data-swipe-check]')) return;
     if (swipeXRef.current !== 0) {
       e.stopPropagation();
-      e.preventDefault();
       setNoAnim(true);
       setSwipeX(0);
     }
-    // Fermer les swipes enfants aussi
     if (Object.values(childSwipesRef.current).some(v => v !== 0)) {
       setChildNoAnim(true);
       setChildSwipes({});
       setTimeout(() => setChildNoAnim(false), 50);
     }
+  }, []);
+
+  // mousedown global : ferme quand on clique ailleurs (autre ligne, zone vide)
+  useEffect(() => {
+    const onDocMouseDown = () => {
+      if (swipeXRef.current !== 0) {
+        setNoAnim(true);
+        setSwipeX(0);
+      }
+      if (Object.values(childSwipesRef.current).some(v => v !== 0)) {
+        setChildNoAnim(true);
+        setChildSwipes({});
+        setTimeout(() => setChildNoAnim(false), 50);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown, true);
+    return () => document.removeEventListener('mousedown', onDocMouseDown, true);
   }, []);
 
   // Réactiver l'animation après un reset
