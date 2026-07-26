@@ -304,20 +304,38 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
 
   // ── Matériaux filtrés ──
   const getFilteredMaterials = () => {
+    const flatten = (items: MaterialItem[]): MaterialItem[] => {
+      const result: MaterialItem[] = [];
+      for (const item of items) {
+        // 🆕 Si c'est un groupe, ne pas ajouter l'item parent, juste ses enfants
+        if (item.groupe_enfants && item.groupe_enfants.length > 0) {
+          result.push(...item.groupe_enfants);
+        } else {
+          result.push(item);
+        }
+      }
+      return result;
+    };
+
     if (selectedEnseigneFilter === "all") {
       const allMaterials: Record<string, MaterialItem[]> = {};
       data.enseignes?.forEach((enseigne) => {
         if (enseigne.materiauxSections) {
           Object.entries(enseigne.materiauxSections).forEach(([section, items]) => {
             if (!allMaterials[section]) allMaterials[section] = [];
-            allMaterials[section].push(...items);
+            allMaterials[section].push(...flatten(items));
           });
         }
       });
       return allMaterials;
     }
     const sel = data.enseignes?.find((e) => e.id === selectedEnseigneFilter);
-    return sel?.materiauxSections || {};
+    const sections = sel?.materiauxSections || {};
+    const result: Record<string, MaterialItem[]> = {};
+    for (const [section, items] of Object.entries(sections)) {
+      result[section] = flatten(items);
+    }
+    return result;
   };
   const filteredMaterials = getFilteredMaterials();
   const existingSections = Object.keys(filteredMaterials).filter((k) => (filteredMaterials[k] || []).length > 0);
