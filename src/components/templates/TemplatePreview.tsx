@@ -157,9 +157,9 @@ const TemplatePreview: React.FC<TemplatePreviewProps> = ({
       onOpenChange={setIsOpen}
       className={`border rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-200 group ${className}`}
     >
-      <CollapsibleTrigger className="w-full text-left hover:no-underline py-0" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center px-4 py-3.5">
-          {/* Barre colorée gauche (comme projets) */}
+      <CollapsibleTrigger className="w-full text-left px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center">
+          {/* Barre colorée gauche */}
           <div
             className="shrink-0 w-1 self-stretch rounded-full mr-3"
             style={{ backgroundColor: cfg.hex, minHeight: '32px' }}
@@ -184,7 +184,7 @@ const TemplatePreview: React.FC<TemplatePreviewProps> = ({
             </div>
           </div>
 
-          {/* Badges + chevron à droite (comme projets) */}
+          {/* Badges + chevron */}
           <div className="flex items-center gap-1.5 shrink-0 ml-2">
             {statusLabel && (
               <Badge variant="secondary" className={`text-[10px] h-5 cursor-default border-0 ${
