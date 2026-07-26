@@ -282,6 +282,68 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
             )}
           </div>
 
+          {/* Barre de progression des statuts */}
+          <div className="mb-4">
+            <label className="block text-[11px] font-medium text-gray-400 mb-2">📊 Progression</label>
+            {(() => {
+              const STATUT_STEPS = [
+                { key: "brouillon", label: "Brouillon", color: "bg-gray-400", ring: "ring-gray-400" },
+                { key: "vérification", label: "Vérification", color: "bg-amber-500", ring: "ring-amber-400" },
+                { key: "achat", label: "Achat", color: "bg-blue-500", ring: "ring-blue-400" },
+                { key: "fabrication", label: "Fabrication", color: "bg-orange-500", ring: "ring-orange-400" },
+                { key: "installation", label: "Installation", color: "bg-indigo-500", ring: "ring-indigo-400" },
+                { key: "terminé", label: "Terminé", color: "bg-green-500", ring: "ring-green-400" },
+              ];
+              const currentIdx = STATUT_STEPS.findIndex((s) => s.key === st);
+              const effectiveIdx = currentIdx === -1 ? 0 : currentIdx;
+              const currentColor = STATUT_STEPS[effectiveIdx]?.color || "bg-gray-400";
+
+              return (
+                <div className="relative pt-2 pb-3">
+                  {/* Track de fond */}
+                  <div className="absolute top-[22px] left-3 right-3 h-1 bg-gray-200 rounded-full" />
+                  {/* Track remplie (progression) */}
+                  <div
+                    className="absolute top-[22px] left-3 h-1 rounded-full transition-all duration-700 ease-in-out"
+                    style={{
+                      width: `calc(${(effectiveIdx / (STATUT_STEPS.length - 1)) * 100}% - 12px)`,
+                    }}
+                  >
+                    <div className={`h-full rounded-full ${currentColor}`} />
+                  </div>
+                  {/* Points */}
+                  <div className="relative flex justify-between px-1">
+                    {STATUT_STEPS.map((step, idx) => {
+                      const isPast = idx < effectiveIdx;
+                      const isCurrent = idx === effectiveIdx;
+                      const dotColor = isCurrent
+                        ? step.color
+                        : isPast
+                          ? currentColor
+                          : "bg-gray-300";
+                      const ringClass = isCurrent ? `ring-2 ring-offset-1 ${step.ring}` : "";
+                      const scale = isCurrent ? "scale-125" : "scale-100";
+                      return (
+                        <div key={step.key} className="flex flex-col items-center gap-1" style={{ width: "16px" }}>
+                          <div
+                            className={`w-3.5 h-3.5 rounded-full transition-all duration-500 ${dotColor} ${ringClass} ${scale}`}
+                          />
+                          <span
+                            className={`text-[9px] font-medium whitespace-nowrap transition-colors duration-500 ${
+                              isPast || isCurrent ? "text-gray-700" : "text-gray-400"
+                            }`}
+                          >
+                            {step.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
           {/* CDC# + Commande# */}
           <div className="flex items-center gap-3 mb-3">
             <div className="flex items-center gap-1.5">
