@@ -128,29 +128,26 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     }
   }, [swipeX]);
 
-  // 🆕 Fermer les swipes au clic hors de la ligne
+  // 🆕 Fermer le swipe au clic sur la ligne (si déjà ouvert)
   const swipeXRef = useRef(swipeX);
   swipeXRef.current = swipeX;
   const childSwipesRef = useRef(childSwipes);
   childSwipesRef.current = childSwipes;
-
-  useEffect(() => {
-    const onClickOutside = (e: MouseEvent) => {
-      if (rowRef.current?.contains(e.target as HTMLElement)) return;
-      // Fermer le swipe principal
-      if (swipeXRef.current !== 0) {
-        setNoAnim(true);
-        setSwipeX(0);
-      }
-      // Fermer les swipes enfants
-      if (Object.values(childSwipesRef.current).some(v => v !== 0)) {
-        setChildNoAnim(true);
-        setChildSwipes({});
-        setTimeout(() => setChildNoAnim(false), 50);
-      }
-    };
-    document.addEventListener('mousedown', onClickOutside, true);
-    return () => document.removeEventListener('mousedown', onClickOutside, true);
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
+    // Ne pas interférer avec le clic sur la checkbox
+    if ((e.target as HTMLElement).closest('[data-swipe-check]')) return;
+    if (swipeXRef.current !== 0) {
+      e.stopPropagation();
+      e.preventDefault();
+      setNoAnim(true);
+      setSwipeX(0);
+    }
+    // Fermer les swipes enfants aussi
+    if (Object.values(childSwipesRef.current).some(v => v !== 0)) {
+      setChildNoAnim(true);
+      setChildSwipes({});
+      setTimeout(() => setChildNoAnim(false), 50);
+    }
   }, []);
 
   // Réactiver l'animation après un reset
@@ -272,6 +269,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         >
           <button
             type="button"
+            data-swipe-check="true"
             onClick={(e) => { e.stopPropagation(); onDissocierEnfant?.(index); }}
             className="text-[10px] font-medium text-amber-700 hover:text-amber-900 px-1 py-1 rounded"
           >
@@ -283,6 +281,13 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           onTouchStart={onStart}
           onTouchMove={onMove}
           onTouchEnd={onEnd}
+          onClick={() => {
+            if (sX !== 0) {
+              setChildNoAnim(true);
+              setChildSwipes(prev => ({ ...prev, [enfant.id]: 0 }));
+              setTimeout(() => setChildNoAnim(false), 50);
+            }
+          }}
           style={{ transform: `translateX(${sX}px)` }}
           className={`${!childNoAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-1.5 border-b border-gray-100 last:border-b-0 scrollbar-subtle`}
         >
@@ -397,6 +402,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         >
           <button
             type="button"
+            data-swipe-check="true"
             onClick={handleCheckClick}
             className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
               selected
@@ -414,6 +420,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         onTouchStart={selectable ? handleTouchStart : undefined}
         onTouchMove={selectable ? handleTouchMove : undefined}
         onTouchEnd={selectable ? handleTouchEnd : undefined}
+        onClick={handleCardClick}
         style={{ transform: `translateX(${swipeX}px)` }}
         className={`${!isGroup && !noAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
           selected ? "border-l-2 border-l-indigo-500" : ""
