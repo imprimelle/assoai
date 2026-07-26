@@ -453,7 +453,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 fade-in duration-200"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-visible animate-in zoom-in-95 fade-in duration-200"
           >
             {/* En-tête */}
             <div className="px-5 py-4 border-b border-gray-100">
