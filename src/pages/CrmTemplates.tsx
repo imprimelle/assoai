@@ -39,7 +39,7 @@ const STATUS_SUGGESTIONS_BY_TEMPLATE: Record<TemplateType, string[]> = {
   facture:           ["Brouillon", "Vérification", "En attente", "Validé"],
   devis:             ["Brouillon", "En attente", "Accepté", "Refusé", "Expiré"],
   commande:          ["Brouillon", "En cours", "Expédiée", "Livrée", "Terminée"],
-  cahier_des_charges:["Brouillon", "infographie", "demande", "Payé", "Livré"],
+  cahier_des_charges:["Brouillon", "achat", "fabrication", "installation", "Terminé"],
   contact:          ["Brouillon", "enregistré"],
   brief:          ["Brouillon", "verification", "vérifié", "refusé", "Terminée"]
 };

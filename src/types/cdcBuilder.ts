@@ -24,6 +24,7 @@ export interface CdcBuilderState {
   projectName: string;
   cdcNumero: string;
   commandeId: string;
+  statut: string;
   enseignes: CdcBuilderEnseigne[];
   materiauxByEnseigne: Record<string, Record<string, MaterialItem[]>>;
   equipe: TeamMember[];

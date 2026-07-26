@@ -110,11 +110,11 @@ const CdcListe: React.FC = () => {
         const st = s(c.statut);
         switch (statusFilter) {
           case "production":
-            return ["demande", "en cours", "vérification", "en attente"].includes(st);
+            return ["achat", "fabrication", "installation"].includes(st);
           case "brouillon":
             return st === "brouillon";
           case "termine":
-            return ["validé", "valide", "terminé", "livré"].includes(st);
+            return ["terminé", "validé", "valide", "livré", "payé"].includes(st);
           default:
             return true;
         }
@@ -306,13 +306,15 @@ const CdcCard: React.FC<{
 }> = ({ cdc, onEdit, onView, onDelete }) => {
   const st = (cdc.statut || "").toLowerCase();
   const statusBadge =
-    st === "validé" || st === "valide"
+    st === "terminé" || st === "validé" || st === "valide" || st === "livré" || st === "payé"
       ? "bg-green-100 text-green-700"
-      : st === "vérification" || st === "en cours" || st === "demande"
+      : st === "fabrication"
         ? "bg-amber-100 text-amber-700"
-        : st === "en attente"
-          ? "bg-blue-100 text-blue-700"
-          : "bg-gray-100 text-gray-600";
+        : st === "installation"
+          ? "bg-indigo-100 text-indigo-700"
+          : st === "achat"
+            ? "bg-blue-100 text-blue-700"
+            : "bg-gray-100 text-gray-600";
 
   const formatDate = (ts: string) => {
     try {

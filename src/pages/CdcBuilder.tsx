@@ -271,7 +271,7 @@ function buildCdcPayload(state: CdcBuilderState) {
     titre: `Cahier des Charges — ${state.projectName || "Sans titre"}`,
     cdcNumero: state.cdcNumero,
     commande_id: state.commandeId,
-    statut: "Brouillon",
+    statut: state.statut || "Brouillon",
     enseignes: state.enseignes.map((ens) => ({
       id: ens.id,
       nom: ens.nom,
@@ -368,6 +368,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
     projectName: "",
     cdcNumero: generateCdcNumero(),
     commandeId: "",
+    statut: "Brouillon",
     enseignes: [emptyEnseigne],
     materiauxByEnseigne: { [emptyEnseigne.id]: {} },
     equipe: [],
@@ -772,6 +773,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
             projectName: state.projectName,
             cdcNumero: state.cdcNumero,
             commandeId: state.commandeId,
+            statut: state.statut || "Brouillon",
             deliveryAddress: state.deliveryAddress,
           }}
           onChange={handleHeaderChange}
@@ -804,6 +806,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
               projectName: "",
               cdcNumero: generateCdcNumero(),
               commandeId: "",
+              statut: "Brouillon",
               enseignes: [ens],
               materiauxByEnseigne: { [ens.id]: {} },
               equipe: [],

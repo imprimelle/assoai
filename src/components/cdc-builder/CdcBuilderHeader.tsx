@@ -22,6 +22,7 @@ export interface CdcBuilderHeaderData {
   projectName: string;
   cdcNumero: string;
   commandeId: string;
+  statut: string;
   deliveryAddress?: {
     label: string;
     lat: number;
@@ -162,8 +163,20 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   // ── Badges conditionnels pour la barre collapsed ──
   const cdcId = project?.cdcNumero || data.cdcNumero;
   const cmdId = project?.commandeId || data.commandeId;
+  const cdcStatut = data.statut;
   const projectPhase = project?.phase;
-  const projectStatus = project?.status;
+
+  const st = (cdcStatut || "").toLowerCase();
+  const statutBadgeClass =
+    st === "terminé" || st === "validé" || st === "valide" || st === "livré" || st === "payé"
+      ? "bg-green-100 text-green-700 border-green-200"
+      : st === "fabrication"
+        ? "bg-amber-100 text-amber-700 border-amber-200"
+        : st === "installation"
+          ? "bg-indigo-100 text-indigo-700 border-indigo-200"
+          : st === "achat"
+            ? "bg-blue-100 text-blue-700 border-blue-200"
+            : "bg-gray-100 text-gray-600 border-gray-200";
 
   const phaseLabel = projectPhase
     ? projectPhase.charAt(0).toUpperCase() + projectPhase.slice(1)
@@ -193,6 +206,12 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
             {cmdId && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-mono font-semibold border border-emerald-200">
                 {cmdId}
+              </span>
+            )}
+            {/* Badge statut CDC */}
+            {cdcStatut && (
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${statutBadgeClass}`}>
+                {cdcStatut}
               </span>
             )}
             {/* Badge phase/statut projet */}
