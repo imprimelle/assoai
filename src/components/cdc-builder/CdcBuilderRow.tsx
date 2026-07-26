@@ -129,30 +129,29 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   }, [swipeX]);
 
   // 🆕 Fermer les swipes au clic hors de la ligne
+  const swipeXRef = useRef(swipeX);
+  swipeXRef.current = swipeX;
+  const childSwipesRef = useRef(childSwipes);
+  childSwipesRef.current = childSwipes;
+
   useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      // Ignorer si le clic est dans cette ligne
-      if (rowRef.current?.contains(target)) return;
+      if (rowRef.current?.contains(e.target as HTMLElement)) return;
       // Fermer le swipe principal
-      if (swipeX !== 0) {
+      if (swipeXRef.current !== 0) {
         setNoAnim(true);
         setSwipeX(0);
       }
       // Fermer les swipes enfants
-      setChildSwipes(prev => {
-        const hasActive = Object.values(prev).some(v => v !== 0);
-        if (!hasActive) return prev;
+      if (Object.values(childSwipesRef.current).some(v => v !== 0)) {
         setChildNoAnim(true);
+        setChildSwipes({});
         setTimeout(() => setChildNoAnim(false), 50);
-        const cleared: Record<string, number> = {};
-        for (const k of Object.keys(prev)) cleared[k] = 0;
-        return cleared;
-      });
+      }
     };
     document.addEventListener('mousedown', onClickOutside, true);
     return () => document.removeEventListener('mousedown', onClickOutside, true);
-  }, [swipeX, childSwipes]);
+  }, []);
 
   // Réactiver l'animation après un reset
   useEffect(() => {
