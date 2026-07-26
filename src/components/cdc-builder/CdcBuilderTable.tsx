@@ -92,8 +92,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [groupDialogSection, setGroupDialogSection] = useState<string | null>(null);
 
-  /** Long-press sur une ligne → toggle sélection */
-  const handleLongPress = useCallback(
+  /** Swipe sur une ligne → toggle sélection */
+  const handleToggleSelect = useCallback(
     (itemId: string, section: string) => {
       setSelectedIds((prev) => {
         const next = new Set(prev);
@@ -337,7 +337,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
           <span className="text-indigo-700 font-medium">
             {totalSelected} plaque{totalSelected > 1 ? "s" : ""} sélectionnée{totalSelected > 1 ? "s" : ""}
           </span>
-          <span className="text-gray-400">— appui long pour sélectionner</span>
+          <span className="text-gray-400">— swipe gauche pour sélectionner</span>
           <button
             type="button"
             onClick={clearSelection}
@@ -413,10 +413,10 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                           ? () => handleAddEnfant(section, r.index)
                           : undefined
                       }
-                      // 🆕 Long-press
+                      // 🆕 Swipe selection
                       selectable={canGroup && !isGroup}
                       selected={selectedIds.has(r.item.id)}
-                      onLongPress={() => handleLongPress(r.item.id, section)}
+                      onToggleSelect={() => handleToggleSelect(r.item.id, section)}
                     />
                   </div>
                 );
