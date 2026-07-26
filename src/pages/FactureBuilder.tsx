@@ -110,12 +110,34 @@ function getDefaultFactureData(): FactureData {
   };
 }
 
+/** Duplique les items avec quantite > 1 en N items de quantite 1 (mode commande uniquement).
+ *  Chaque unité devient un item indépendant avec sa propre photo. */
+export function splitItemsByQuantity(items: CommandeItem[]): CommandeItem[] {
+  const result: CommandeItem[] = [];
+  for (const item of items) {
+    const qte = item.quantite || 1;
+    if (qte <= 1) {
+      result.push(item);
+    } else {
+      for (let i = 0; i < qte; i++) {
+        result.push({
+          ...item,
+          id: crypto.randomUUID(),
+          quantite: 1,
+          sous_total: item.prixUnitaire ?? 0,
+        });
+      }
+    }
+  }
+  return result;
+}
+
 /** Dérivation déterministe Facture → Commande (sans LLM) */
 function deriveFactureToCommandeData(
   facData: FactureData,
   commandeNumero: string,
 ): CommandeData {
-  const derivedItems: CommandeItem[] = (facData.details || []).map((d) => ({
+  const rawItems: CommandeItem[] = (facData.details || []).map((d) => ({
     id: d.id || crypto.randomUUID(),
     nom: d.description || "",
     quantite: d.quantite ?? 1,
@@ -123,6 +145,7 @@ function deriveFactureToCommandeData(
     sous_total: d.sous_total ?? ((d.quantite ?? 1) * (d.prixUnitaire ?? 0)),
     ...((d as any).image_url ? { image_url: (d as any).image_url } : {}),
   }));
+  const derivedItems = splitItemsByQuantity(rawItems);
 
   const reductionSrc = facData.reduction ?? 0;
   const itemsSum = derivedItems.reduce((s, it) => s + (it.sous_total ?? 0), 0);
@@ -390,6 +413,19 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
       setData((prev) => ({ ...prev, statut: "confirmée" }));
     }
   }, [mode, (data as CommandeData).recu_image_url, (data as any).montantAvance, (data as CommandeData).statut]);
+
+  // 🆕 Split automatique : quantite > 1 → N items de quantite 1 (mode commande)
+  useEffect(() => {
+    if (mode !== "commande") return;
+    const cmdData = data as CommandeData;
+    const items = cmdData.items || [];
+    if (items.some((item) => (item.quantite || 1) > 1)) {
+      setData((prev) => {
+        const p = prev as CommandeData;
+        return { ...p, items: splitItemsByQuantity(p.items || []) };
+      });
+    }
+  }, [mode, data]);
 
   // 🆕 Suggestion action : expand header + scroll au champ
   const handleSuggestionAction = useCallback((fieldKey: string) => {

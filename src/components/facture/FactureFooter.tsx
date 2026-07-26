@@ -34,6 +34,7 @@ import { formatCFA } from "@/utils/format";
 import { useProducts } from "@/hooks/useProducts";
 import { smartSearch } from "@/utils/productSearch";
 import type { BuilderMode } from "@/pages/FactureBuilder";
+import { splitItemsByQuantity } from "@/pages/FactureBuilder";
 
 export interface FactureFooterProps {
   data: FactureData | CommandeData;
@@ -585,6 +586,13 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
             break;
           }
         }
+      }
+
+      // 🆕 En mode commande, éclater les items avec quantite > 1 en N items de quantite 1
+      if (isCommande) {
+        const cmdItems = getItems(newData) as CommandeItem[];
+        const splitItems = splitItemsByQuantity(cmdItems);
+        Object.assign(newData, setItems(newData, splitItems));
       }
 
       // Recalculer le total
