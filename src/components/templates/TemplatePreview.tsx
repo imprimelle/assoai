@@ -157,15 +157,15 @@ const TemplatePreview: React.FC<TemplatePreviewProps> = ({
       onOpenChange={setIsOpen}
       className={`border rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-200 group ${className}`}
     >
-      <CollapsibleTrigger className="w-full text-left px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center">
-          {/* Barre colorée gauche */}
-          <div
-            className="shrink-0 w-1 self-stretch rounded-full mr-3"
-            style={{ backgroundColor: cfg.hex, minHeight: '32px' }}
-          />
+      <div className="flex items-center px-4 py-3.5">
+        {/* Barre colorée gauche */}
+        <div
+          className="shrink-0 w-1 self-stretch rounded-full mr-3"
+          style={{ backgroundColor: cfg.hex, minHeight: '32px' }}
+        />
 
-          <div className="flex items-center gap-3 text-left min-w-0 flex-1">
+        <CollapsibleTrigger className="flex-1 hover:no-underline py-0 text-left">
+          <div className="flex items-center gap-3 min-w-0">
             <span className={`text-lg shrink-0 ${cfg.color}`}>{icon}</span>
             <div className="min-w-0">
               <h3 className="font-semibold text-sm md:text-base truncate max-w-[180px] sm:max-w-[280px]">
@@ -183,36 +183,36 @@ const TemplatePreview: React.FC<TemplatePreviewProps> = ({
               </div>
             </div>
           </div>
+        </CollapsibleTrigger>
 
-          {/* Badges + chevron */}
-          <div className="flex items-center gap-1.5 shrink-0 ml-2">
-            {statusLabel && (
-              <Badge variant="secondary" className={`text-[10px] h-5 cursor-default border-0 ${
-                getStatusLineState(statusLabel) === 'success' ? 'bg-green-50 text-green-700' :
-                getStatusLineState(statusLabel) === 'warning' ? 'bg-yellow-50 text-yellow-700' :
-                'bg-gray-50 text-gray-700'
-              }`}>
-                {statusLabel}
-              </Badge>
-            )}
-            {hasVersion && (
-              <Badge variant="secondary" className="text-[10px] h-5 cursor-default">
-                v{version}
-              </Badge>
-            )}
-            {isLatest && (
-              <Badge variant="secondary" className="text-[10px] h-5 cursor-default bg-emerald-50 text-emerald-700 border-0">
-                Latest
-              </Badge>
-            )}
-            {isOpen ? (
-              <ChevronUp className="h-4 w-4 text-gray-400 shrink-0" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
-            )}
-          </div>
+        {/* Badges + chevron — hors du trigger */}
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+          {statusLabel && (
+            <Badge variant="secondary" className={`text-[10px] h-5 cursor-default border-0 ${
+              getStatusLineState(statusLabel) === 'success' ? 'bg-green-50 text-green-700' :
+              getStatusLineState(statusLabel) === 'warning' ? 'bg-yellow-50 text-yellow-700' :
+              'bg-gray-50 text-gray-700'
+            }`}>
+              {statusLabel}
+            </Badge>
+          )}
+          {hasVersion && (
+            <Badge variant="secondary" className="text-[10px] h-5 cursor-default">
+              v{version}
+            </Badge>
+          )}
+          {isLatest && (
+            <Badge variant="secondary" className="text-[10px] h-5 cursor-default bg-emerald-50 text-emerald-700 border-0">
+              Latest
+            </Badge>
+          )}
+          {isOpen ? (
+            <ChevronUp className="h-4 w-4 text-gray-400 shrink-0" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
+          )}
         </div>
-      </CollapsibleTrigger>
+      </div>
 
       {/* Contenu dépliable */}
       <CollapsibleContent className="px-4 pb-4">
