@@ -181,52 +181,107 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
 
   return (
     <div className="mb-4">
-      {/* Barre résumée (toujours visible, cliquable) */}
-      <button
-        type="button"
-        onClick={() => setExpanded((p) => !p)}
-        className="w-full flex items-center justify-between px-4 py-2.5
-                   bg-white border border-gray-200 rounded-lg shadow-sm
-                   hover:border-indigo-300 hover:shadow transition-all duration-150"
+      {/* Barre collapsed — 2 lignes : infos + progression */}
+      <div
+        className="bg-white border border-gray-200 rounded-lg shadow-sm
+                   hover:border-indigo-300 hover:shadow transition-all duration-150 overflow-hidden"
       >
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <span className="text-lg shrink-0">🏗️</span>
-          <div className="min-w-0 text-left flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-bold text-gray-800">{title}</span>
-            {/* Badge CDC */}
-            {cdcId && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-mono font-semibold border border-violet-200">
-                {cdcId}
-              </span>
-            )}
-            {/* Badge Commande */}
-            {cmdId && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-mono font-semibold border border-emerald-200">
-                {cmdId}
-              </span>
-            )}
-            {/* Badge statut CDC */}
-            {cdcStatut && (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border inline-flex items-center gap-1 ${statutBadgeClass}`}>
-                {["vérification", "achat", "fabrication", "installation"].includes(st) && (
-                  <Loader2 size={10} className="animate-spin shrink-0" />
-                )}
-                {cdcStatut}
-              </span>
-            )}
-            {/* Nombre d'enseignes */}
-            {enseigneCount > 0 && (
-              <span className="text-[10px] text-gray-400 font-medium">{enseigneCount} ens.</span>
-            )}
+        {/* Ligne 1 : infos (cliquable) */}
+        <button
+          type="button"
+          onClick={() => setExpanded((p) => !p)}
+          className="w-full flex items-center justify-between px-4 py-2"
+        >
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <span className="text-lg shrink-0">🏗️</span>
+            <div className="min-w-0 text-left flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-bold text-gray-800">{title}</span>
+              {/* Badge CDC */}
+              {cdcId && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-mono font-semibold border border-violet-200">
+                  {cdcId}
+                </span>
+              )}
+              {/* Badge Commande */}
+              {cmdId && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-mono font-semibold border border-emerald-200">
+                  {cmdId}
+                </span>
+              )}
+              {/* Badge statut CDC */}
+              {cdcStatut && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border inline-flex items-center gap-1 ${statutBadgeClass}`}>
+                  {["vérification", "achat", "fabrication", "installation"].includes(st) && (
+                    <Loader2 size={10} className="animate-spin shrink-0" />
+                  )}
+                  {cdcStatut}
+                </span>
+              )}
+              {/* Nombre d'enseignes */}
+              {enseigneCount > 0 && (
+                <span className="text-[10px] text-gray-400 font-medium">{enseigneCount} ens.</span>
+              )}
+            </div>
           </div>
+          <div className="flex items-center gap-2 shrink-0 ml-3">
+            {data.deliveryAddress?.label && (
+              <MapPin size={12} className="text-gray-300 hidden sm:block" />
+            )}
+            {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+          </div>
+        </button>
+
+        {/* Ligne 2 : barre de progression (compacte, toujours visible) */}
+        <div className="px-4 pb-2.5 pt-0.5">
+          {(() => {
+            const STATUT_STEPS = [
+              { key: "brouillon", color: "bg-gray-400" },
+              { key: "vérification", color: "bg-amber-500" },
+              { key: "achat", color: "bg-blue-500" },
+              { key: "fabrication", color: "bg-orange-500" },
+              { key: "installation", color: "bg-indigo-500" },
+              { key: "terminé", color: "bg-green-500" },
+            ];
+            const currentIdx = STATUT_STEPS.findIndex((s) => s.key === st);
+            const effectiveIdx = currentIdx === -1 ? 0 : currentIdx;
+            const currentColor = STATUT_STEPS[effectiveIdx]?.color || "bg-gray-400";
+
+            return (
+              <div className="relative py-1">
+                {/* Track de fond */}
+                <div className="absolute top-[7px] left-1 right-1 h-0.5 bg-gray-200 rounded-full" />
+                {/* Track remplie */}
+                <div
+                  className="absolute top-[7px] left-1 h-0.5 rounded-full transition-all duration-700 ease-in-out"
+                  style={{ width: `calc(${(effectiveIdx / (STATUT_STEPS.length - 1)) * 100}% - 4px)` }}
+                >
+                  <div className={`h-full rounded-full ${currentColor}`} />
+                </div>
+                {/* Points */}
+                <div className="relative flex justify-between px-0.5">
+                  {STATUT_STEPS.map((step, idx) => {
+                    const isPast = idx < effectiveIdx;
+                    const isCurrent = idx === effectiveIdx;
+                    const dotColor = isCurrent
+                      ? step.color
+                      : isPast
+                        ? currentColor
+                        : "bg-gray-300";
+                    return (
+                      <div
+                        key={step.key}
+                        className={`w-2 h-2 rounded-full transition-all duration-500 ${dotColor} ${
+                          isCurrent ? "ring-1 ring-offset-1 ring-gray-300" : ""
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
-        <div className="flex items-center gap-2 shrink-0 ml-3">
-          {data.deliveryAddress?.label && (
-            <MapPin size={12} className="text-gray-300 hidden sm:block" />
-          )}
-          {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-        </div>
-      </button>
+      </div>
 
       {/* Contenu dépliable */}
       {expanded && (
@@ -280,68 +335,6 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
               </div>,
               document.body,
             )}
-          </div>
-
-          {/* Barre de progression des statuts */}
-          <div className="mb-4">
-            <label className="block text-[11px] font-medium text-gray-400 mb-2">📊 Progression</label>
-            {(() => {
-              const STATUT_STEPS = [
-                { key: "brouillon", label: "Brouillon", color: "bg-gray-400", ring: "ring-gray-400" },
-                { key: "vérification", label: "Vérification", color: "bg-amber-500", ring: "ring-amber-400" },
-                { key: "achat", label: "Achat", color: "bg-blue-500", ring: "ring-blue-400" },
-                { key: "fabrication", label: "Fabrication", color: "bg-orange-500", ring: "ring-orange-400" },
-                { key: "installation", label: "Installation", color: "bg-indigo-500", ring: "ring-indigo-400" },
-                { key: "terminé", label: "Terminé", color: "bg-green-500", ring: "ring-green-400" },
-              ];
-              const currentIdx = STATUT_STEPS.findIndex((s) => s.key === st);
-              const effectiveIdx = currentIdx === -1 ? 0 : currentIdx;
-              const currentColor = STATUT_STEPS[effectiveIdx]?.color || "bg-gray-400";
-
-              return (
-                <div className="relative pt-2 pb-3">
-                  {/* Track de fond */}
-                  <div className="absolute top-[22px] left-3 right-3 h-1 bg-gray-200 rounded-full" />
-                  {/* Track remplie (progression) */}
-                  <div
-                    className="absolute top-[22px] left-3 h-1 rounded-full transition-all duration-700 ease-in-out"
-                    style={{
-                      width: `calc(${(effectiveIdx / (STATUT_STEPS.length - 1)) * 100}% - 12px)`,
-                    }}
-                  >
-                    <div className={`h-full rounded-full ${currentColor}`} />
-                  </div>
-                  {/* Points */}
-                  <div className="relative flex justify-between px-1">
-                    {STATUT_STEPS.map((step, idx) => {
-                      const isPast = idx < effectiveIdx;
-                      const isCurrent = idx === effectiveIdx;
-                      const dotColor = isCurrent
-                        ? step.color
-                        : isPast
-                          ? currentColor
-                          : "bg-gray-300";
-                      const ringClass = isCurrent ? `ring-2 ring-offset-1 ${step.ring}` : "";
-                      const scale = isCurrent ? "scale-125" : "scale-100";
-                      return (
-                        <div key={step.key} className="flex flex-col items-center gap-1" style={{ width: "16px" }}>
-                          <div
-                            className={`w-3.5 h-3.5 rounded-full transition-all duration-500 ${dotColor} ${ringClass} ${scale}`}
-                          />
-                          <span
-                            className={`text-[9px] font-medium whitespace-nowrap transition-colors duration-500 ${
-                              isPast || isCurrent ? "text-gray-700" : "text-gray-400"
-                            }`}
-                          >
-                            {step.label}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
           </div>
 
           {/* CDC# + Commande# */}
