@@ -1,6 +1,6 @@
 // src/components/cdc-builder/CdcBuilderTable.tsx
 // Tableau de matériaux groupé par section (Découpe, Éclairage, Outillage, Métal, Vinyl).
-// v4: support groupes (Feuille → Plaques) avec checkboxes + bouton Grouper.
+// v5: swipe-to-reveal checkbox sur chaque ligne Découpe/Vinyl — plus de toggle mode sélection.
 
 import React, { useMemo, useCallback, useState } from "react";
 import { Plus, Layers } from "lucide-react";
@@ -66,11 +66,8 @@ export interface CdcBuilderTableProps {
   onRowsChange: (rows: FlatMaterialRow[]) => void;
   enseigneNom: string;
   disabled?: boolean;
-  /** Métadonnées par ligne (clé = `${section}-${item.id}`). Utilisé pour les badges enseigne en vue consolidée. */
   rowMeta?: Record<string, { enseigneBadge?: { nom: string; color?: string } }>;
-  /** Highlights temporaires après action Brico (clé = `${section}-${index}`) */
   highlights?: Record<string, "added" | "modified">;
-  /** ID de l'enseigne propriétaire — passé aux rows pour le data-highlight-key */
   enseigneId?: string;
 }
 
@@ -95,42 +92,32 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     return map;
   }, [rows]);
 
-  // --- 🆕 État sélection pour le mode Grouper ---
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  // Checkboxes persistantes — pas de mode à activer
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [groupDialogSection, setGroupDialogSection] = useState<string | null>(null);
 
-  const toggleSelectionMode = () => {
-    setSelectionMode(!selectionMode);
-    setSelectedKeys(new Set());
-    setGroupDialogSection(null);
-  };
-
   const handleCheckChange = useCallback(
-    (key: string, checked: boolean) => {
-      setSelectedKeys((prev) => {
+    (itemId: string, checked: boolean) => {
+      setCheckedItems((prev) => {
         const next = new Set(prev);
-        if (checked) next.add(key);
-        else next.delete(key);
+        if (checked) next.add(itemId);
+        else next.delete(itemId);
         return next;
       });
     },
     [],
   );
 
-  /** Créer un groupe à partir des lignes sélectionnées */
+  /** Créer un groupe à partir des lignes cochées */
   const handleGroupSelected = useCallback(
     (section: string) => {
-      // Récupérer les rows sélectionnées (non-groupes uniquement)
       const selectedRows = rows.filter(
-        (r) => r.section === section && selectedKeys.has(r.item.id) && !r.item.groupe_enfants,
+        (r) => r.section === section && checkedItems.has(r.item.id) && !r.item.groupe_enfants,
       );
       if (selectedRows.length < 2) return;
-
-      // Ouvrir le dialogue de choix du matériau feuille
       setGroupDialogSection(section);
     },
-    [rows, selectedKeys],
+    [rows, checkedItems],
   );
 
   /** Confirmer la création du groupe avec un matériau feuille */
@@ -139,18 +126,15 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       if (!groupDialogSection) return;
       const section = groupDialogSection;
 
-      // Récupérer les rows sélectionnées
       const selectedRows = rows.filter(
-        (r) => r.section === section && selectedKeys.has(r.item.id) && !r.item.groupe_enfants,
+        (r) => r.section === section && checkedItems.has(r.item.id) && !r.item.groupe_enfants,
       );
 
-      // Créer les enfants (= copies des plaques sélectionnées)
       const enfants: MaterialItem[] = selectedRows.map((r) => ({
         ...r.item,
         id: crypto.randomUUID?.() || `pla-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       }));
 
-      // Calculer la surface de chute
       const feuilleSurface = (entry.largeur_std || 0) * (entry.hauteur_std || 0);
       const surfaceOccupee = enfants.reduce(
         (sum, e) => sum + (e.largeur || 0) * (e.hauteur || 0) * (e.quantite || 1),
@@ -158,7 +142,6 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       );
       const chuteSurface = Math.max(0, feuilleSurface - surfaceOccupee);
 
-      // Créer l'item groupe
       const groupItem: MaterialItem = {
         id: crypto.randomUUID?.() || `grp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         nom: `${entry.materiau}${entry.epaisseur ? ` ${entry.epaisseur}` : ""}`,
@@ -171,21 +154,17 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         format_standard: entry.format_standard || undefined,
         cout_unitaire: entry.cout_min ?? undefined,
         couleurs_dispo: entry.couleurs?.length ? entry.couleurs : undefined,
-        // 🆕 Groupe
         groupe_enfants: [
           ...enfants,
-          // Ajouter la chute si surface > 0
           ...(chuteSurface > 0.001
-            ? [
-                {
-                  id: crypto.randomUUID?.() || `chu-${Date.now()}`,
-                  nom: "Chute",
-                  quantite: 1,
-                  unite: "plaque",
-                  largeur: Math.round(Math.sqrt(chuteSurface) * 100) / 100,
-                  hauteur: Math.round(Math.sqrt(chuteSurface) * 100) / 100,
-                } as MaterialItem,
-              ]
+            ? [{
+                id: crypto.randomUUID?.() || `chu-${Date.now()}`,
+                nom: "Chute",
+                quantite: 1,
+                unite: "plaque",
+                largeur: Math.round(Math.sqrt(chuteSurface) * 100) / 100,
+                hauteur: Math.round(Math.sqrt(chuteSurface) * 100) / 100,
+              } as MaterialItem]
             : []),
         ],
         groupe_material_id: entry.id,
@@ -195,10 +174,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         groupe_hauteur: entry.hauteur_std ?? undefined,
       };
 
-      // Supprimer les lignes sélectionnées et ajouter le groupe
-      const selectedIds = new Set(selectedKeys);
+      const selectedIds = new Set(checkedItems);
       let filtered = rows.filter((r) => !(r.section === section && selectedIds.has(r.item.id)));
-      // Re-index
       filtered = filtered.map((r) => {
         if (r.section === section) {
           const newIndex = filtered.filter(
@@ -208,16 +185,14 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         }
         return r;
       });
-      // Ajouter le groupe
       const groupCount = filtered.filter((r) => r.section === section).length;
       filtered.push({ section, index: groupCount, item: groupItem });
 
       onRowsChange(filtered);
-      setSelectionMode(false);
-      setSelectedKeys(new Set());
+      setCheckedItems(new Set());
       setGroupDialogSection(null);
     },
-    [rows, selectedKeys, groupDialogSection, onRowsChange],
+    [rows, checkedItems, groupDialogSection, onRowsChange],
   );
 
   const handleAddRow = useCallback(
@@ -248,7 +223,6 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     [rows, onRowsChange],
   );
 
-  /** 🆕 Mise à jour des enfants d'un groupe */
   const handleChangeEnfants = useCallback(
     (section: string, index: number, enfants: MaterialItem[]) => {
       const newRows = rows.map((r) =>
@@ -261,7 +235,6 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     [rows, onRowsChange],
   );
 
-  /** 🆕 Suppression d'un enfant */
   const handleDeleteEnfant = useCallback(
     (section: string, index: number, enfantIndex: number) => {
       const row = rows.find((r) => r.section === section && r.index === index);
@@ -272,7 +245,6 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     [rows, handleChangeEnfants],
   );
 
-  /** 🆕 Ajout d'un enfant */
   const handleAddEnfant = useCallback(
     (section: string, index: number) => {
       const row = rows.find((r) => r.section === section && r.index === index);
@@ -300,15 +272,20 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         if (r.section === section && r.index > index) return { ...r, index: r.index - 1 };
         return r;
       });
+      // Nettoyer les checkboxes pour les items supprimés
+      setCheckedItems((prev) => {
+        const next = new Set(prev);
+        const removed = rows.find((r) => r.section === section && r.index === index);
+        if (removed) next.delete(removed.item.id);
+        return next;
+      });
       onRowsChange(filtered);
     },
     [rows, onRowsChange],
   );
 
-  /** Routage : matériau catalogue dans mauvaise section → supprimer ici, créer là-bas */
   const handleMoveToSection = useCallback(
     (fromSection: string, fromIndex: number, toSection: string, preset: Partial<MaterialItem>) => {
-      // 1. Supprimer la ligne actuelle
       let filtered = rows.filter(
         (r) => !(r.section === fromSection && r.index === fromIndex),
       );
@@ -317,7 +294,6 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         return r;
       });
 
-      // 2. Ajouter dans la section cible
       const newItem: MaterialItem = {
         id: crypto.randomUUID?.() || `mat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         nom: preset.nom || "",
@@ -347,36 +323,12 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* 🆕 Barre d'outils : mode sélection */}
-      {!disabled && (
-        <div className="flex items-center gap-2 mb-1">
-          <button
-            type="button"
-            onClick={toggleSelectionMode}
-            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-              selectionMode
-                ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
-                : "text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 border border-gray-200"
-            }`}
-            title="Sélectionner des plaques pour les grouper en feuille"
-          >
-            <Layers size={14} />
-            {selectionMode ? "Quitter le mode groupe" : "🧩 Grouper en feuille"}
-          </button>
-          {selectionMode && (
-            <span className="text-xs text-gray-400">
-              {selectedKeys.size} sélectionnée{selectedKeys.size > 1 ? "s" : ""}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Sections avec contenu */}
       {nonEmptySections.map((section) => {
         const sectionRows = grouped.get(section) || [];
         const canGroup = GROUPABLE_SECTIONS.includes(section);
-        const selectableCount = sectionRows.filter(
-          (r) => !r.item.groupe_enfants,
+        // Compter les items cochés dans CETTE section uniquement
+        const checkedInSection = sectionRows.filter(
+          (r) => checkedItems.has(r.item.id) && !r.item.groupe_enfants,
         ).length;
 
         return (
@@ -387,15 +339,15 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                 <span className="text-xs font-semibold uppercase tracking-wide">{section}</span>
                 <span className="text-[10px] opacity-50">({sectionRows.length})</span>
               </div>
-              {/* 🆕 Bouton Grouper dans le header de section */}
-              {selectionMode && canGroup && selectableCount >= 2 && selectedKeys.size >= 2 && (
+              {/* 🆕 Bouton Grouper — apparaît quand ≥2 checkboxes cochées dans cette section */}
+              {canGroup && checkedInSection >= 2 && (
                 <button
                   type="button"
                   onClick={() => handleGroupSelected(section)}
                   className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-indigo-500 text-white hover:bg-indigo-600 font-medium transition-colors"
                 >
                   <Layers size={12} />
-                  Grouper ({selectedKeys.size})
+                  Grouper ({checkedInSection})
                 </button>
               )}
             </div>
@@ -436,14 +388,14 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                           ? () => handleAddEnfant(section, r.index)
                           : undefined
                       }
-                      showCheckbox={selectionMode && canGroup}
-                      checked={selectedKeys.has(r.item.id)}
+                      // 🆕 Swipe-to-check — uniquement pour sections groupables, non-groupes
+                      showSwipeCheck={canGroup && !isGroup}
+                      checked={checkedItems.has(r.item.id)}
                       onCheckChange={(checked) => handleCheckChange(r.item.id, checked)}
                     />
                   </div>
                 );
               })}
-              {/* Bouton Ajouter — après la dernière ligne */}
               {!disabled && (
                 <button
                   type="button"
@@ -475,7 +427,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         </div>
       ))}
 
-      {/* 🆕 Dialogue de choix du matériau feuille */}
+      {/* Dialogue de choix du matériau feuille */}
       {groupDialogSection && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center p-4"
@@ -492,7 +444,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                 Choisir le matériau Feuille
               </h3>
               <p className="text-xs text-gray-500 mt-1">
-                {selectedKeys.size} plaques → 1 feuille dans « {groupDialogSection} »
+                {checkedItems.size} plaques → 1 feuille dans « {groupDialogSection} »
               </p>
             </div>
             <div className="px-5 py-4">
