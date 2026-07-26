@@ -22,6 +22,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { ClipboardCheck } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import EnseigneDialog from "@/components/cdc-builder/EnseigneDialog";
 import CdcBuilderTable, {
   sectionsToRows,
@@ -778,6 +779,20 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
               >
                 <ClipboardCheck className="h-4 w-4" />
                 <span>Vérifier</span>
+              </button>
+            )}
+            {/* Bouton Achat — gris, visible seulement si statut = vérification */}
+            {(state.statut || "").toLowerCase() === "vérification" && (
+              <button
+                type="button"
+                onClick={() => setState((prev) => ({ ...prev, statut: "achat" }))}
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700
+                           hover:bg-gray-100 border border-gray-200
+                           transition-colors px-3 py-1.5 rounded-lg"
+                title="Passer en achat"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                <span>Achat</span>
               </button>
             )}
             {state.savedMessageId && (
