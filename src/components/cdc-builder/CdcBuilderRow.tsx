@@ -3,7 +3,7 @@
 // v9: ligne groupe identique à une ligne normale (seul le chevron la distingue),
 //     enfants (plaques) utilisent le même layout que les lignes normales.
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Trash2, Plus, Check } from "lucide-react";
 import MaterialCell from "./MaterialCell";
 import {
@@ -77,12 +77,14 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
 
   // 🆕 Swipe par enfant (dissocier)
   const [childSwipes, setChildSwipes] = useState<Record<string, number>>({});
+  const [childNoAnim, setChildNoAnim] = useState(false);
   const childTouchStart = useRef(0);
   const childIsSwiping = useRef(false);
   const childCurrentId = useRef<string | null>(null);
 
   // --- Swipe state (sélection) ---
   const [swipeX, setSwipeX] = useState(0);
+  const [noAnim, setNoAnim] = useState(false);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isSwipingRef = useRef(false);
@@ -120,9 +122,25 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     if (swipeX < -SWIPE_THRESHOLD) {
       setSwipeX(-SWIPE_REVEAL);
     } else {
+      setNoAnim(true);
       setSwipeX(0);
     }
   }, [swipeX]);
+
+  // 🆕 Fermer le swipe sans animation au clic ailleurs
+  useEffect(() => {
+    if (swipeX >= 0 && noAnim) {
+      const t = setTimeout(() => setNoAnim(false), 50);
+      return () => clearTimeout(t);
+    }
+    if (swipeX !== 0) return;
+    const onClickOutside = () => {
+      setNoAnim(true);
+      setSwipeX(0);
+    };
+    document.addEventListener('click', onClickOutside, true);
+    return () => document.removeEventListener('click', onClickOutside, true);
+  }, [swipeX, noAnim]);
 
   const handleCheckClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -217,7 +235,13 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     const onEnd = () => {
       if (!childIsSwiping.current) return;
       childIsSwiping.current = false;
-      setChildSwipes(prev => ({ ...prev, [enfant.id]: sX < -SWIPE_THRESHOLD ? -SWIPE_REVEAL : 0 }));
+      if (sX < -SWIPE_THRESHOLD) {
+        setChildSwipes(prev => ({ ...prev, [enfant.id]: -SWIPE_REVEAL }));
+      } else {
+        setChildNoAnim(true);
+        setChildSwipes(prev => ({ ...prev, [enfant.id]: 0 }));
+        setTimeout(() => setChildNoAnim(false), 50);
+      }
     };
 
     return (
@@ -241,7 +265,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           onTouchMove={onMove}
           onTouchEnd={onEnd}
           style={{ transform: `translateX(${sX}px)` }}
-          className="transition-transform duration-200 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-1.5 border-b border-gray-100 last:border-b-0 scrollbar-subtle"
+          className={`${!childNoAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-1.5 border-b border-gray-100 last:border-b-0 scrollbar-subtle`}
         >
           <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-3">
             <div className="w-[200px] shrink-0">
@@ -371,7 +395,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         onTouchMove={selectable ? handleTouchMove : undefined}
         onTouchEnd={selectable ? handleTouchEnd : undefined}
         style={{ transform: `translateX(${swipeX}px)` }}
-        className={`${!isGroup ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
+        className={`${!isGroup && !noAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
           selected ? "border-l-2 border-l-indigo-500" : ""
         }`}
       >
