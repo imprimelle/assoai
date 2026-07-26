@@ -182,6 +182,10 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
   const [factureMessageId] = useState<string | undefined>(messageId);
   const factureSnapshotRef = useRef<FactureData | null>(null);
 
+  // 🆕 Projet créé
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState<string | null>(null);
+
   // 🆕 Highlights (feedback visuel après actions Wari)
   const [highlights, setHighlights] = useState<Record<string, "added" | "modified">>({});
   const highlightsTimestampRef = useRef(0);
@@ -418,6 +422,10 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
 
     // 3. Invalider les caches
     queryClient.invalidateQueries({ queryKey: ["factureListe"] });
+
+    // 4. Stocker l'info projet
+    setProjectId(projectId);
+    setProjectName(projectName);
 
     return { projectId, projectName };
   }, [data, factureMessageId, commandeMessageId, user.id, queryClient]);
@@ -731,7 +739,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
     }
   }, [data, user.id, persistentSessionId, downloadingPDF, mode]);
 
-  const isLocked = mode === "facture" && !!commandeMessageId;
+  const isLocked = !!projectId || (mode === "facture" && !!commandeMessageId);
 
   // ── Rendu ──
   if (loadingFacture) {
@@ -843,6 +851,8 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
           messageId={activeMessageId || undefined}
           forceOpen={headerOpen}
           isLocked={isLocked}
+          projectId={projectId}
+          projectName={projectName}
         />
 
         {/* Contenu : Template (articles uniquement) */}

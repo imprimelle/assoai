@@ -17,6 +17,7 @@ import {
   MapPin,
   X,
   Banknote,
+  ExternalLink,
 } from "lucide-react";
 import type { FactureData, CommandeData } from "@/types";
 import type { DeliveryAddress } from "@/types/material";
@@ -37,6 +38,9 @@ export interface FactureBuilderHeaderProps {
   forceOpen?: boolean;
   /** Facture verrouillée (commande déjà créée) */
   isLocked?: boolean;
+  /** Projet créé */
+  projectId?: string | null;
+  projectName?: string | null;
 }
 
 function statutColor(s: string) {
@@ -55,6 +59,8 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
   messageId,
   forceOpen,
   isLocked = false,
+  projectId,
+  projectName,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [isUploadingRecu, setIsUploadingRecu] = useState(false);
@@ -161,7 +167,12 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
             <span className="text-sm font-bold text-gray-800 truncate">
               {isCommande ? "COMMANDE" : "FACTURE"} — {title}
             </span>
-            {isLocked && (
+            {projectId && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 border border-blue-200 shrink-0">
+                📁 Projet
+              </span>
+            )}
+            {isLocked && !projectId && (
               <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">
                 🔒 verrouillée
               </span>
@@ -202,6 +213,19 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
       {/* Contenu dépliable */}
       {expanded && (
         <div className="mt-2 bg-gray-50/80 border border-gray-300 rounded-lg shadow-sm p-4 space-y-4">
+          {/* 🆕 Bouton Ouvrir le projet */}
+          {projectId && (
+            <a
+              href={`/project/${projectId}`}
+              className="flex items-center justify-center gap-2 w-full py-2 rounded-lg
+                         bg-blue-50 border border-blue-200 text-blue-700 text-sm font-semibold
+                         hover:bg-blue-100 hover:border-blue-300 transition-all"
+            >
+              <ExternalLink size={14} />
+              Ouvrir le projet{projectName ? ` : ${projectName}` : ""}
+            </a>
+          )}
+
           {/* ── Bloc Client (unifié @) ── */}
           <div>
             <label className={labelClass}>
