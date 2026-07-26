@@ -1,6 +1,7 @@
 // src/components/cdc-builder/CdcBuilderRow.tsx
 // Ligne éditable inline du tableau CDC Builder — 3 colonnes adaptatives par section.
-// v8: swipe gauche → révèle checkbox (glissement temps réel), remplace le long-press.
+// v9: ligne groupe identique à une ligne normale (seul le chevron la distingue),
+//     enfants (plaques) utilisent le même layout que les lignes normales.
 
 import React, { useState, useRef, useCallback } from "react";
 import { Trash2, ChevronDown, ChevronUp, Plus, Check } from "lucide-react";
@@ -25,9 +26,9 @@ const showEpaisseur = (section: string) =>
   ["Métal", "Découpe"].includes(section);
 
 // --- Constantes swipe ---
-const SWIPE_REVEAL = 48;      // px à révéler
-const SWIPE_THRESHOLD = 30;    // seuil pour snap ouvert/fermé
-const SWIPE_MAX = 80;          // limite max du swipe gauche
+const SWIPE_REVEAL = 48;
+const SWIPE_THRESHOLD = 30;
+const SWIPE_MAX = 80;
 
 // --- Props ---
 export interface CdcBuilderRowProps {
@@ -44,7 +45,7 @@ export interface CdcBuilderRowProps {
   onChangeEnfants?: (enfants: MaterialItem[]) => void;
   onDeleteEnfant?: (enfantIndex: number) => void;
   onAddEnfant?: () => void;
-  // --- 🆕 Swipe selection ---
+  // --- Swipe selection ---
   selectable?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
@@ -88,8 +89,6 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     if (!selectable || isGroup || disabled) return;
     const dx = e.touches[0].clientX - touchStartX.current;
     const dy = Math.abs(e.touches[0].clientY - touchStartY.current);
-
-    // Détecter si c'est un swipe horizontal
     if (!isSwipingRef.current) {
       if (Math.abs(dx) > 8 && Math.abs(dx) > dy * 0.7) {
         isSwipingRef.current = true;
@@ -97,14 +96,10 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         return;
       }
     }
-
     e.preventDefault();
-
     if (swipeX < 0) {
-      // Déjà ouvert (gauche) → on swipe : droite pour refermer, gauche pour continuer
       setSwipeX(Math.max(-SWIPE_MAX, Math.min(0, swipeX + dx * 0.4)));
     } else if (dx < 0) {
-      // Premier swipe gauche → ouvrir
       setSwipeX(Math.max(dx, -SWIPE_MAX));
     }
     touchStartX.current = e.touches[0].clientX;
@@ -113,11 +108,10 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   const handleTouchEnd = useCallback(() => {
     if (!isSwipingRef.current) return;
     isSwipingRef.current = false;
-
     if (swipeX < -SWIPE_THRESHOLD) {
-      setSwipeX(-SWIPE_REVEAL); // snap ouvert
+      setSwipeX(-SWIPE_REVEAL);
     } else {
-      setSwipeX(0); // snap fermé
+      setSwipeX(0);
     }
   }, [swipeX]);
 
@@ -147,22 +141,30 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     }
   };
 
+  // --- Handlers enfants ---
+  const handleEnfantChange = (index: number, changes: Partial<MaterialItem>) => {
+    const enfants = [...(item.groupe_enfants || [])];
+    enfants[index] = { ...enfants[index], ...changes };
+    onChangeEnfants?.(enfants);
+  };
+
+  const handleEnfantCatalog = (index: number, preset: Partial<MaterialItem>, _entry: MaterialCatalogEntry) => {
+    handleEnfantChange(index, preset);
+  };
+
   const handleEnfantNum = (
     enfant: MaterialItem,
+    index: number,
     field: "quantite" | "largeur" | "hauteur",
     raw: string,
   ) => {
-    const enfants = [...(item.groupe_enfants || [])];
-    const idx = enfants.findIndex(e => e.id === enfant.id);
-    if (idx < 0) return;
     if (raw === "") {
-      enfants[idx] = { ...enfants[idx], [field]: field === "quantite" ? 1 : 0 };
-    } else {
-      const parsed = Number(raw);
-      if (Number.isNaN(parsed)) return;
-      enfants[idx] = { ...enfants[idx], [field]: Math.max(0, parsed) };
+      handleEnfantChange(index, { [field]: field === "quantite" ? 1 : 0 });
+      return;
     }
-    onChangeEnfants?.(enfants);
+    const parsed = Number(raw);
+    if (Number.isNaN(parsed)) return;
+    handleEnfantChange(index, { [field]: Math.max(0, parsed) });
   };
 
   const cellInput =
@@ -177,69 +179,97 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     return Math.max(0, feuilleSurface - occupee);
   };
 
+  // 🆕 Rendu d'un enfant : même structure qu'une ligne normale
   const renderEnfantRow = (enfant: MaterialItem, index: number) => (
-    <div key={enfant.id} className="flex items-center gap-2 py-1.5 border-b border-indigo-100 last:border-b-0">
-      <div className="w-[180px] shrink-0">
-        <input
-          type="text"
-          value={enfant.nom}
-          onChange={(e) => {
-            const enfants = [...(item.groupe_enfants || [])];
-            enfants[index] = { ...enfants[index], nom: e.target.value };
-            onChangeEnfants?.(enfants);
-          }}
-          disabled={disabled}
-          className={`${cellInput} w-full text-xs`}
-          placeholder="Nom plaque"
-        />
-      </div>
-      <div className="flex items-center gap-1.5 shrink-0">
-        <div className="flex items-center gap-0.5">
-          <span className="text-[10px] text-gray-300">×</span>
-          <input type="number" inputMode="decimal" min={1}
-            value={enfant.quantite ?? 1}
-            onChange={(e) => handleEnfantNum(enfant, "quantite", e.target.value)}
+    <div key={enfant.id} className="py-1.5 border-b border-gray-100 last:border-b-0">
+      <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-5">
+        {/* Nom — MaterialCell comme une ligne normale */}
+        <div className="w-[200px] shrink-0">
+          <MaterialCell
+            value={enfant.nom}
+            onChange={(nom) => handleEnfantChange(index, { nom })}
+            onCatalogSelect={(preset, entry) => handleEnfantCatalog(index, preset, entry)}
+            onClear={() => handleEnfantChange(index, { nom: "" })}
             disabled={disabled}
-            className={`${cellInput} w-[44px] text-center tabular-nums text-xs`} />
+          />
         </div>
-        <div className="flex items-center gap-0.5">
-          <span className="text-[10px] text-gray-300 w-2">L</span>
-          <input type="number" inputMode="decimal" min={0} step={0.1}
-            value={enfant.largeur ?? ""}
-            onChange={(e) => handleEnfantNum(enfant, "largeur", e.target.value)}
-            disabled={disabled}
-            className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
-        </div>
-        {showHauteur(section) ? (
+
+        {/* Qté + L + H + Unité — mêmes largeurs que la ligne parent */}
+        <div className="flex items-center gap-1.5 shrink-0">
           <div className="flex items-center gap-0.5">
-            <span className="text-[10px] text-gray-300 w-2">H</span>
+            <span className="text-[10px] text-gray-300">×</span>
+            <input type="number" inputMode="decimal" min={1}
+              value={enfant.quantite ?? 1}
+              onChange={(e) => handleEnfantNum(enfant, index, "quantite", e.target.value)}
+              disabled={disabled}
+              className={`${cellInput} w-[44px] text-center tabular-nums text-xs`} />
+          </div>
+          <div className="flex items-center gap-0.5">
+            <span className="text-[10px] text-gray-300 w-2">L</span>
             <input type="number" inputMode="decimal" min={0} step={0.1}
-              value={enfant.hauteur ?? ""}
-              onChange={(e) => handleEnfantNum(enfant, "hauteur", e.target.value)}
+              value={enfant.largeur ?? ""}
+              onChange={(e) => handleEnfantNum(enfant, index, "largeur", e.target.value)}
               disabled={disabled}
               className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
           </div>
-        ) : (
-          <span className="text-gray-300 text-xs w-[52px] text-center">—</span>
-        )}
-        <span className="text-[10px] text-gray-400 w-12 text-center">{enfant.unite || "plaque"}</span>
+          {showHauteur(section) ? (
+            <div className="flex items-center gap-0.5">
+              <span className="text-[10px] text-gray-300 w-2">H</span>
+              <input type="number" inputMode="decimal" min={0} step={0.1}
+                value={enfant.hauteur ?? ""}
+                onChange={(e) => handleEnfantNum(enfant, index, "hauteur", e.target.value)}
+                disabled={disabled}
+                className={`${cellInput} w-[52px] text-center tabular-nums text-xs`} />
+            </div>
+          ) : (
+            <span className="text-gray-300 text-xs w-[52px] text-center">—</span>
+          )}
+          <input list={`unite-enf-${enfant.id}`} value={enfant.unite || "plaque"}
+            onChange={(e) => handleEnfantChange(index, { unite: e.target.value })}
+            disabled={disabled}
+            className={`${cellInput} w-[72px] text-xs`} placeholder="unité" />
+          <datalist id={`unite-enf-${enfant.id}`}>
+            {withCurrent(UNITES, enfant.unite).map((u) => <option key={u} value={u} />)}
+          </datalist>
+        </div>
+
+        {/* Épaisseur + Couleur + Supprimer — mêmes largeurs */}
+        <div className="flex items-center gap-2 shrink-0">
+          {showEpaisseur(section) ? (
+            <select value={enfant.epaisseur || ""}
+              onChange={(e) => handleEnfantChange(index, { epaisseur: e.target.value })}
+              disabled={disabled}
+              className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm focus:ring-2 focus:ring-indigo-500 w-[110px]">
+              <option value="">Épaisseur</option>
+              {withCurrent(EPAISSEURS, enfant.epaisseur).map((ep) => <option key={ep} value={ep}>{ep}</option>)}
+            </select>
+          ) : (
+            <span className="text-gray-300 text-sm w-[110px] text-center">—</span>
+          )}
+          {showCouleur(section, enfant) ? (
+            <select value={enfant.couleur || ""}
+              onChange={(e) => handleEnfantChange(index, { couleur: e.target.value })}
+              disabled={disabled}
+              className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm focus:ring-2 focus:ring-indigo-500 w-[130px]">
+              <option value="">Couleur</option>
+              {withCurrent(
+                enfant.couleurs_dispo?.length ? enfant.couleurs_dispo : COULEURS,
+                enfant.couleur,
+              ).map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          ) : null}
+          {!disabled && onDeleteEnfant && (
+            <button type="button" onClick={() => onDeleteEnfant(index)}
+              className="text-red-400 hover:text-red-600 p-1 transition-colors shrink-0"
+              title="Retirer cette plaque du groupe">
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
       </div>
-      <span className="text-[10px] text-indigo-500 w-16 text-right tabular-nums">
-        {enfant.largeur && enfant.hauteur
-          ? ((enfant.largeur * enfant.hauteur * (enfant.quantite || 1)).toFixed(2) + " m²")
-          : "—"}
-      </span>
-      {!disabled && onDeleteEnfant && (
-        <button type="button" onClick={() => onDeleteEnfant(index)}
-          className="text-red-300 hover:text-red-500 p-0.5 transition-colors shrink-0"
-          title="Retirer cette plaque du groupe">
-          <Trash2 size={13} />
-        </button>
-      )}
     </div>
   );
 
-  // Opacité de la checkbox : proportionnelle au swipe
   const checkOpacity = swipeX < 0
     ? Math.min(1, Math.abs(swipeX) / SWIPE_REVEAL)
     : 0;
@@ -253,7 +283,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         selected ? "ring-2 ring-indigo-400 bg-indigo-50/60 rounded-lg" : ""
       }`}
     >
-      {/* 🆕 Fond swipe — checkbox à droite, révélée au swipe gauche */}
+      {/* Fond swipe — checkbox à droite */}
       {selectable && (
         <div
           className="absolute inset-y-0 right-0 flex items-center justify-center bg-indigo-50 rounded-r-lg"
@@ -284,8 +314,6 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         onTouchEnd={selectable ? handleTouchEnd : undefined}
         style={{ transform: `translateX(${swipeX}px)` }}
         className={`transition-transform duration-200 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
-          isGroup ? "border-l-2 border-l-indigo-300" : ""
-        } ${
           selected ? "border-l-2 border-l-indigo-500" : ""
         }`}
       >
@@ -297,13 +325,13 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             </div>
           )}
 
-          {/* Chevron dropdown pour les groupes */}
+          {/* 🆕 Seul le chevron distingue le groupe d'une ligne normale */}
           {isGroup && (
             <button
               type="button"
               onClick={() => setExpanded(!expanded)}
-              className="text-indigo-400 hover:text-indigo-600 p-0.5 transition-colors shrink-0"
-              title={expanded ? "Replier le groupe" : "Déplier le groupe"}
+              className="text-gray-400 hover:text-gray-600 p-0.5 transition-colors shrink-0"
+              title={expanded ? "Replier" : "Déplier"}
             >
               {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
@@ -331,11 +359,6 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
               onClear={() => onChange({ nom: "" })}
               disabled={disabled}
             />
-            {isGroup && (
-              <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-600">
-                📐 Groupe · {(item.groupe_enfants || []).length} plaque{(item.groupe_enfants || []).length > 1 ? "s" : ""}
-              </span>
-            )}
           </div>
 
           {/* Colonne 2 : Paramètres */}
@@ -413,28 +436,29 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         </div>
       </div>
 
-      {/* Enfants du groupe (dépliés) */}
+      {/* 🆕 Enfants du groupe — layout identique aux lignes normales */}
       {isGroup && expanded && (
-        <div className="ml-7 mt-2 pl-3 border-l-2 border-indigo-200 bg-indigo-50/30 rounded-r-lg">
-          <div className="flex items-center gap-4 text-[10px] text-gray-500 mb-1.5 pt-1">
-            <span>Surface feuille : <strong className="text-indigo-600">{((item.largeur || 0) * (item.hauteur || 0)).toFixed(2)} m²</strong></span>
-            <span>Surface utilisée : <strong className="text-indigo-600">{(item.groupe_enfants || []).reduce((s, e) => s + (e.largeur || 0) * (e.hauteur || 0) * (e.quantite || 1), 0).toFixed(2)} m²</strong></span>
-            <span>Chute : <strong className={surfaceChute() > 0 ? "text-amber-600" : "text-green-600"}>{surfaceChute().toFixed(2)} m²</strong></span>
+        <div className="ml-6 pl-2 border-l border-gray-200 bg-gray-50/30 rounded-r-lg">
+          {/* Récap surface */}
+          <div className="flex items-center gap-4 text-[10px] text-gray-400 mb-0.5 pt-1 px-2">
+            <span>Feuille {(item.largeur || 0) * (item.hauteur || 0) > 0 ? `${((item.largeur || 0) * (item.hauteur || 0)).toFixed(2)} m²` : "—"}</span>
+            <span>·</span>
+            <span>Utilisée {(item.groupe_enfants || []).reduce((s, e) => s + (e.largeur || 0) * (e.hauteur || 0) * (e.quantite || 1), 0).toFixed(2)} m²</span>
+            <span>·</span>
+            <span className={surfaceChute() > 0 ? "text-amber-500" : "text-green-500"}>
+              Chute {surfaceChute().toFixed(2)} m²
+            </span>
           </div>
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-gray-400 mb-1">
-            <span className="w-[180px] shrink-0">Plaque</span>
-            <span className="w-[44px] text-center">Qté</span>
-            <span className="w-[52px] text-center">L (m)</span>
-            <span className="w-[52px] text-center">H (m)</span>
-            <span className="w-12 text-center">Unité</span>
-            <span className="w-16 text-right">Surface</span>
-          </div>
+
+          {/* Enfants */}
           {(item.groupe_enfants || []).map((enfant, i) => renderEnfantRow(enfant, i))}
+
+          {/* + Ajouter une plaque */}
           {!disabled && onAddEnfant && (
             <button
               type="button"
               onClick={onAddEnfant}
-              className="flex items-center gap-1 mt-1.5 mb-1 text-xs text-indigo-400 hover:text-indigo-600 font-medium transition-colors py-1"
+              className="flex items-center gap-1 mt-1 mb-1 text-xs text-blue-400 hover:text-blue-600 font-medium transition-colors py-1 px-2"
             >
               <Plus size={12} />
               Ajouter une plaque
