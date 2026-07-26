@@ -149,9 +149,9 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     }
   }, []);
 
-  // mousedown global : ferme quand on clique ailleurs (autre ligne, zone vide)
+  // mousedown/touchstart global : ferme le swipe partout
   useEffect(() => {
-    const onDocMouseDown = () => {
+    const closeAll = () => {
       if (swipeXRef.current !== 0) {
         setNoAnim(true);
         setSwipeX(0);
@@ -162,8 +162,12 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         setTimeout(() => setChildNoAnim(false), 50);
       }
     };
-    document.addEventListener('mousedown', onDocMouseDown, true);
-    return () => document.removeEventListener('mousedown', onDocMouseDown, true);
+    document.addEventListener('mousedown', closeAll, true);
+    document.addEventListener('touchstart', closeAll, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('mousedown', closeAll, true);
+      document.removeEventListener('touchstart', closeAll, true);
+    };
   }, []);
 
   // Réactiver l'animation après un reset
