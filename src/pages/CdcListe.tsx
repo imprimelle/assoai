@@ -421,8 +421,11 @@ const CdcCard: React.FC<{
                 {cdc.titre}
               </h4>
               <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${statusBadge}`}
+                className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 inline-flex items-center gap-1 ${statusBadge}`}
               >
+                {["vérification", "achat", "fabrication", "installation"].includes(st) && (
+                  <Loader2 size={10} className="animate-spin" />
+                )}
                 {cdc.statut}
               </span>
             </div>

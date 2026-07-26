@@ -164,7 +164,6 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
   const cdcId = project?.cdcNumero || data.cdcNumero;
   const cmdId = project?.commandeId || data.commandeId;
   const cdcStatut = data.statut;
-  const projectPhase = project?.phase;
 
   const st = (cdcStatut || "").toLowerCase();
   const statutBadgeClass =
@@ -179,10 +178,6 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
             : st === "achat"
               ? "bg-blue-100 text-blue-700 border-blue-200"
               : "bg-gray-100 text-gray-600 border-gray-200";
-
-  const phaseLabel = projectPhase
-    ? projectPhase.charAt(0).toUpperCase() + projectPhase.slice(1)
-    : null;
 
   return (
     <div className="mb-4">
@@ -212,22 +207,11 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
             )}
             {/* Badge statut CDC */}
             {cdcStatut && (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${statutBadgeClass}`}>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border inline-flex items-center gap-1 ${statutBadgeClass}`}>
+                {["vérification", "achat", "fabrication", "installation"].includes(st) && (
+                  <Loader2 size={10} className="animate-spin shrink-0" />
+                )}
                 {cdcStatut}
-              </span>
-            )}
-            {/* Badge phase/statut projet */}
-            {phaseLabel && (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
-                projectPhase === "termine"
-                  ? "bg-green-100 text-green-700 border-green-200"
-                  : projectPhase === "fabrication"
-                    ? "bg-orange-100 text-orange-700 border-orange-200"
-                    : projectPhase === "livraison"
-                      ? "bg-blue-100 text-blue-700 border-blue-200"
-                      : "bg-gray-100 text-gray-600 border-gray-200"
-              }`}>
-                {phaseLabel}
               </span>
             )}
             {/* Nombre d'enseignes */}

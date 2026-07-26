@@ -21,7 +21,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
-import { ClipboardCheck, MessageSquareText } from "lucide-react";
+import { ClipboardCheck } from "lucide-react";
 import EnseigneDialog from "@/components/cdc-builder/EnseigneDialog";
 import CdcBuilderTable, {
   sectionsToRows,
@@ -766,28 +766,20 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
             <span>Liste des CDC</span>
           </button>
           <div className="flex items-center gap-1.5">
-            {/* Bouton Vérifier — passe le statut à "vérification" directement */}
-            <button
-              type="button"
-              onClick={() => setState((prev) => ({ ...prev, statut: "vérification" }))}
-              className="flex items-center gap-1.5 text-sm font-medium text-amber-600 hover:text-amber-700
-                         bg-amber-50 hover:bg-amber-100 border border-amber-200
-                         transition-colors px-3 py-1.5 rounded-lg"
-              title="Marquer comme en vérification"
-            >
-              <ClipboardCheck className="h-4 w-4" />
-              <span>Vérifier</span>
-            </button>
-            {/* Bouton Dialogue — ouvre un dialogue de vérification détaillé */}
-            <button
-              type="button"
-              onClick={() => setShowVerifDialog(true)}
-              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600
-                         transition-colors px-2 py-1.5 rounded-lg hover:bg-indigo-50"
-              title="Ouvrir le dialogue de vérification"
-            >
-              <MessageSquareText className="h-4 w-4" />
-            </button>
+            {/* Bouton Vérifier — gris, ouvre le dialogue, masqué si déjà en Production */}
+            {!["vérification", "achat", "fabrication", "installation"].includes((state.statut || "").toLowerCase()) && (
+              <button
+                type="button"
+                onClick={() => setShowVerifDialog(true)}
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700
+                           hover:bg-gray-100 border border-gray-200
+                           transition-colors px-3 py-1.5 rounded-lg"
+                title="Ouvrir la vérification"
+              >
+                <ClipboardCheck className="h-4 w-4" />
+                <span>Vérifier</span>
+              </button>
+            )}
             {state.savedMessageId && (
               <button
                 type="button"
