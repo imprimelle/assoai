@@ -102,7 +102,7 @@ const TemplatePreview: React.FC<TemplatePreviewProps> = ({
     <Collapsible
       open={isOpen}
       onOpenChange={setIsOpen}
-      className={`border rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-200 group ${className}`}
+      className={`border-2 border-gray-100 rounded-2xl bg-white shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden ${className}`}
     >
       <CollapsibleTrigger className="w-full text-left px-4 py-3.5 hover:no-underline">
         <div className="flex items-center gap-3">
