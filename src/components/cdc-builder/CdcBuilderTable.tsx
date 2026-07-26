@@ -92,9 +92,9 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [groupDialogSection, setGroupDialogSection] = useState<string | null>(null);
 
-  /** Swipe sur une ligne → toggle sélection */
+  /** Swipe sur une ligne → toggle sélection (sans ouvrir le dialogue) */
   const handleToggleSelect = useCallback(
-    (itemId: string, section: string) => {
+    (itemId: string) => {
       setSelectedIds((prev) => {
         const next = new Set(prev);
         if (next.has(itemId)) {
@@ -102,18 +102,10 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         } else {
           next.add(itemId);
         }
-        // Si ≥2 sélectionnés dans la même section → ouvrir le dialogue
-        const sectionRows = rows.filter(
-          (r) => r.section === section && !r.item.groupe_enfants,
-        );
-        const inSection = sectionRows.filter((r) => next.has(r.item.id)).length;
-        if (inSection >= 2) {
-          setGroupDialogSection(section);
-        }
         return next;
       });
     },
-    [rows],
+    [],
   );
 
   /** Désélectionner tout */
@@ -364,15 +356,15 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                 <span className="text-xs font-semibold uppercase tracking-wide">{section}</span>
                 <span className="text-[10px] opacity-50">({sectionRows.length})</span>
               </div>
-              {/* 🆕 Bouton Grouper + compteur */}
+              {/* 🆕 Bouton Feuille — apparaît quand ≥2 checkboxes cochées dans cette section */}
               {canGroup && checkedInSection >= 2 && (
                 <button
                   type="button"
                   onClick={() => setGroupDialogSection(section)}
-                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md bg-indigo-500 text-white hover:bg-indigo-600 font-medium transition-colors shadow-sm"
+                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md bg-indigo-500 text-white hover:bg-indigo-600 font-bold transition-colors shadow-sm"
                 >
-                  <Layers size={12} />
-                  Grouper ({checkedInSection})
+                  F
+                  <span className="font-normal">Feuille ({checkedInSection})</span>
                 </button>
               )}
             </div>
@@ -416,7 +408,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                       // 🆕 Swipe selection
                       selectable={canGroup && !isGroup}
                       selected={selectedIds.has(r.item.id)}
-                      onToggleSelect={() => handleToggleSelect(r.item.id, section)}
+                      onToggleSelect={() => handleToggleSelect(r.item.id)}
                     />
                   </div>
                 );
