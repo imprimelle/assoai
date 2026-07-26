@@ -314,6 +314,14 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
       lastSavedHashRef.current = JSON.stringify(normalized);
       setChangeCount(0);
       try { localStorage.removeItem(lsKey); } catch {}
+
+      // 🆕 Restaurer l'état projet
+      const linkedProjectId = (loadedData.data as any).linked_project_id;
+      const linkedProjectName = (loadedData.data as any).linked_project_name;
+      if (linkedProjectId) {
+        setProjectId(linkedProjectId);
+        setProjectName(linkedProjectName || null);
+      }
     }
   }, [loadedData]);
 
@@ -326,6 +334,14 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
       setOriginalData(JSON.stringify(linkedCommande.data));
       lastSavedHashRef.current = JSON.stringify(linkedCommande.data);
       setChangeCount(0);
+
+      // 🆕 Restaurer l'état projet depuis la commande
+      const linkedProjectId = (linkedCommande.data as any).linked_project_id;
+      const linkedProjectName = (linkedCommande.data as any).linked_project_name;
+      if (linkedProjectId) {
+        setProjectId(linkedProjectId);
+        setProjectName(linkedProjectName || null);
+      }
     }
   }, [linkedCommande, loadingLinked]);
 
@@ -417,7 +433,20 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
       await supabase.from("messages").update({ project_id: projectId }).eq("id", factureMessageId);
     }
     if (commandeMessageId) {
-      await supabase.from("messages").update({ project_id: projectId }).eq("id", commandeMessageId);
+      // Mettre à jour le message commande avec project_id + dans template_data aussi
+      const { data: cmdMsg } = await supabase.from("messages").select("template_data").eq("id", commandeMessageId).single();
+      const updatedTemplateData = {
+        ...cmdMsg?.template_data,
+        data: {
+          ...(cmdMsg?.template_data?.data || {}),
+          linked_project_id: projectId,
+          linked_project_name: projectName,
+        },
+      };
+      await supabase.from("messages").update({
+        project_id: projectId,
+        template_data: updatedTemplateData,
+      }).eq("id", commandeMessageId);
     }
 
     // 3. Invalider les caches
