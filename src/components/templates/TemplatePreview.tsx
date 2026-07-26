@@ -164,22 +164,24 @@ const TemplatePreview: React.FC<TemplatePreviewProps> = ({
           style={{ backgroundColor: cfg.hex, minHeight: '32px' }}
         />
 
-        <CollapsibleTrigger className="flex-1 hover:no-underline py-0 text-left">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className={`text-lg shrink-0 ${cfg.color}`}>{icon}</span>
-            <div className="min-w-0">
-              <h3 className="font-semibold text-sm md:text-base truncate max-w-[180px] sm:max-w-[280px]">
-                {displayName}
-              </h3>
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                <Badge variant="outline" className={`text-[10px] border-0 ${cfg.color} ${cfg.bg}`}>
-                  {details.numero && details.numero !== "N/A"
-                    ? `N° ${details.numero}`
-                    : templateType === "cahier_des_charges" ? details.numero : displayName}
-                </Badge>
-                {details.date && (
-                  <span className="text-[10px] text-muted-foreground">{details.date}</span>
-                )}
+        <CollapsibleTrigger asChild>
+          <div className="flex-1 cursor-pointer py-0 text-left">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className={`text-lg shrink-0 ${cfg.color}`}>{icon}</span>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm md:text-base truncate max-w-[180px] sm:max-w-[280px]">
+                  {displayName}
+                </h3>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <Badge variant="outline" className={`text-[10px] border-0 ${cfg.color} ${cfg.bg}`}>
+                    {details.numero && details.numero !== "N/A"
+                      ? `N° ${details.numero}`
+                      : templateType === "cahier_des_charges" ? details.numero : displayName}
+                  </Badge>
+                  {details.date && (
+                    <span className="text-[10px] text-muted-foreground">{details.date}</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
