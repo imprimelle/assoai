@@ -28,6 +28,9 @@ import {
   Image as ImageIcon,
   Wrench,
   AlertCircle,
+  Pencil,
+  Eye,
+  Check,
 } from "lucide-react";
 import AddressPicker from "../shared/AddressPicker";
 import StatusLine from "@/components/ui/StatusLine";
@@ -369,6 +372,17 @@ const CahierDesChargesTemplate: React.FC<CahierDesChargesTemplateProps> = ({
             )}
             <p className="font-medium mt-1 text-md text-gray-600">{data.titre}</p>
           </div>
+        </div>
+        {/* 🆕 Bouton Modifier / Aperçu */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={() => setIsEditMode(!isEditMode)}>
+            {isEditMode ? <><Eye size={16} className="mr-1" /> Aperçu</> : <><Pencil size={16} className="mr-1" /> Modifier</>}
+          </Button>
+          {isEditMode && (
+            <Button variant="default" size="sm" onClick={(e) => { e.preventDefault(); onSave?.(data); }}>
+              <Check size={16} className="mr-1" /> Enregistrer
+            </Button>
+          )}
         </div>
       </div>
 
