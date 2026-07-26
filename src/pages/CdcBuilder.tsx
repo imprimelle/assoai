@@ -318,7 +318,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
     queryFn: async () => {
       const { data: projects, error } = await supabase
         .from("projects")
-        .select("id, name")
+        .select("id, name, phase, status")
         .order("created_at", { ascending: false })
         .limit(30);
 
@@ -333,22 +333,26 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           .eq("project_id", p.id)
           .not("template_data", "is", null);
 
-        const hasCommande = msgs?.some(
+        const commandeMsg = msgs?.find(
           (m: any) =>
             m.template_type === "commande" &&
             ["Validée", "Confirmée", "En cours"].includes(
               m.template_data?.data?.statut,
             ),
         );
-        const hasCdc = msgs?.some(
+        const cdcMsg = msgs?.find(
           (m: any) => m.template_type === "cahier_des_charges",
         );
 
         enriched.push({
           id: p.id,
           name: p.name,
-          hasCommande: !!hasCommande,
-          hasCdc: !!hasCdc,
+          hasCommande: !!commandeMsg,
+          hasCdc: !!cdcMsg,
+          commandeId: commandeMsg?.template_data?.data?.commandeNumero || undefined,
+          cdcNumero: cdcMsg?.template_data?.data?.cdcNumero || undefined,
+          phase: (p as any).phase || undefined,
+          status: (p as any).status || undefined,
         });
       }
 
@@ -773,17 +777,20 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           onChange={handleHeaderChange}
           project={
             loaderResult?.project
-              ? {
-                  ...loaderResult.project,
-                  hasCommande:
-                    availableProjects?.find(
-                      (p) => p.id === loaderResult.project?.id,
-                    )?.hasCommande || false,
-                  hasCdc:
-                    availableProjects?.find(
-                      (p) => p.id === loaderResult.project?.id,
-                    )?.hasCdc || false,
-                }
+              ? (() => {
+                  const enriched = availableProjects?.find(
+                    (p) => p.id === loaderResult.project?.id,
+                  );
+                  return {
+                    ...loaderResult.project,
+                    hasCommande: enriched?.hasCommande || false,
+                    hasCdc: enriched?.hasCdc || false,
+                    commandeId: enriched?.commandeId || state.commandeId,
+                    cdcNumero: enriched?.cdcNumero || state.cdcNumero,
+                    phase: enriched?.phase,
+                    status: enriched?.status,
+                  };
+                })()
               : null
           }
           availableProjects={availableProjects || []}

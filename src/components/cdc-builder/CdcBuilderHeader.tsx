@@ -12,6 +12,10 @@ export interface ProjectOption {
   name: string;
   hasCommande: boolean;
   hasCdc?: boolean;
+  commandeId?: string;
+  cdcNumero?: string;
+  phase?: string;
+  status?: string;
 }
 
 export interface CdcBuilderHeaderData {
@@ -155,18 +159,15 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
 
   const title = project ? project.name : "CDC Builder";
 
-  const statutTexte = project
-    ? project.hasCdc ? "✅ CDC existant chargé"
-    : project.hasCommande ? "📋 Commande validée trouvée"
-    : "🆕 Nouveau CDC"
-    : null;
+  // ── Badges conditionnels pour la barre collapsed ──
+  const cdcId = project?.cdcNumero || data.cdcNumero;
+  const cmdId = project?.commandeId || data.commandeId;
+  const projectPhase = project?.phase;
+  const projectStatus = project?.status;
 
-  // Résumé compact
-  const summaryParts: string[] = [];
-  if (data.cdcNumero) summaryParts.push(data.cdcNumero);
-  if (data.commandeId) summaryParts.push(data.commandeId);
-  if (enseigneCount > 0) summaryParts.push(`${enseigneCount} ens.`);
-  const summary = summaryParts.length > 0 ? summaryParts.join(" · ") : null;
+  const phaseLabel = projectPhase
+    ? projectPhase.charAt(0).toUpperCase() + projectPhase.slice(1)
+    : null;
 
   return (
     <div className="mb-4">
@@ -180,10 +181,37 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <span className="text-lg shrink-0">🏗️</span>
-          <div className="min-w-0 text-left">
+          <div className="min-w-0 text-left flex items-center gap-2 flex-wrap">
             <span className="text-sm font-bold text-gray-800">{title}</span>
-            {summary && (
-              <span className="text-xs text-gray-400 ml-2">{summary}</span>
+            {/* Badge CDC */}
+            {cdcId && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-mono font-semibold border border-violet-200">
+                {cdcId}
+              </span>
+            )}
+            {/* Badge Commande */}
+            {cmdId && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-mono font-semibold border border-emerald-200">
+                {cmdId}
+              </span>
+            )}
+            {/* Badge phase/statut projet */}
+            {phaseLabel && (
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
+                projectPhase === "termine"
+                  ? "bg-green-100 text-green-700 border-green-200"
+                  : projectPhase === "fabrication"
+                    ? "bg-orange-100 text-orange-700 border-orange-200"
+                    : projectPhase === "livraison"
+                      ? "bg-blue-100 text-blue-700 border-blue-200"
+                      : "bg-gray-100 text-gray-600 border-gray-200"
+              }`}>
+                {phaseLabel}
+              </span>
+            )}
+            {/* Nombre d'enseignes */}
+            {enseigneCount > 0 && (
+              <span className="text-[10px] text-gray-400 font-medium">{enseigneCount} ens.</span>
             )}
           </div>
         </div>
