@@ -291,11 +291,17 @@ function buildCdcPayload(state: CdcBuilderState) {
   };
 }
 
-/** Génère un nouveau numéro CDC (CDC-YYYY-NNN) */
-function generateCdcNumero(): string {
-  const year = new Date().getFullYear();
-  const seq = String(Math.floor(Math.random() * 900) + 100);
-  return `CDC-${year}-${seq}`;
+/** Génère un nouveau numéro CDC via le RPC Supabase */
+async function fetchCdcNumero(): Promise<string> {
+  try {
+    const { data, error } = await supabase.rpc('next_document_number', { p_doc_type: 'cahier_des_charges' });
+    if (error) throw error;
+    return String(data);
+  } catch {
+    // Fallback si RPC indisponible
+    const year = new Date().getFullYear();
+    return `CDC-${year}-TMP`;
+  }
 }
 
 const CdcBuilder: React.FC<CdcBuilderProps> = ({
@@ -367,7 +373,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
 
   const [state, setState] = useState<CdcBuilderState>({
     projectName: "",
-    cdcNumero: generateCdcNumero(),
+    cdcNumero: "", // sera rempli par le RPC au mount
     commandeId: "",
     statut: "Brouillon",
     enseignes: [emptyEnseigne],
@@ -385,6 +391,13 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
       setChangeCount(0);
     }
   }, [loaderResult?.initialState]);
+
+  // 🆕 Récupérer le numéro CDC via le RPC (comme tous les documents)
+  useEffect(() => {
+    if (!state.cdcNumero && !loaderResult?.initialState) {
+      fetchCdcNumero().then(num => setState(prev => ({ ...prev, cdcNumero: num })));
+    }
+  }, [state.cdcNumero, loaderResult?.initialState]);
 
   // Sélection de projet → naviguer avec le paramètre
   const handleSelectProject = useCallback(
@@ -903,7 +916,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
             const ens = createEmptyEnseigne();
             const newState: CdcBuilderState = {
               projectName: "",
-              cdcNumero: generateCdcNumero(),
+              cdcNumero: "",
               commandeId: "",
               statut: "Brouillon",
               enseignes: [ens],
@@ -911,6 +924,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
               equipe: [],
             };
             setState(newState);
+            fetchCdcNumero().then(num => setState(prev => ({ ...prev, cdcNumero: num })));
             try { localStorage.removeItem(LS_KEY); } catch {}
           }}
         />
