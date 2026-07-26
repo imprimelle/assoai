@@ -4,7 +4,7 @@
 //     enfants (plaques) utilisent le même layout que les lignes normales.
 
 import React, { useState, useRef, useCallback } from "react";
-import { Trash2, ChevronDown, ChevronUp, Plus, Check } from "lucide-react";
+import { Trash2, Plus, Check } from "lucide-react";
 import MaterialCell from "./MaterialCell";
 import {
   UNITES,
@@ -325,15 +325,15 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             </div>
           )}
 
-          {/* 🆕 Seul le chevron distingue le groupe d'une ligne normale */}
+          {/* 🆕 Toggle groupe — lettre F au lieu du chevron */}
           {isGroup && (
             <button
               type="button"
               onClick={() => setExpanded(!expanded)}
-              className="text-gray-400 hover:text-gray-600 p-0.5 transition-colors shrink-0"
+              className="text-gray-400 hover:text-gray-600 px-1 py-0.5 transition-colors shrink-0 text-xs font-bold rounded hover:bg-gray-100"
               title={expanded ? "Replier" : "Déplier"}
             >
-              {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              F
             </button>
           )}
 
@@ -436,20 +436,9 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         </div>
       </div>
 
-      {/* 🆕 Enfants du groupe — layout identique aux lignes normales */}
+      {/* 🆕 Enfants du groupe — layout identique aux lignes normales, indentation réduite */}
       {isGroup && expanded && (
-        <div className="ml-6 pl-2 border-l border-gray-200 bg-gray-50/30 rounded-r-lg">
-          {/* Récap surface */}
-          <div className="flex items-center gap-4 text-[10px] text-gray-400 mb-0.5 pt-1 px-2">
-            <span>Feuille {(item.largeur || 0) * (item.hauteur || 0) > 0 ? `${((item.largeur || 0) * (item.hauteur || 0)).toFixed(2)} m²` : "—"}</span>
-            <span>·</span>
-            <span>Utilisée {(item.groupe_enfants || []).reduce((s, e) => s + (e.largeur || 0) * (e.hauteur || 0) * (e.quantite || 1), 0).toFixed(2)} m²</span>
-            <span>·</span>
-            <span className={surfaceChute() > 0 ? "text-amber-500" : "text-green-500"}>
-              Chute {surfaceChute().toFixed(2)} m²
-            </span>
-          </div>
-
+        <div className="ml-5 pl-2 border-l border-gray-200 bg-gray-50/20 rounded-r-lg">
           {/* Enfants */}
           {(item.groupe_enfants || []).map((enfant, i) => renderEnfantRow(enfant, i))}
 
