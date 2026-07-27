@@ -67,6 +67,10 @@ export interface CdcBuilderFooterProps {
   hasProjectWithoutCdc?: boolean;
   /** Callback appelé quand Brico a généré un CDC depuis le bouton "Créer un CDC" */
   onCdcGenerated?: (state: CdcBuilderState) => void;
+  /** 🆕 ID de l'enseigne à régénérer — déclenche un envoi auto à Brico */
+  regenerateEnseigneId?: string | null;
+  /** 🆕 Callback pour vider l'ID après traitement */
+  onClearRegenerate?: () => void;
 }
 
 /** Formate le nom d'une enseigne en version courte pour la chip : "Neon Tra..." */
@@ -325,6 +329,8 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   changeCount,
   hasProjectWithoutCdc = false,
   onCdcGenerated,
+  regenerateEnseigneId,
+  onClearRegenerate,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<"modifier" | "demander">("modifier");
@@ -405,6 +411,70 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
       recognitionRef.current?.abort();
     };
   }, []);
+
+  // 🆕 Régénération enseigne — auto-envoi d'un message à Brico
+  useEffect(() => {
+    if (!regenerateEnseigneId) return;
+    const ens = state.enseignes.find((e) => e.id === regenerateEnseigneId);
+    if (!ens) {
+      onClearRegenerate?.();
+      return;
+    }
+
+    // Trouver l'index de l'enseigne
+    const ensIdx = state.enseignes.findIndex((e) => e.id === regenerateEnseigneId);
+
+    // Construire le prompt
+    const prompt = `[CDC Builder — Mode Modifier]
+Tu es Brico. Régénère TOUS les matériaux de cette enseigne à partir de zéro.
+
+Projet: ${state.projectName || "Sans titre"}
+CDC N°: ${state.cdcNumero || "?"}
+
+🎯 Enseigne à régénérer : ${ens.nom} (enseigneIndex = ${ensIdx})
+Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimensions.profondeur ? `×${ens.dimensions.profondeur}` : ""} cm
+
+⚠️ INSTRUCTIONS :
+1. Supprime TOUS les matériaux existants de cette enseigne (enseigneIndex=${ensIdx}) — utilise "delete" pour chaque item dans chaque section.
+2. Recrée les 5 sections (Découpe, Éclairage, Outillage, Métal, Vinyl) avec des matériaux frais basés sur les règles de fabrication.
+3. Respecte les dimensions de l'enseigne.
+4. ⚠️ FORMAT : analyse + JSON actions (SANS triple-backticks).`;
+
+    // Message utilisateur dans le chat
+    setMessages((prev) => [...prev, { role: "user", text: `🔄 Régénérer « ${ens.nom} »` }]);
+    setExpanded(true);
+    setLoading(true);
+    setMode("modifier");
+
+    // Envoyer à Brico
+    routeMessage(
+      {
+        userId: user.id,
+        sessionId: persistentSessionId,
+        timestamp: new Date().toISOString(),
+        message: prompt,
+      },
+      "brico",
+    )
+      .then((response: any) => {
+        const parsed = parseBricoResponse(response);
+        setMessages((prev) => [
+          ...prev,
+          { role: "brico", text: parsed.message || "✅ Matériaux régénérés." },
+        ]);
+        if (parsed.actions?.length) {
+          applyActions(parsed.actions, false);
+        }
+        setLoading(false);
+        onClearRegenerate?.();
+      })
+      .catch(() => {
+        setMessages((prev) => [...prev, { role: "brico" as const, text: "❌ Erreur lors de la régénération." }]);
+        setLoading(false);
+        onClearRegenerate?.();
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regenerateEnseigneId]);
 
   /** Enseigne ciblée (via @ ou null = Brico décide) */
   const targetedEnseigne = targetedEnseigneId

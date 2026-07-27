@@ -20,6 +20,8 @@ import {
   Check,
   AlertCircle,
   Loader2,
+  RotateCcw,
+  ChevronDown,
 } from "lucide-react";
 import { ClipboardCheck, ShoppingCart, Hammer, Wrench, CheckCircle } from "lucide-react";
 import EnseigneDialog from "@/components/cdc-builder/EnseigneDialog";
@@ -59,7 +61,12 @@ interface EnseigneAccordionProps {
   highlights?: HighlightMap;
   /** 🆕 Handler direct de dissociation (bypass FlatMaterialRow) */
   onDissocierEnfant?: (section: string, groupItemId: string, enfantIndex: number) => void;
+  /** 🆕 Régénérer les matériaux de cette enseigne via Brico */
+  onRegenerate?: () => void;
 }
+
+const SWIPE_CARD_REVEAL = 140; // largeur pour 3 boutons
+const SWIPE_CARD_THRESHOLD = 60;
 
 const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
   enseigne,
@@ -71,14 +78,82 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
   onUpdateEnseigne,
   highlights,
   onDissocierEnfant,
+  onRegenerate,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [imageModalOpen, setImageModalOpen] = useState(false);
+
+  // 🆕 Swipe card state
+  const [cardSwipeX, setCardSwipeX] = useState(0);
+  const cardSwipeRef = useRef(0);
+  const [cardNoAnim, setCardNoAnim] = useState(false);
+  const cardTouchStart = useRef(0);
+  const cardIsSwiping = useRef(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // Synchroniser avec le toggle global "Tout replier/déplier"
   useEffect(() => {
     setIsOpen(defaultOpen);
   }, [defaultOpen]);
+
+  // 🆕 Reset animation après snap fermé
+  useEffect(() => {
+    if (cardNoAnim && cardSwipeX === 0) {
+      const t = setTimeout(() => setCardNoAnim(false), 50);
+      return () => clearTimeout(t);
+    }
+  }, [cardNoAnim, cardSwipeX]);
+
+  // 🆕 Fermer le swipe au clic extérieur
+  useEffect(() => {
+    if (cardSwipeX === 0) return;
+    const handler = (e: MouseEvent) => {
+      if (cardRef.current?.contains(e.target as Node)) return;
+      cardSwipeRef.current = 0;
+      setCardNoAnim(true);
+      setCardSwipeX(0);
+    };
+    document.addEventListener("mousedown", handler, true);
+    return () => document.removeEventListener("mousedown", handler, true);
+  }, [cardSwipeX]);
+
+  const handleCardTouchStart = (e: React.TouchEvent) => {
+    cardTouchStart.current = e.touches[0].clientX;
+    cardIsSwiping.current = false;
+  };
+  const handleCardTouchMove = (e: React.TouchEvent) => {
+    const dx = e.touches[0].clientX - cardTouchStart.current;
+    if (!cardIsSwiping.current) {
+      if (Math.abs(dx) > 8) cardIsSwiping.current = true;
+      else return;
+    }
+    e.preventDefault();
+    const current = cardSwipeRef.current;
+    let next: number;
+    if (current < 0) {
+      next = Math.max(-SWIPE_CARD_REVEAL - 20, Math.min(0, current + dx * 0.4));
+    } else if (dx < 0) {
+      next = Math.max(dx, -SWIPE_CARD_REVEAL - 20);
+    } else {
+      next = current;
+    }
+    cardSwipeRef.current = next;
+    setCardSwipeX(next);
+    cardTouchStart.current = e.touches[0].clientX;
+  };
+  const handleCardTouchEnd = () => {
+    if (!cardIsSwiping.current) return;
+    cardIsSwiping.current = false;
+    const current = cardSwipeRef.current;
+    if (current < -SWIPE_CARD_THRESHOLD) {
+      cardSwipeRef.current = -SWIPE_CARD_REVEAL;
+      setCardSwipeX(-SWIPE_CARD_REVEAL);
+    } else {
+      cardSwipeRef.current = 0;
+      setCardNoAnim(true);
+      setCardSwipeX(0);
+    }
+  };
 
   const handleDownloadImage = () => {
     if (!enseigne.image_url) return;
@@ -90,9 +165,53 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
 
   return (
     <div
+      ref={cardRef}
       data-enseigne-accordion="true"
-      className="border border-gray-200 rounded-lg bg-gray-50 mb-4 overflow-hidden shadow-sm"
+      className="border border-gray-200 rounded-lg bg-gray-50 mb-4 overflow-hidden shadow-sm relative"
     >
+      {/* 🆕 Fond des boutons swipe — révélé à droite */}
+      <div
+        className="absolute inset-y-0 right-0 flex items-center gap-0.5 bg-gray-100 rounded-r-lg z-40"
+        style={{
+          width: SWIPE_CARD_REVEAL,
+          opacity: cardSwipeX < 0 ? Math.min(1, Math.abs(cardSwipeX) / SWIPE_CARD_REVEAL) : 0,
+          transition: "opacity 0.15s",
+        }}
+      >
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRegenerate?.(); }}
+          className="flex flex-col items-center justify-center w-[44px] h-full text-emerald-600 hover:bg-emerald-50 transition-colors"
+          title="Régénérer les matériaux"
+        >
+          <RotateCcw size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          className="flex flex-col items-center justify-center w-[44px] h-full text-indigo-500 hover:bg-indigo-50 transition-colors"
+          title="Éditer cette enseigne"
+        >
+          <Pencil size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="flex flex-col items-center justify-center w-[44px] h-full text-red-500 hover:bg-red-50 transition-colors"
+          title="Supprimer cette enseigne"
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+
+      {/* Carte swipeable */}
+      <div
+        onTouchStart={handleCardTouchStart}
+        onTouchMove={handleCardTouchMove}
+        onTouchEnd={handleCardTouchEnd}
+        style={{ transform: `translateX(${cardSwipeX}px)` }}
+        className={`${!cardNoAnim ? 'transition-transform duration-200' : ''} bg-gray-50`}
+      >
       {/* Header cliquable */}
       <button
         type="button"
@@ -143,30 +262,11 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-white/50 rounded transition-colors"
-            title="Éditer cette enseigne"
-          >
-            <Pencil size={15} />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-white/50 rounded transition-colors"
-            title="Supprimer cette enseigne"
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
+        {/* 🆕 Chevron simple (plus de boutons visibles) */}
+        <ChevronDown
+          size={18}
+          className={`text-gray-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        />
       </button>
 
       {/* Contenu dépliable */}
@@ -251,6 +351,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
           </div>
         </div>
       )}
+      </div>{/* fin swipeable */}
     </div>
   );
 };
@@ -427,6 +528,9 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   const [highlights, setHighlights] = useState<HighlightMap>({});
   // Ref pour éviter de clear pendant l'application séquentielle
   const highlightsTimestampRef = useRef(0);
+
+  // 🆕 Régénération enseigne — déclenche un envoi auto dans le footer Brico
+  const [regenerateEnseigneId, setRegenerateEnseigneId] = useState<string | null>(null);
 
   // 🆕 Undo/Redo — historique d'états (max 20 snapshots)
   const MAX_HISTORY = 20;
@@ -1114,6 +1218,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
                     onDissocierEnfant={(section, groupItemId, enfantIndex) =>
                       handleDissocierDirect(enseigne.id, section, groupItemId, enfantIndex)
                     }
+                    onRegenerate={() => setRegenerateEnseigneId(enseigne.id)}
                   />
                 );
               })}
@@ -1343,6 +1448,8 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
               Object.values(sections).some((items) => items.length > 0),
             )
           }
+          regenerateEnseigneId={regenerateEnseigneId}
+          onClearRegenerate={() => setRegenerateEnseigneId(null)}
         />
       </div>
     </div>
