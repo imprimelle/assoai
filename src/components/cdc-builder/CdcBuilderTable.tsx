@@ -96,6 +96,12 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
   const [groupDialogSection, setGroupDialogSection] = useState<string | null>(null);
   const [groupWarning, setGroupWarning] = useState<string | null>(null);
 
+  // 🆕 Scroll sync — seule la ligne active garde son scroll horizontal
+  const [activeRowKey, setActiveRowKey] = useState<string | null>(null);
+  const handleRowActivate = useCallback((key: string) => {
+    setActiveRowKey(key);
+  }, []);
+
   /** Swipe sur une ligne → toggle sélection (sans ouvrir le dialogue) */
   const handleToggleSelect = useCallback(
     (itemId: string) => {
@@ -462,6 +468,9 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                       onToggleSelect={() => handleToggleSelect(r.item.id)}
                       // 🆕 Dissocier enfant
                       onDissocierEnfant={isGroup ? (ei: number) => handleDissocierEnfant(section, r.index, ei) : undefined}
+                      // 🆕 Scroll sync
+                      isActive={activeRowKey === `${enseigneId || "ens"}-${section}-${r.item.id}`}
+                      onActivate={() => handleRowActivate(`${enseigneId || "ens"}-${section}-${r.item.id}`)}
                     />
                   </div>
                 );

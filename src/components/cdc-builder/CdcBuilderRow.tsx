@@ -51,6 +51,9 @@ export interface CdcBuilderRowProps {
   onToggleSelect?: () => void;
   // 🆕 Dissocier un enfant du groupe
   onDissocierEnfant?: (enfantIndex: number) => void;
+  // 🆕 Scroll sync — seule la ligne active peut avoir scrollLeft > 0
+  isActive?: boolean;
+  onActivate?: () => void;
 }
 
 // ── Composant pour fermer les swipes au clic extérieur ──
@@ -91,10 +94,22 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   selected = false,
   onToggleSelect,
   onDissocierEnfant,
+  isActive = false,
+  onActivate,
 }) => {
   const { section, item } = row;
   const [expanded, setExpanded] = useState(false);
   const isGroup = !!(item.groupe_enfants && item.groupe_enfants.length > 0);
+
+  // 🆕 Scroll sync — ref sur le conteneur scrollable
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 🆕 Reset scroll quand la ligne perd l'activité
+  useEffect(() => {
+    if (!isActive && scrollRef.current) {
+      scrollRef.current.scrollLeft = 0;
+    }
+  }, [isActive]);
 
   // 🆕 Swipe par enfant (dissocier)
   // 🔴 Fix stale closure : useRef pour la position courante
@@ -444,7 +459,12 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
 
       {/* Carte swipeable */}
       <div
-        onTouchStart={selectable ? handleTouchStart : undefined}
+        ref={scrollRef}
+        onTouchStart={(e) => {
+          onActivate?.();
+          if (selectable) handleTouchStart(e);
+        }}
+        onFocusCapture={() => onActivate?.()}
         onTouchMove={selectable ? handleTouchMove : undefined}
         onTouchEnd={selectable ? handleTouchEnd : undefined}
         style={{ transform: `translateX(${swipeX}px)` }}
