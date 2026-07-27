@@ -331,7 +331,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             }
           }}
           style={{ transform: `translateX(${sX}px)` }}
-          className={`${!childNoAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-1.5 border-b border-gray-100 last:border-b-0 scrollbar-subtle`}
+          className={`${!childNoAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-1.5 border-b border-gray-100 last:border-b-0 scrollbar-subtle pr-[68px]`}
         >
           <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-3">
             <div className="w-[200px] shrink-0">
