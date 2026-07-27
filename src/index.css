@@ -126,6 +126,26 @@
   background: #9ca3af;
 }
 
+/* 🆕 Scrollbar masquée au repos — n'apparaît qu'au scroll actif */
+.scrollbar-hide-idle {
+  scrollbar-width: none; /* Firefox : cachée */
+}
+.scrollbar-hide-idle::-webkit-scrollbar {
+  height: 4px;
+}
+.scrollbar-hide-idle::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-hide-idle::-webkit-scrollbar-thumb {
+  background: transparent; /* invisible au repos */
+  border-radius: 2px;
+  transition: background 0.3s;
+}
+.scrollbar-hide-idle:hover::-webkit-scrollbar-thumb,
+.scrollbar-hide-idle:active::-webkit-scrollbar-thumb {
+  background: #d1d5db; /* visible au survol */
+}
+
 /* ── Highlights persistants pour les modifications Brico (v9) ── */
 .flash-added {
   background-color: rgba(34, 197, 94, 0.18);

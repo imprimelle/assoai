@@ -315,7 +315,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             }}
             className="text-[10px] font-medium text-amber-700 hover:text-amber-900 px-1 py-1 rounded"
           >
-            ✂ Dissocier
+            ✂
           </button>
         </div>
 
@@ -331,7 +331,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             }
           }}
           style={{ transform: `translateX(${sX}px)` }}
-          className={`${!childNoAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-1.5 border-b border-gray-100 last:border-b-0 scrollbar-subtle pr-[68px]`}
+          className={`${!childNoAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-1.5 border-b border-gray-100 last:border-b-0 scrollbar-subtle scrollbar-hide-idle pr-[68px]`}
         >
           <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-3">
             <div className="w-[200px] shrink-0">
@@ -468,7 +468,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         onTouchMove={selectable ? handleTouchMove : undefined}
         onTouchEnd={selectable ? handleTouchEnd : undefined}
         style={{ transform: `translateX(${swipeX}px)` }}
-        className={`${!isGroup && !noAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle ${
+        className={`${!isGroup && !noAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle scrollbar-hide-idle ${
           selected ? "border-l-2 border-l-indigo-500" : ""
         }`}
       >
