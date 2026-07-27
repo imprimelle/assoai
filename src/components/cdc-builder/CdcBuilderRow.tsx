@@ -53,6 +53,27 @@ export interface CdcBuilderRowProps {
   onDissocierEnfant?: (enfantIndex: number) => void;
 }
 
+// ── Composant pour fermer les swipes au clic extérieur ──
+/** Écoute mousedown sur document et appelle onClose si le clic est hors de rowRef */
+const ClickOutsideCloser: React.FC<{
+  rowRef: React.RefObject<HTMLDivElement | null>;
+  onClose: () => void;
+}> = ({ rowRef, onClose }) => {
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Ne pas fermer si le clic est sur un bouton d'action swipe (checkbox, dissocier)
+      if (target.closest('[data-swipe-check]')) return;
+      // Ne pas fermer si le clic est à l'intérieur de la row
+      if (rowRef.current?.contains(target)) return;
+      onClose();
+    };
+    document.addEventListener('mousedown', handler, true); // capture phase
+    return () => document.removeEventListener('mousedown', handler, true);
+  }, [rowRef, onClose]);
+  return null;
+};
+
 const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   row,
   defaultDimensions,
@@ -76,14 +97,18 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   const isGroup = !!(item.groupe_enfants && item.groupe_enfants.length > 0);
 
   // 🆕 Swipe par enfant (dissocier)
+  // 🔴 Fix stale closure : useRef pour la position courante
   const [childSwipes, setChildSwipes] = useState<Record<string, number>>({});
+  const childSwipesRef = useRef<Record<string, number>>({});
   const [childNoAnim, setChildNoAnim] = useState(false);
   const childTouchStart = useRef(0);
   const childIsSwiping = useRef(false);
   const childCurrentId = useRef<string | null>(null);
 
   // --- Swipe state (sélection) ---
+  // 🔴 Fix stale closure : useRef pour la position courante, useState pour le rendu seul
   const [swipeX, setSwipeX] = useState(0);
+  const swipeXRef = useRef(0);
   const [noAnim, setNoAnim] = useState(false);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -109,24 +134,33 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
       }
     }
     e.preventDefault();
-    if (swipeX < 0) {
-      setSwipeX(Math.max(-SWIPE_MAX, Math.min(0, swipeX + dx * 0.4)));
+    const current = swipeXRef.current;
+    let next: number;
+    if (current < 0) {
+      next = Math.max(-SWIPE_MAX, Math.min(0, current + dx * 0.4));
     } else if (dx < 0) {
-      setSwipeX(Math.max(dx, -SWIPE_MAX));
+      next = Math.max(dx, -SWIPE_MAX);
+    } else {
+      next = current;
     }
+    swipeXRef.current = next;
+    setSwipeX(next);
     touchStartX.current = e.touches[0].clientX;
-  }, [selectable, isGroup, disabled, swipeX]);
+  }, [selectable, isGroup, disabled]);
 
   const handleTouchEnd = useCallback(() => {
     if (!isSwipingRef.current) return;
     isSwipingRef.current = false;
-    if (swipeX < -SWIPE_THRESHOLD) {
+    const current = swipeXRef.current;
+    if (current < -SWIPE_THRESHOLD) {
+      swipeXRef.current = -SWIPE_REVEAL;
       setSwipeX(-SWIPE_REVEAL);
     } else {
+      swipeXRef.current = 0;
       setNoAnim(true);
       setSwipeX(0);
     }
-  }, [swipeX]);
+  }, []);
 
   // Réactiver l'animation après un reset
   useEffect(() => {
@@ -219,19 +253,30 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         else return;
       }
       e.preventDefault();
-      if (sX < 0) {
-        setChildSwipes(prev => ({ ...prev, [enfant.id]: Math.max(-SWIPE_MAX, Math.min(0, sX + dx * 0.4)) }));
+      const refMap = childSwipesRef.current;
+      const current = refMap[enfant.id] || 0;
+      let next: number;
+      if (current < 0) {
+        next = Math.max(-SWIPE_MAX, Math.min(0, current + dx * 0.4));
       } else if (dx < 0) {
-        setChildSwipes(prev => ({ ...prev, [enfant.id]: Math.max(dx, -SWIPE_MAX) }));
+        next = Math.max(dx, -SWIPE_MAX);
+      } else {
+        next = current;
       }
+      childSwipesRef.current = { ...refMap, [enfant.id]: next };
+      setChildSwipes(prev => ({ ...prev, [enfant.id]: next }));
       childTouchStart.current = e.touches[0].clientX;
     };
     const onEnd = () => {
       if (!childIsSwiping.current) return;
       childIsSwiping.current = false;
-      if (sX < -SWIPE_THRESHOLD) {
+      const current = childSwipesRef.current[enfant.id] || 0;
+      const refMap = childSwipesRef.current;
+      if (current < -SWIPE_THRESHOLD) {
+        childSwipesRef.current = { ...refMap, [enfant.id]: -SWIPE_REVEAL };
         setChildSwipes(prev => ({ ...prev, [enfant.id]: -SWIPE_REVEAL }));
       } else {
+        childSwipesRef.current = { ...refMap, [enfant.id]: 0 };
         setChildNoAnim(true);
         setChildSwipes(prev => ({ ...prev, [enfant.id]: 0 }));
         setTimeout(() => setChildNoAnim(false), 50);
@@ -242,13 +287,17 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
       <div key={enfant.id} className="relative overflow-hidden">
         {/* Fond dissocier à droite */}
         <div
-          className="absolute inset-y-0 right-0 flex items-center justify-center bg-amber-50 rounded-r-lg"
+          className="absolute inset-y-0 right-0 flex items-center justify-center bg-amber-50 rounded-r-lg z-50"
           style={{ width: SWIPE_REVEAL + 20, opacity: checkOp, transition: "opacity 0.15s" }}
         >
           <button
             type="button"
             data-swipe-check="true"
-            onClick={(e) => { e.stopPropagation(); onDissocierEnfant?.(index); }}
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              console.log('[DISSOCIER BTN] clic reçu, index=', index, 'onDissocierEnfant=', typeof onDissocierEnfant);
+              onDissocierEnfant?.(index); 
+            }}
             className="text-[10px] font-medium text-amber-700 hover:text-amber-900 px-1 py-1 rounded"
           >
             ✂ Dissocier
@@ -371,7 +420,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
       {/* Fond swipe — checkbox à droite */}
       {selectable && (
         <div
-          className="absolute inset-y-0 right-0 flex items-center justify-center bg-indigo-50 rounded-r-lg"
+          className="absolute inset-y-0 right-0 flex items-center justify-center bg-indigo-50 rounded-r-lg z-50"
           style={{
             width: SWIPE_REVEAL,
             opacity: checkOpacity,
@@ -522,14 +571,22 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         </div>
       </div>
 
-      {/* 🆕 Backdrop overlay — ferme le swipe au clic n'importe où */}
+      {/* 🆕 Overlay visuel (ne capture pas les clics) */}
       {(swipeX !== 0 || Object.values(childSwipes).some(v => v !== 0)) && (
         <div
-          onClick={(e) => { 
-            if ((e.target as HTMLElement).closest('[data-swipe-check]')) return;
-            setNoAnim(true); setSwipeX(0); setChildNoAnim(true); setChildSwipes({}); setTimeout(() => setChildNoAnim(false), 50); 
+          className="fixed inset-0 z-40 bg-black/5 pointer-events-none"
+        />
+      )}
+
+      {/* 🆕 Fermer les swipes au clic extérieur (document-level) */}
+      {(swipeX !== 0 || Object.values(childSwipes).some(v => v !== 0)) && (
+        <ClickOutsideCloser
+          rowRef={rowRef}
+          onClose={() => {
+            setNoAnim(true); setSwipeX(0);
+            setChildNoAnim(true); setChildSwipes({});
+            setTimeout(() => setChildNoAnim(false), 50);
           }}
-          className="fixed inset-0 z-40 bg-black/5"
         />
       )}
 

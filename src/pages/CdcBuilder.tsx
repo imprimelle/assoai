@@ -57,6 +57,8 @@ interface EnseigneAccordionProps {
   onRowsChange: (rows: FlatMaterialRow[]) => void;
   onUpdateEnseigne: (changes: Partial<CdcBuilderEnseigne>) => void;
   highlights?: HighlightMap;
+  /** 🆕 Handler direct de dissociation (bypass FlatMaterialRow) */
+  onDissocierEnfant?: (section: string, groupItemId: string, enfantIndex: number) => void;
 }
 
 const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
@@ -68,6 +70,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
   onRowsChange,
   onUpdateEnseigne,
   highlights,
+  onDissocierEnfant,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [imageModalOpen, setImageModalOpen] = useState(false);
@@ -177,6 +180,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
             enseigneNom={enseigne.nom}
             highlights={highlights}
             enseigneId={enseigne.id}
+            onDissocierEnfant={onDissocierEnfant}
           />
         </div>
       )}
@@ -389,6 +393,10 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
       const { savedMessageId, ...trackable } = loaderResult.initialState as any;
       lastSavedHashRef.current = JSON.stringify(trackable);
       setChangeCount(0);
+      // 🆕 Reset historique undo
+      historyRef.current = [JSON.parse(JSON.stringify(loaderResult.initialState))];
+      historyIndexRef.current = 0;
+      lastCapturedRef.current = JSON.stringify(loaderResult.initialState);
     }
   }, [loaderResult?.initialState]);
 
@@ -419,6 +427,87 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   const [highlights, setHighlights] = useState<HighlightMap>({});
   // Ref pour éviter de clear pendant l'application séquentielle
   const highlightsTimestampRef = useRef(0);
+
+  // 🆕 Undo/Redo — historique d'états (max 20 snapshots)
+  const MAX_HISTORY = 20;
+  const historyRef = useRef<CdcBuilderState[]>([]);
+  const historyIndexRef = useRef(-1);
+  const isUndoRedoRef = useRef(false); // évite de ré-enregistrer pendant undo/redo
+
+  /** Pousse l'état courant dans l'historique (avant modification) */
+  const pushHistory = useCallback((currentState: CdcBuilderState) => {
+    if (isUndoRedoRef.current) return;
+    // Ignorer si identique au dernier snapshot
+    const last = historyRef.current[historyIndexRef.current];
+    if (last && JSON.stringify(last) === JSON.stringify(currentState)) return;
+
+    // Tronquer le futur (si on a fait undo puis nouvelle modif)
+    const newHistory = historyRef.current.slice(0, historyIndexRef.current + 1);
+    newHistory.push(JSON.parse(JSON.stringify(currentState))); // deep clone
+    // Garder max MAX_HISTORY entrées
+    if (newHistory.length > MAX_HISTORY) newHistory.shift();
+    historyRef.current = newHistory;
+    historyIndexRef.current = newHistory.length - 1;
+  }, []);
+
+  // Enregistrer l'état initial dans l'historique au premier chargement
+  useEffect(() => {
+    if (state.enseignes.length > 0 && historyRef.current.length === 0) {
+      historyRef.current = [JSON.parse(JSON.stringify(state))];
+      historyIndexRef.current = 0;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaderResult?.initialState]);
+
+  // 🆕 Raccourcis clavier Ctrl+Z / Ctrl+Shift+Z
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Ignorer si focus dans un input/textarea/contenteditable (sauf footer chat)
+      const tag = (e.target as HTMLElement).tagName;
+      const isEditable = (e.target as HTMLElement).isContentEditable;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || isEditable) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Redo : Ctrl+Shift+Z
+          if (historyIndexRef.current < historyRef.current.length - 1) {
+            historyIndexRef.current++;
+            isUndoRedoRef.current = true;
+            setState(JSON.parse(JSON.stringify(historyRef.current[historyIndexRef.current])));
+            setTimeout(() => { isUndoRedoRef.current = false; }, 100);
+          }
+        } else {
+          // Undo : Ctrl+Z
+          if (historyIndexRef.current > 0) {
+            historyIndexRef.current--;
+            isUndoRedoRef.current = true;
+            setState(JSON.parse(JSON.stringify(historyRef.current[historyIndexRef.current])));
+            setTimeout(() => { isUndoRedoRef.current = false; }, 100);
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  /** 🆕 Capture automatique dans l'historique — debounce 800ms */
+  const lastCapturedRef = useRef("");
+  useEffect(() => {
+    if (isUndoRedoRef.current) return;
+    const serialized = JSON.stringify(state);
+    if (serialized === lastCapturedRef.current) return;
+
+    const timer = setTimeout(() => {
+      if (isUndoRedoRef.current) return;
+      const current = JSON.stringify(state);
+      if (current === lastCapturedRef.current) return;
+      pushHistory(state);
+      lastCapturedRef.current = current;
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [state, pushHistory]);
 
   // Mettre à jour le timestamp quand les highlights changent
   useEffect(() => {
@@ -615,6 +704,49 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
       });
     },
     [state],
+  );
+
+  // 🆕 Dissociation directe — travaille sur materiauxByEnseigne, pas sur FlatMaterialRow[]
+  const handleDissocierDirect = useCallback(
+    (enseigneId: string, section: string, groupItemId: string, enfantIndex: number) => {
+      setState((prev) => {
+        const enseigneSections = prev.materiauxByEnseigne[enseigneId] || {};
+        const sectionItems = [...(enseigneSections[section] || [])];
+
+        // Trouver le groupe
+        const groupIdx = sectionItems.findIndex((item) => item.id === groupItemId);
+        if (groupIdx === -1) return prev;
+
+        const groupItem = sectionItems[groupIdx];
+        const enfants = groupItem.groupe_enfants || [];
+        if (enfantIndex < 0 || enfantIndex >= enfants.length) return prev;
+
+        const enfant = { ...enfants[enfantIndex], id: crypto.randomUUID?.() || `pla-${Date.now()}` };
+        const newEnfants = enfants.filter((_, i) => i !== enfantIndex);
+
+        if (newEnfants.length === 0) {
+          // Plus d'enfant → supprimer le groupe, insérer l'enfant à sa place
+          sectionItems.splice(groupIdx, 1, enfant);
+        } else {
+          // Garder le groupe avec enfants réduits
+          sectionItems[groupIdx] = { ...groupItem, groupe_enfants: newEnfants };
+          // Insérer l'enfant juste après le groupe
+          sectionItems.splice(groupIdx + 1, 0, enfant);
+        }
+
+        return {
+          ...prev,
+          materiauxByEnseigne: {
+            ...prev.materiauxByEnseigne,
+            [enseigneId]: {
+              ...enseigneSections,
+              [section]: sectionItems,
+            },
+          },
+        };
+      });
+    },
+    [],
   );
 
   // --- Vue consolidée : toutes enseignes groupées par section ---
@@ -924,6 +1056,10 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
               equipe: [],
             };
             setState(newState);
+            // 🆕 Reset historique undo
+            historyRef.current = [JSON.parse(JSON.stringify(newState))];
+            historyIndexRef.current = 0;
+            lastCapturedRef.current = JSON.stringify(newState);
             fetchCdcNumero().then(num => setState(prev => ({ ...prev, cdcNumero: num })));
             try { localStorage.removeItem(LS_KEY); } catch {}
           }}
@@ -975,6 +1111,9 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
                       handleUpdateEnseigne(enseigne.id, changes)
                     }
                     highlights={highlights}
+                    onDissocierEnfant={(section, groupItemId, enfantIndex) =>
+                      handleDissocierDirect(enseigne.id, section, groupItemId, enfantIndex)
+                    }
                   />
                 );
               })}

@@ -210,12 +210,24 @@ function applyCatalogMatch(item: MaterialItem, entry: any): MaterialItem {
 async function enrichActionsWithCatalog(
   actions: BricoAction[],
 ): Promise<BricoAction[]> {
-  // 1. Collecter les items à enrichir (add + update)
+  // 1. Collecter les items à enrichir (add, update, ET group)
   const itemsToEnrich: { actionIdx: number; item: MaterialItem }[] = [];
   for (let i = 0; i < actions.length; i++) {
     const a = actions[i];
     if ((a.type === "add" || a.type === "update") && a.item?.nom) {
       itemsToEnrich.push({ actionIdx: i, item: a.item });
+    }
+    // 🆕 Enrichir aussi les actions "group" (material_id de la feuille)
+    if (a.type === "group" && a.groupe?.nom) {
+      itemsToEnrich.push({
+        actionIdx: i,
+        item: {
+          id: a.groupe.material_id || "",
+          nom: a.groupe.nom,
+          material_id: a.groupe.material_id,
+          quantite: 1,
+        } as MaterialItem,
+      });
     }
   }
   if (itemsToEnrich.length === 0) return actions;
@@ -248,6 +260,18 @@ async function enrichActionsWithCatalog(
             cout_unitaire: a.changes?.cout_unitaire ?? match.cout_min,
             format_standard: a.changes?.format_standard || match.format_standard,
             unite: a.changes?.unite || match.unite,
+          },
+        };
+      } else if (a.type === "group" && a.groupe) {
+        // 🆕 Enrichir la feuille du groupe avec les données catalogue
+        const fields = catalogToMaterialFields(match);
+        enriched[actionIdx] = {
+          ...a,
+          groupe: {
+            ...a.groupe,
+            material_id: a.groupe.material_id || match.id,
+            nom: fields.nom || a.groupe.nom,
+            format: fields.format_standard || a.groupe.format,
           },
         };
       }
@@ -404,6 +428,35 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
     return filtered;
   };
 
+  /** 🆕 Formate les groupes existants pour le prompt Brico */
+  const formatGroupsForPrompt = (
+    materiauxByEnseigne: Record<string, Record<string, MaterialItem[]>>,
+  ): string => {
+    const lines: string[] = [];
+    for (const [ensId, sections] of Object.entries(materiauxByEnseigne)) {
+      for (const [section, items] of Object.entries(sections)) {
+        for (const item of items) {
+          const enfants = item.groupe_enfants;
+          if (!enfants || enfants.length === 0) continue;
+          const feuilleL = item.largeur ?? item.groupe_largeur ?? "?";
+          const feuilleH = item.hauteur ?? item.groupe_hauteur ?? "?";
+          const feuilleSurface = (item.largeur || 0) * (item.hauteur || 0);
+          const occupee = enfants
+            .filter(e => e.nom !== "Chute")
+            .reduce((sum, e) => sum + (e.largeur || 0) * (e.hauteur || 0) * (e.quantite || 1), 0);
+          const chute = Math.max(0, feuilleSurface - occupee);
+          lines.push(`📐 [${section}] Feuille ${item.nom} (${feuilleL}×${feuilleH}m, surface ${feuilleSurface.toFixed(2)}m²) :`);
+          for (const e of enfants) {
+            const dims = e.largeur != null && e.hauteur != null ? ` (${e.largeur}×${e.hauteur}m)` : "";
+            lines.push(`    • ${e.nom}${dims} ×${e.quantite} ${e.unite || ""}`);
+          }
+          if (chute > 0.001) lines.push(`    • Chute ~${chute.toFixed(2)}m²`);
+        }
+      }
+    }
+    return lines.join("\n");
+  };
+
   /** Construit le prompt Modifier — avec @ → focus + BOM, sans @ → toutes les enseignes */
   const buildModifierPrompt = (
     message: string,
@@ -425,14 +478,23 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
           mats.length > 0
             ? mats
                 .map(
-                  (m) =>
-                    `    [${/* section */ ""}] ${m.nom} ×${m.quantite} ${m.unite || ""}`,
+                  (m) => {
+                    const isGroup = !!(m.groupe_enfants && m.groupe_enfants.length > 0);
+                    const prefix = isGroup ? "📐 [GROUPE] " : `    [${/* section */ ""}] `;
+                    return `${prefix}${m.nom} ×${m.quantite} ${m.unite || ""}`;
+                  },
                 )
                 .join("\n")
             : "    (aucun matériau)";
         return `- ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm)\n${matList}`;
       })
       .join("\n\n");
+
+    // 🆕 Section groupes détaillés
+    const groupsText = formatGroupsForPrompt(state.materiauxByEnseigne);
+    const groupsBlock = groupsText
+      ? `\n📐 Groupes Feuille existants (Découpe / Vinyl) :\n${groupsText}\n⚠️ Ces groupes existent déjà — ne pas les recréer. Tu peux ajouter des plaques dedans ou en créer de nouveaux si pertinent.`
+      : "";
 
     const focusBlock = targetEns
       ? `\n🎯 Enseigne mentionnée par l'utilisateur: ${targetEns.nom}
@@ -449,6 +511,7 @@ Commande N°: ${state.commandeId || "?"}
 
 📋 Toutes les enseignes du CDC (avec leurs matériaux):
 ${allEnseignesText}
+${groupsBlock}
 ${focusBlock}
 
 Instruction de l'utilisateur: ${message}
@@ -464,6 +527,7 @@ Analyse : j'ajoute du Forex 5mm dans la section Découpe car la demande concerne
   {"type":"add","section":"Découpe","enseigneIndex":0,"item":{"nom":"Forex 5mm","quantite":1,"unite":"plaque","largeur":5,"hauteur":70}}
 ]}
 
+⚠️ Pour grouper des plaques en feuille, utilise le type "group" (sections Découpe et Vinyl uniquement).
 ⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne s'applique chaque action.
 ⚠️ Le JSON doit être valide — pas de virgule après le dernier élément, pas de commentaires.`;
 
@@ -492,7 +556,8 @@ ${allEnseignesText}
 1. Pour CHAQUE enseigne, remplis les 5 sections (Découpe, Éclairage, Outillage, Métal, Vinyl) avec des matériaux pertinents.
 2. Utilise tes connaissances des règles de fabrication (manufacturing-rules) pour déterminer les bons matériaux.
 3. Les quantités doivent respecter les dimensions de chaque enseigne.
-4. ⚠️ FORMAT DE RÉPONSE OBLIGATOIRE :
+4. 🆕 Pour les sections Découpe et Vinyl, regroupe les plaques compatibles en feuilles via des actions "group" quand c'est pertinent (même matériau, même épaisseur).
+5. ⚠️ FORMAT DE RÉPONSE OBLIGATOIRE :
    a) Une analyse (2-4 phrases) résumant les matériaux générés pour chaque enseigne.
    b) Le JSON d'actions — SANS triple-backticks autour, SANS markdown. Juste le JSON brut.
 
@@ -506,6 +571,52 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
 ]}
 
 ⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne appartient chaque matériau.`;
+  };
+
+  /** 🆕 Validation géométrique 1D : vérifie que les plaques peuvent tenir dans la feuille.
+   *  Approximation conservative : somme des côtés les plus longs ≤ côté le plus long de la feuille.
+   *  Retourne { ok: boolean, warning: string | null }
+   */
+  const validateGroupFit = (
+    feuilleL: number,
+    feuilleH: number,
+    enfants: MaterialItem[],
+  ): { ok: boolean; warning: string | null } => {
+    const feuilleMax = Math.max(feuilleL, feuilleH);
+    const feuilleMin = Math.min(feuilleL, feuilleH);
+    let totalLong = 0;
+    let totalShort = 0;
+    const oversized: string[] = [];
+
+    for (const e of enfants) {
+      const el = e.largeur ?? 0;
+      const eh = e.hauteur ?? 0;
+      const eMax = Math.max(el, eh);
+      const eMin = Math.min(el, eh);
+
+      if (eMax > feuilleMax || eMin > feuilleMin) {
+        oversized.push(`${e.nom || "plaque"} (${el}×${eh}m)`);
+      }
+      totalLong += eMax * (e.quantite ?? 1);
+      totalShort += eMin * (e.quantite ?? 1);
+    }
+
+    if (oversized.length > 0) {
+      return {
+        ok: false,
+        warning: `⚠️ ${oversized.length} plaque(s) dépassent les dimensions de la feuille (${feuilleL}×${feuilleH}m) : ${oversized.join(", ")}`,
+      };
+    }
+
+    // Vérification conservative : somme des grands côtés vs grand côté feuille
+    if (totalLong > feuilleMax * 1.05) {
+      return {
+        ok: false,
+        warning: `⚠️ La somme des longueurs des plaques (${totalLong.toFixed(2)}m) dépasse la longueur de la feuille (${feuilleMax}m). Les plaques risquent de ne pas tenir.`,
+      };
+    }
+
+    return { ok: true, warning: null };
   };
 
   /** Appliquer les actions Brico — application immédiate + scroll séquentiel (v9.1).
@@ -611,6 +722,16 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
                 0,
               );
               const chuteSurface = Math.max(0, feuilleSurface - occupee);
+
+              // 🆕 Validation géométrique
+              const fit = validateGroupFit(
+                action.groupe.largeur_feuille || 0,
+                action.groupe.hauteur_feuille || 0,
+                action.groupe.enfants.filter(e => e.nom !== "Chute"),
+              );
+              if (!fit.ok && fit.warning) {
+                console.warn("[applyActions group] Validation:", fit.warning);
+              }
 
               const enfants: MaterialItem[] = [
                 ...action.groupe.enfants.map((e) => ({

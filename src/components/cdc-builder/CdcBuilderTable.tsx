@@ -66,6 +66,8 @@ export interface CdcBuilderTableProps {
   rowMeta?: Record<string, { enseigneBadge?: { nom: string; color?: string } }>;
   highlights?: Record<string, "added" | "modified">;
   enseigneId?: string;
+  /** 🆕 Handler de dissociation direct (travaille sur materiauxByEnseigne, pas FlatMaterialRow) */
+  onDissocierEnfant?: (section: string, groupItemId: string, enfantIndex: number) => void;
 }
 
 const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
@@ -77,6 +79,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
   rowMeta,
   highlights,
   enseigneId,
+  onDissocierEnfant: onDissocierDirect,
 }) => {
   const grouped = useMemo(() => {
     const map = new Map<string, FlatMaterialRow[]>();
@@ -91,6 +94,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [groupDialogSection, setGroupDialogSection] = useState<string | null>(null);
+  const [groupWarning, setGroupWarning] = useState<string | null>(null);
 
   /** Swipe sur une ligne → toggle sélection (sans ouvrir le dialogue) */
   const handleToggleSelect = useCallback(
@@ -113,58 +117,23 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     setSelectedIds(new Set());
   }, []);
 
-  /** 🆕 Dissocier un enfant du groupe → le sortir comme ligne indépendante */
+  /** 🆕 Dissocier un enfant — délègue au handler direct du parent (bypass FlatMaterialRow) */
   const handleDissocierEnfant = useCallback(
     (section: string, groupIndex: number, enfantIndex: number) => {
-      const row = rows.find((r) => r.section === section && r.index === groupIndex);
-      if (!row?.item.groupe_enfants) return;
-      
-      const enfant = row.item.groupe_enfants[enfantIndex];
-      if (!enfant) return;
+      console.log('[dissocier-table] appelé', { section, groupIndex, enfantIndex, hasDirect: !!onDissocierDirect });
+      if (!onDissocierDirect) return;
 
-      // Enlever l'enfant du groupe
-      const newEnfants = row.item.groupe_enfants.filter((_, i) => i !== enfantIndex);
-      
-      // Si plus d'enfant, supprimer le groupe entièrement
-      let newRows: FlatMaterialRow[];
-      if (newEnfants.length === 0) {
-        newRows = rows.filter((r) => !(r.section === section && r.index === groupIndex));
-      } else {
-        newRows = rows.map((r) =>
-          r.section === section && r.index === groupIndex
-            ? { ...r, item: { ...r.item, groupe_enfants: newEnfants } }
-            : r,
-        );
-      }
+      // Trouver le groupe via son index dans la section
+      const sectionRows = rows.filter((r) => r.section === section);
+      const groupRow = sectionRows.find((r) => r.index === groupIndex);
+      if (!groupRow?.item.groupe_enfants) return;
+      if (enfantIndex < 0 || enfantIndex >= groupRow.item.groupe_enfants.length) return;
 
-      // Ré-indexer
-      newRows = newRows.map((r) => {
-        if (r.section === section && r.index > groupIndex) return { ...r, index: r.index - 1 };
-        return r;
-      });
-
-      // Ajouter l'enfant comme ligne indépendante après la position du groupe
-      const newItem: MaterialItem = {
-        ...enfant,
-        id: crypto.randomUUID?.() || `pla-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      };
-      const insertAt = newRows.filter((r) => r.section === section && r.index <= groupIndex).length;
-      newRows.splice(insertAt, 0, { section, index: insertAt, item: newItem });
-
-      // Re-index final
-      newRows = newRows.map((r, i) => {
-        if (r.section === section) {
-          const newIdx = newRows.filter(
-            (fr) => fr.section === section && newRows.indexOf(fr) < newRows.indexOf(r),
-          ).length;
-          return { ...r, index: newIdx };
-        }
-        return r;
-      });
-
-      onRowsChange(newRows);
+      const groupItemId = groupRow.item.id;
+      console.log('[dissocier-table] → délègue au parent', { groupItemId, enfantIndex });
+      onDissocierDirect(section, groupItemId, enfantIndex);
     },
-    [rows, onRowsChange],
+    [rows, onDissocierDirect],
   );
 
   /** Confirmer le groupe avec un matériau */
@@ -188,6 +157,34 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         0,
       );
       const chuteSurface = Math.max(0, feuilleSurface - surfaceOccupee);
+
+      // 🆕 Validation géométrique 1D
+      const feuilleL = entry.largeur_std || 0;
+      const feuilleH = entry.hauteur_std || 0;
+      const feuilleMax = Math.max(feuilleL, feuilleH);
+      const feuilleMin = Math.min(feuilleL, feuilleH);
+      let totalLong = 0;
+      const oversized: string[] = [];
+      for (const e of enfants) {
+        const el = e.largeur ?? 0;
+        const eh = e.hauteur ?? 0;
+        const eMax = Math.max(el, eh);
+        const eMin = Math.min(el, eh);
+        if (eMax > feuilleMax || eMin > feuilleMin) {
+          oversized.push(`${e.nom || "plaque"} (${el}×${eh}m)`);
+        }
+        totalLong += eMax * (e.quantite ?? 1);
+      }
+      const fitWarning =
+        oversized.length > 0
+          ? `${oversized.length} plaque(s) dépassent les dimensions de la feuille (${feuilleL}×${feuilleH}m) : ${oversized.join(", ")}`
+          : totalLong > feuilleMax * 1.05
+            ? `La somme des longueurs (${totalLong.toFixed(2)}m) dépasse la longueur de la feuille (${feuilleMax}m). Le groupe est créé mais les plaques risquent de ne pas tenir.`
+            : null;
+
+      if (fitWarning) {
+        setGroupWarning(fitWarning);
+      }
 
       const groupItem: MaterialItem = {
         id: crypto.randomUUID?.() || `grp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -414,7 +411,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
               {canGroup && checkedInSection >= 1 && (
                 <button
                   type="button"
-                  onClick={() => setGroupDialogSection(section)}
+                  onClick={() => { setGroupDialogSection(section); setGroupWarning(null); }}
                   className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md bg-indigo-500 text-white hover:bg-indigo-600 font-bold transition-colors shadow-sm"
                 >
                   F
