@@ -1443,7 +1443,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           saving={saveStatus === "saving"}
           changeCount={changeCount}
           hasProjectWithoutCdc={
-            !!loaderResult?.project &&
+            state.enseignes.length >= 1 &&
             !Object.values(state.materiauxByEnseigne).some((sections) =>
               Object.values(sections).some((items) => items.length > 0),
             )

@@ -1291,35 +1291,14 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
         <div className="max-w-6xl mx-auto flex flex-col">
           {/* ── Barre d'actions (TOUJOURS en haut du footer) ── */}
           {hasProjectWithoutCdc ? (
-            /* Projet lié sans CDC — bouton Discussion + Générer */
-            <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
-              {/* 💬 Discussion — conservé */}
-              <button
-                type="button"
-                onClick={() => setExpanded((p) => !p)}
-                className={`flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-medium transition-all ${
-                  expanded
-                    ? "bg-indigo-500/40 text-white"
-                    : "bg-white/10 text-white hover:bg-white/20"
-                }`}
-                title={expanded ? "Masquer la discussion" : "Afficher la discussion"}
-              >
-                <MessageSquare size={13} />
-                <span>Discussion</span>
-                {messages.length > 0 && !expanded && (
-                  <span className="min-w-[16px] h-[16px] flex items-center justify-center
-                                   bg-indigo-500 text-white text-[9px] font-bold rounded-full px-1">
-                    {messages.length > 9 ? "9+" : messages.length}
-                  </span>
-                )}
-              </button>
-
-              {/* Générer le CDC — bouton vert large */}
+            /* Au moins une enseigne sans matériaux — bouton Discussion + Générer pleine largeur */
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
+              {/* Générer le CDC — bouton vert pleine largeur */}
               <button
                 type="button"
                 onClick={handleGenerateCdc}
                 disabled={loading}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold
+                className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold
                            bg-emerald-600 text-white
                            hover:bg-emerald-500
                            shadow-lg shadow-emerald-600/25 transition-all
@@ -1333,6 +1312,26 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
                 <span>
                   {loading ? "Génération en cours…" : "Générer le CDC"}
                 </span>
+              </button>
+
+              {/* 💬 Discussion */}
+              <button
+                type="button"
+                onClick={() => setExpanded((p) => !p)}
+                className={`shrink-0 flex items-center gap-1.5 px-2.5 h-9 rounded-lg text-xs font-medium transition-all ${
+                  expanded
+                    ? "bg-indigo-500/40 text-white"
+                    : "bg-white/10 text-white hover:bg-white/20"
+                }`}
+                title={expanded ? "Masquer la discussion" : "Afficher la discussion"}
+              >
+                <MessageSquare size={13} />
+                {messages.length > 0 && !expanded && (
+                  <span className="min-w-[16px] h-[16px] flex items-center justify-center
+                                   bg-indigo-500 text-white text-[9px] font-bold rounded-full px-1">
+                    {messages.length > 9 ? "9+" : messages.length}
+                  </span>
+                )}
               </button>
             </div>
           ) : (
