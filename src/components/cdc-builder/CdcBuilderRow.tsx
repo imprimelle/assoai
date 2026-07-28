@@ -3,7 +3,6 @@
 // v10: selectionMode pour checkbox visible sans swipe, badge groupe amélioré.
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { Trash2, Plus, Check, Layers, Eye } from "lucide-react";
 import MaterialCell from "./MaterialCell";
 import {
@@ -15,8 +14,6 @@ import {
 import type { MaterialItem } from "@/types";
 import type { FlatMaterialRow } from "@/components/templates/shared/MaterialTable";
 import type { MaterialCatalogEntry } from "@/types/materialCatalog";
-import type { FeuillePlacement } from "@/types/cdcBuilder";
-import SheetPreview from "./SheetPreview";
 
 // --- Règles de visibilité ---
 const showHauteur = (section: string) =>
@@ -58,8 +55,8 @@ export interface CdcBuilderRowProps {
   onActivate?: () => void;
   // 🆕 Mode sélection explicite — checkbox visible sans swipe
   selectionMode?: boolean;
-  // 🆕 Recalculer le placement 2D (shelf pack)
-  onRequestRepack?: () => void;
+  // 🆕 Ouvrir l'aperçu feuille au niveau page
+  onOpenPreview?: () => void;
 }
 
 // ── Composant pour fermer les swipes au clic extérieur ──
@@ -103,11 +100,10 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   isActive = false,
   onActivate,
   selectionMode = false,
-  onRequestRepack,
+  onOpenPreview,
 }) => {
   const { section, item } = row;
   const [expanded, setExpanded] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const isGroup = !!(item.groupe_enfants && item.groupe_enfants.length > 0);
   const enfantCount = item.groupe_enfants?.length || 0;
 
@@ -475,12 +471,12 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             </div>
           )}
 
-          {/* 🆕 Badge groupe — bouton Aperçu (remplace le toggle Déplier) */}
+          {/* 🆕 Badge groupe — bouton Aperçu au niveau page */}
           {isGroup && (
             <button
               type="button"
               data-no-select="true"
-              onClick={() => setShowPreview(true)}
+              onClick={() => onOpenPreview?.()}
               className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-indigo-600 bg-indigo-100 hover:bg-indigo-200 transition-colors"
               title="Voir l'aperçu de la feuille"
             >
@@ -642,22 +638,6 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           )}
         </div>
       )}
-
-      {/* 🆕 SheetPreview modal — portailé au document.body (échappe au overflow-hidden/transform du conteneur) */}
-      {showPreview && isGroup &&
-        createPortal(
-          <SheetPreview
-            feuilleL={item.largeur || item.groupe_largeur || 0}
-            feuilleH={item.hauteur || item.groupe_hauteur || 0}
-            feuilles={item.groupe_placements || []}
-            nomMateriau={item.nom}
-            hasPlacements={!!(item.groupe_placements && item.groupe_placements.length > 0)}
-            onClose={() => setShowPreview(false)}
-            onRecalculer={onRequestRepack}
-          />,
-          document.body
-        )
-      }
     </div>
   );
 };

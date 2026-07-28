@@ -30,11 +30,14 @@ import CdcBuilderTable, {
 } from "@/components/cdc-builder/CdcBuilderTable";
 import CdcBuilderFooter from "@/components/cdc-builder/CdcBuilderFooter";
 import CdcBuilderHeader from "@/components/cdc-builder/CdcBuilderHeader";
+import SheetPreview from "@/components/cdc-builder/SheetPreview";
+import { shelfPack, packStats } from "@/lib/shelfPacker";
 import {
   createEmptyEnseigne,
   type CdcBuilderState,
   type CdcBuilderEnseigne,
   type HighlightMap,
+  type FeuillePlacement,
 } from "@/types/cdcBuilder";
 import type { FlatMaterialRow } from "@/components/templates/shared/MaterialTable";
 import type { User } from "@/types/user";
@@ -64,6 +67,8 @@ interface EnseigneAccordionProps {
   onDissocierEnfant?: (section: string, groupItemId: string, enfantIndex: number) => void;
   /** 🆕 Régénérer les matériaux de cette enseigne via Brico */
   onRegenerate?: () => void;
+  /** 🆕 Ouvrir l'aperçu feuille au niveau page */
+  onOpenPreview?: (section: string, groupIndex: number) => void;
 }
 
 const SWIPE_CARD_REVEAL = 140; // largeur pour 3 boutons
@@ -81,6 +86,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
   highlights,
   onDissocierEnfant,
   onRegenerate,
+  onOpenPreview,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [imageModalOpen, setImageModalOpen] = useState(false);
@@ -295,6 +301,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
             highlights={highlights}
             enseigneId={enseigne.id}
             onDissocierEnfant={onDissocierEnfant}
+            onOpenPreview={onOpenPreview}
           />
         </div>
       )}
@@ -543,6 +550,72 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
 
   // 🆕 Régénération enseigne — déclenche un envoi auto dans le footer Brico
   const [regenerateEnseigneId, setRegenerateEnseigneId] = useState<string | null>(null);
+
+  // 🆕 Aperçu feuille au niveau page — { enseigneId, section, groupIndex }
+  const [previewState, setPreviewState] = useState<{
+    enseigneId: string;
+    section: string;
+    groupIndex: number;
+  } | null>(null);
+
+  // 🆕 Recalculer le placement 2D — opère directement sur le state de la page
+  const handleRepackPageLevel = useCallback(() => {
+    if (!previewState) return;
+    const { enseigneId, section, groupIndex } = previewState;
+
+    const sections = state.materiauxByEnseigne[enseigneId];
+    if (!sections) return;
+    const items = sections[section];
+    if (!items || groupIndex >= items.length) return;
+
+    const groupItem = items[groupIndex];
+    if (!groupItem.groupe_enfants) return;
+
+    const feuilleL = groupItem.groupe_largeur || groupItem.largeur || 0;
+    const feuilleH = groupItem.groupe_hauteur || groupItem.hauteur || 0;
+    if (feuilleL <= 0 || feuilleH <= 0) return;
+
+    const plaques = (groupItem.groupe_enfants || []).filter((e) => e.nom !== "Chute");
+    if (plaques.length === 0) return;
+
+    try {
+      const plaquesInput = plaques.map((e) => ({
+        id: e.id,
+        largeur: e.largeur || 0,
+        hauteur: e.hauteur || 0,
+        nom: e.nom || "Sans nom",
+        quantite: e.quantite || 1,
+      }));
+
+      const packResult = shelfPack(plaquesInput, feuilleL, feuilleH, true);
+      const stats = packStats(packResult, feuilleL, feuilleH);
+
+      const groupePlacements: FeuillePlacement[] = packResult.sheets.map((sheet, i) => ({
+        feuille_index: i,
+        placements: sheet.placements,
+        chutes: sheet.chutes,
+      }));
+
+      const newItems = [...items];
+      newItems[groupIndex] = {
+        ...groupItem,
+        quantite: stats.nbFeuilles || 1,
+        groupe_nb_feuilles_requis: stats.nbFeuilles || 1,
+        groupe_placements: groupePlacements,
+      };
+
+      const newSections = { ...sections, [section]: newItems };
+      setState({
+        ...state,
+        materiauxByEnseigne: {
+          ...state.materiauxByEnseigne,
+          [enseigneId]: newSections,
+        },
+      });
+    } catch (err) {
+      console.error("[handleRepackPageLevel] Erreur:", err);
+    }
+  }, [previewState, state]);
 
   // 🆕 Undo/Redo — historique d'états (max 20 snapshots)
   const MAX_HISTORY = 20;
@@ -885,6 +958,26 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
 
     return { rows: allRows, meta, itemToEnseigneId };
   }, [state.enseignes, state.materiauxByEnseigne]);
+
+  // 🆕 Données du groupe pour le SheetPreview au niveau page
+  const previewGroupData = useMemo(() => {
+    if (!previewState) return null;
+    const { enseigneId, section, groupIndex } = previewState;
+    const sections = state.materiauxByEnseigne[enseigneId];
+    if (!sections) return null;
+    const items = sections[section];
+    if (!items || groupIndex >= items.length) return null;
+    const groupItem = items[groupIndex];
+    if (!groupItem.groupe_enfants) return null;
+    return {
+      groupItem,
+      feuilleL: groupItem.groupe_largeur || groupItem.largeur || 0,
+      feuilleH: groupItem.groupe_hauteur || groupItem.hauteur || 0,
+      nomMateriau: groupItem.nom,
+      feuilles: groupItem.groupe_placements || [],
+      hasPlacements: !!(groupItem.groupe_placements && groupItem.groupe_placements.length > 0),
+    };
+  }, [previewState, state.materiauxByEnseigne]);
 
   // Handler pour la vue consolidée : dispatcher les changements vers la bonne enseigne
   const handleConsolidatedChange = useCallback(
@@ -1235,6 +1328,9 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
                       handleDissocierDirect(enseigne.id, section, groupItemId, enfantIndex)
                     }
                     onRegenerate={() => setRegenerateEnseigneId(enseigne.id)}
+                    onOpenPreview={(section, groupIndex) => {
+                      setPreviewState({ enseigneId: enseigne.id, section, groupIndex });
+                    }}
                   />
                 );
               })}
@@ -1261,6 +1357,19 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           onSave={handleSaveEnseigne}
           onClose={() => setDialogOpen(false)}
         />
+
+        {/* 🆕 Aperçu feuille au niveau page */}
+        {previewGroupData && (
+          <SheetPreview
+            feuilleL={previewGroupData.feuilleL}
+            feuilleH={previewGroupData.feuilleH}
+            feuilles={previewGroupData.feuilles}
+            nomMateriau={previewGroupData.nomMateriau}
+            hasPlacements={previewGroupData.hasPlacements}
+            onClose={() => setPreviewState(null)}
+            onRecalculer={handleRepackPageLevel}
+          />
+        )}
 
         {/* Dialogue vérification */}
         {showVerifDialog && (

@@ -76,6 +76,8 @@ export interface CdcBuilderTableProps {
   enseigneId?: string;
   /** 🆕 Handler de dissociation direct (travaille sur materiauxByEnseigne, pas FlatMaterialRow) */
   onDissocierEnfant?: (section: string, groupItemId: string, enfantIndex: number) => void;
+  /** 🆕 Ouvrir l'aperçu feuille au niveau page */
+  onOpenPreview?: (section: string, groupIndex: number) => void;
 }
 
 const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
@@ -88,6 +90,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
   highlights,
   enseigneId,
   onDissocierEnfant: onDissocierDirect,
+  onOpenPreview,
 }) => {
   const grouped = useMemo(() => {
     const map = new Map<string, FlatMaterialRow[]>();
@@ -362,74 +365,6 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     [rows, onRowsChange],
   );
 
-  // 🆕 Recalculer le placement 2D d'un groupe existant
-  const handleRepack = useCallback(
-    (section: string, index: number) => {
-      try {
-        const row = rows.find((r) => r.section === section && r.index === index);
-        if (!row?.item.groupe_enfants) {
-          console.warn("[handleRepack] Aucun groupe_enfants trouvé");
-          return;
-        }
-
-        const feuilleL = row.item.groupe_largeur || row.item.largeur || 0;
-        const feuilleH = row.item.groupe_hauteur || row.item.hauteur || 0;
-        if (feuilleL <= 0 || feuilleH <= 0) {
-          console.warn("[handleRepack] Dimensions feuille invalides:", feuilleL, feuilleH);
-          return;
-        }
-
-        // Filtrer la chute (enfant avec nom "Chute")
-        const plaques = (row.item.groupe_enfants || [])
-          .filter((e) => e.nom !== "Chute");
-
-        if (plaques.length === 0) {
-          console.warn("[handleRepack] Aucune plaque (hors chute) à placer");
-          return;
-        }
-
-        const plaquesInput = plaques.map((e) => ({
-          id: e.id,
-          largeur: e.largeur || 0,
-          hauteur: e.hauteur || 0,
-          nom: e.nom || "Sans nom",
-          quantite: e.quantite || 1,
-        }));
-
-        console.log("[handleRepack] Lancement shelfPack:", plaquesInput.length, "plaques sur", feuilleL, "×", feuilleH);
-
-        const packResult = shelfPack(plaquesInput, feuilleL, feuilleH, true);
-        const stats = packStats(packResult, feuilleL, feuilleH);
-
-        console.log("[handleRepack] Résultat:", stats.nbFeuilles, "feuilles,", stats.nbUnplaced, "non placées");
-
-        const groupePlacements: FeuillePlacement[] = packResult.sheets.map((sheet, i) => ({
-          feuille_index: i,
-          placements: sheet.placements,
-          chutes: sheet.chutes,
-        }));
-
-        const newRows = rows.map((r) =>
-          r.section === section && r.index === index
-            ? {
-                ...r,
-                item: {
-                  ...r.item,
-                  quantite: stats.nbFeuilles || 1,
-                  groupe_nb_feuilles_requis: stats.nbFeuilles || 1,
-                  groupe_placements: groupePlacements,
-                },
-              }
-            : r,
-        );
-        onRowsChange(newRows);
-      } catch (err) {
-        console.error("[handleRepack] Erreur:", err);
-      }
-    },
-    [rows, onRowsChange],
-  );
-
   const handleDeleteEnfant = useCallback(
     (section: string, index: number, enfantIndex: number) => {
       const row = rows.find((r) => r.section === section && r.index === index);
@@ -684,8 +619,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                       // 🆕 Scroll sync
                       isActive={activeRowKey === `${enseigneId || "ens"}-${section}-${r.item.id}`}
                       onActivate={() => handleRowActivate(`${enseigneId || "ens"}-${section}-${r.item.id}`)}
-                      // 🆕 Repack 2D
-                      onRequestRepack={isGroup ? () => handleRepack(section, r.index) : undefined}
+                      // 🆕 Ouvrir aperçu au niveau page
+                      onOpenPreview={isGroup ? () => onOpenPreview?.(section, r.index) : undefined}
                     />
                   </div>
                 );
