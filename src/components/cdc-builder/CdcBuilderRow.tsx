@@ -1,10 +1,9 @@
 // src/components/cdc-builder/CdcBuilderRow.tsx
 // Ligne éditable inline du tableau CDC Builder — 3 colonnes adaptatives par section.
-// v9: ligne groupe identique à une ligne normale (seul le chevron la distingue),
-//     enfants (plaques) utilisent le même layout que les lignes normales.
+// v10: selectionMode pour checkbox visible sans swipe, badge groupe amélioré.
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { Trash2, Plus, Check } from "lucide-react";
+import { Trash2, Plus, Check, Layers } from "lucide-react";
 import MaterialCell from "./MaterialCell";
 import {
   UNITES,
@@ -54,6 +53,8 @@ export interface CdcBuilderRowProps {
   // 🆕 Scroll sync — seule la ligne active peut avoir scrollLeft > 0
   isActive?: boolean;
   onActivate?: () => void;
+  // 🆕 Mode sélection explicite — checkbox visible sans swipe
+  selectionMode?: boolean;
 }
 
 // ── Composant pour fermer les swipes au clic extérieur ──
@@ -96,10 +97,12 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   onDissocierEnfant,
   isActive = false,
   onActivate,
+  selectionMode = false,
 }) => {
   const { section, item } = row;
   const [expanded, setExpanded] = useState(false);
   const isGroup = !!(item.groupe_enfants && item.groupe_enfants.length > 0);
+  const enfantCount = item.groupe_enfants?.length || 0;
 
   // 🆕 Scroll sync — ref sur le conteneur scrollable
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -120,7 +123,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   const childIsSwiping = useRef(false);
   const childCurrentId = useRef<string | null>(null);
 
-  // --- Swipe state (sélection) ---
+  // --- Swipe state (sélection) — désactivé en selectionMode ---
   // 🔴 Fix stale closure : useRef pour la position courante, useState pour le rendu seul
   const [swipeX, setSwipeX] = useState(0);
   const swipeXRef = useRef(0);
@@ -131,14 +134,14 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   const rowRef = useRef<HTMLDivElement>(null);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!selectable || isGroup || disabled) return;
+    if (selectionMode || !selectable || isGroup || disabled) return;
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     isSwipingRef.current = false;
-  }, [selectable, isGroup, disabled]);
+  }, [selectable, isGroup, disabled, selectionMode]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!selectable || isGroup || disabled) return;
+    if (selectionMode || !selectable || isGroup || disabled) return;
     const dx = e.touches[0].clientX - touchStartX.current;
     const dy = Math.abs(e.touches[0].clientY - touchStartY.current);
     if (!isSwipingRef.current) {
@@ -161,7 +164,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     swipeXRef.current = next;
     setSwipeX(next);
     touchStartX.current = e.touches[0].clientX;
-  }, [selectable, isGroup, disabled]);
+  }, [selectable, isGroup, disabled, selectionMode]);
 
   const handleTouchEnd = useCallback(() => {
     if (!isSwipingRef.current) return;
@@ -189,6 +192,15 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     e.stopPropagation();
     onToggleSelect?.();
   }, [onToggleSelect]);
+
+  // 🆕 Clic sur la ligne en mode sélection = toggle
+  const handleRowClick = useCallback((e: React.MouseEvent) => {
+    if (!selectionMode || !selectable) return;
+    const target = e.target as HTMLElement;
+    // Ne pas toggle si clic sur un bouton, input, select ou le MaterialCell (qui gère déjà)
+    if (target.closest('button, input, select, [data-no-select]')) return;
+    onToggleSelect?.();
+  }, [selectionMode, selectable, onToggleSelect]);
 
   const handleNum = (
     field: "quantite" | "largeur" | "hauteur",
@@ -310,7 +322,6 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             data-swipe-check="true"
             onClick={(e) => { 
               e.stopPropagation(); 
-              console.log('[DISSOCIER BTN] clic reçu, index=', index, 'onDissocierEnfant=', typeof onDissocierEnfant);
               onDissocierEnfant?.(index); 
             }}
             className="text-[10px] font-medium text-amber-700 hover:text-amber-900 px-1 py-1 rounded"
@@ -430,10 +441,12 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         flashType ? `flash-${flashType}` : ""
       } ${
         selected ? "ring-2 ring-indigo-400 bg-indigo-50/60 rounded-lg" : ""
+      } ${
+        isGroup ? "bg-indigo-50/30 rounded-lg" : ""
       }`}
     >
-      {/* Fond swipe — checkbox à droite */}
-      {selectable && (
+      {/* Fond swipe — checkbox à droite (désactivé en selectionMode) */}
+      {selectable && !selectionMode && (
         <div
           className="absolute inset-y-0 right-0 flex items-center justify-center bg-indigo-50 rounded-r-lg z-50"
           style={{
@@ -462,38 +475,59 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         ref={scrollRef}
         onTouchStart={(e) => {
           onActivate?.();
-          if (selectable) handleTouchStart(e);
+          handleTouchStart(e);
         }}
         onFocusCapture={() => onActivate?.()}
-        onTouchMove={selectable ? handleTouchMove : undefined}
-        onTouchEnd={selectable ? handleTouchEnd : undefined}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onClick={handleRowClick}
         style={{ transform: `translateX(${swipeX}px)` }}
         className={`${!isGroup && !noAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle scrollbar-hide-idle ${
           selected ? "border-l-2 border-l-indigo-500" : ""
+        } ${
+          selectionMode && selectable ? "cursor-pointer" : ""
         }`}
       >
         <div className="flex items-center gap-2 min-w-[620px] md:min-w-0">
-          {/* Badge sélection (gauche) */}
-          {selected && (
+          {/* 🆕 Checkbox gauche — visible en selectionMode */}
+          {selectionMode && selectable && (
+            <button
+              type="button"
+              data-no-select="true"
+              onClick={handleCheckClick}
+              className={`shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                selected
+                  ? "bg-indigo-500 border-indigo-500 text-white"
+                  : "border-gray-300 bg-white hover:border-indigo-300"
+              }`}
+            >
+              {selected && <Check size={12} />}
+            </button>
+          )}
+
+          {/* Badge sélection (gauche) — affiché seulement si NON selectionMode */}
+          {selected && !selectionMode && (
             <div className="shrink-0 w-5 h-5 rounded bg-indigo-500 flex items-center justify-center">
               <Check size={12} className="text-white" />
             </div>
           )}
 
-          {/* 🆕 Toggle groupe — lettre F au lieu du chevron */}
+          {/* 🆕 Badge groupe amélioré */}
           {isGroup && (
             <button
               type="button"
+              data-no-select="true"
               onClick={() => setExpanded(!expanded)}
-              className="text-gray-400 hover:text-gray-600 px-0.5 py-0.5 transition-colors shrink-0 text-xs font-bold rounded hover:bg-gray-100"
+              className="shrink-0 flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-semibold text-indigo-600 bg-indigo-100 hover:bg-indigo-200 transition-colors"
               title={expanded ? "Replier" : "Déplier"}
             >
-              F
+              <Layers size={10} />
+              <span>{enfantCount}</span>
             </button>
           )}
 
           {/* Colonne 1 : Matériau */}
-          <div className="w-[200px] shrink-0">
+          <div className="w-[200px] shrink-0" data-no-select="true">
             {enseigneBadge && (
               <span
                 className="inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium mb-1 truncate max-w-full"
@@ -517,7 +551,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           </div>
 
           {/* Colonne 2 : Paramètres */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0" data-no-select="true">
             <div className="flex items-center gap-0.5">
               <span className="text-[10px] text-gray-300">×</span>
               <input type="number" inputMode="decimal" min={1}
@@ -556,7 +590,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           </div>
 
           {/* Colonne 3 : Détails */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0" data-no-select="true">
             {showEpaisseur(section) ? (
               <select value={item.epaisseur || ""}
                 onChange={(e) => onChange({ epaisseur: e.target.value })}
@@ -612,7 +646,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
 
       {/* 🆕 Enfants du groupe — layout identique aux lignes normales, indentation réduite */}
       {isGroup && expanded && (
-        <div className="ml-3 pl-1 border-l border-gray-200 bg-gray-50/20 rounded-r-lg">
+        <div className="ml-3 pl-1 border-l border-indigo-200 bg-indigo-50/10 rounded-r-lg">
           {/* Enfants */}
           {(item.groupe_enfants || []).map((enfant, i) => renderEnfantRow(enfant, i))}
 

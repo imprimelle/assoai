@@ -1,9 +1,9 @@
 // src/components/cdc-builder/CdcBuilderTable.tsx
 // Tableau de matériaux groupé par section (Découpe, Éclairage, Outillage, Métal, Vinyl).
-// v6: long-press (600ms) pour sélection, dialogue groupage amélioré, tous les matériaux éligibles.
+// v7: mode sélection explicite (toggle), sélection rapide par matériau, badge groupe amélioré.
 
 import React, { useMemo, useCallback, useState } from "react";
-import { Plus, Layers, X } from "lucide-react";
+import { Plus, Layers, X, CheckSquare, Square } from "lucide-react";
 import CdcBuilderRow from "./CdcBuilderRow";
 import MaterialSuggestions from "@/components/materials/MaterialSuggestions";
 import type { MaterialItem } from "@/types";
@@ -96,6 +96,9 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
   const [groupDialogSection, setGroupDialogSection] = useState<string | null>(null);
   const [groupWarning, setGroupWarning] = useState<string | null>(null);
 
+  // 🆕 Mode sélection explicite — quelles sections sont en mode sélection
+  const [selectionMode, setSelectionMode] = useState<Set<string>>(new Set());
+
   // 🆕 Scroll sync — seule la ligne active garde son scroll horizontal
   const [activeRowKey, setActiveRowKey] = useState<string | null>(null);
   const handleRowActivate = useCallback((key: string) => {
@@ -123,10 +126,69 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     setSelectedIds(new Set());
   }, []);
 
+  // 🆕 Toggle mode sélection pour une section
+  const toggleSelectionMode = useCallback((section: string) => {
+    setSelectionMode(prev => {
+      const next = new Set(prev);
+      if (next.has(section)) {
+        next.delete(section);
+      } else {
+        next.add(section);
+      }
+      return next;
+    });
+    // Sortir du mode sélection désélectionne tout
+    if (selectionMode.has(section)) {
+      setSelectedIds(new Set());
+    }
+  }, [selectionMode]);
+
+  // 🆕 Sortir du mode sélection après création d'un groupe
+  const exitSelectionMode = useCallback((section: string) => {
+    setSelectionMode(prev => {
+      const next = new Set(prev);
+      next.delete(section);
+      return next;
+    });
+    setSelectedIds(new Set());
+  }, []);
+
+  // 🆕 Tout sélectionner dans une section (non-groupes uniquement)
+  const selectAllInSection = useCallback((section: string) => {
+    const sectionRows = grouped.get(section) || [];
+    const ids = sectionRows
+      .filter(r => !r.item.groupe_enfants)
+      .map(r => r.item.id);
+    setSelectedIds(new Set(ids));
+  }, [grouped]);
+
+  // 🆕 Sélectionner les plaques du même matériau
+  const selectSameMaterial = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    // Prendre la première plaque sélectionnée comme référence
+    const firstId = [...selectedIds][0];
+    const refRow = rows.find(r => r.item.id === firstId);
+    if (!refRow) return;
+
+    const refNom = refRow.item.nom;
+    const refEpaisseur = refRow.item.epaisseur;
+    const section = refRow.section;
+
+    const matchingIds = rows
+      .filter(r => 
+        r.section === section && 
+        !r.item.groupe_enfants &&
+        r.item.nom === refNom &&
+        r.item.epaisseur === refEpaisseur
+      )
+      .map(r => r.item.id);
+
+    setSelectedIds(new Set(matchingIds));
+  }, [selectedIds, rows]);
+
   /** 🆕 Dissocier un enfant — délègue au handler direct du parent (bypass FlatMaterialRow) */
   const handleDissocierEnfant = useCallback(
     (section: string, groupIndex: number, enfantIndex: number) => {
-      console.log('[dissocier-table] appelé', { section, groupIndex, enfantIndex, hasDirect: !!onDissocierDirect });
       if (!onDissocierDirect) return;
 
       // Trouver le groupe via son index dans la section
@@ -136,7 +198,6 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       if (enfantIndex < 0 || enfantIndex >= groupRow.item.groupe_enfants.length) return;
 
       const groupItemId = groupRow.item.id;
-      console.log('[dissocier-table] → délègue au parent', { groupItemId, enfantIndex });
       onDissocierDirect(section, groupItemId, enfantIndex);
     },
     [rows, onDissocierDirect],
@@ -239,10 +300,10 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       filtered.push({ section, index: groupCount, item: groupItem });
 
       onRowsChange(filtered);
-      setSelectedIds(new Set());
+      exitSelectionMode(section);
       setGroupDialogSection(null);
     },
-    [rows, selectedIds, groupDialogSection, onRowsChange],
+    [rows, selectedIds, groupDialogSection, onRowsChange, exitSelectionMode],
   );
 
   const handleAddRow = useCallback(
@@ -378,15 +439,44 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
 
   const totalSelected = selectedIds.size;
 
+  // 🆕 Trouver la première plaque sélectionnée pour "Sélectionner les mêmes"
+  const firstSelected = useMemo(() => {
+    if (totalSelected === 0) return null;
+    const id = [...selectedIds][0];
+    return rows.find(r => r.item.id === id) || null;
+  }, [selectedIds, rows, totalSelected]);
+
+  // 🆕 Compter combien de plaques ont le même matériau que la première sélectionnée
+  const sameMaterialCount = useMemo(() => {
+    if (!firstSelected) return 0;
+    return rows.filter(r =>
+      r.section === firstSelected.section &&
+      !r.item.groupe_enfants &&
+      r.item.nom === firstSelected.item.nom &&
+      r.item.epaisseur === firstSelected.item.epaisseur
+    ).length;
+  }, [firstSelected, rows]);
+
   return (
     <div className="space-y-4">
       {/* 🆕 Indicateur de sélection active */}
       {totalSelected > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
+          <CheckSquare size={14} className="text-indigo-500 shrink-0" />
           <span className="text-indigo-700 font-medium">
             {totalSelected} plaque{totalSelected > 1 ? "s" : ""} sélectionnée{totalSelected > 1 ? "s" : ""}
           </span>
-          <span className="text-gray-400">— swipe gauche pour sélectionner</span>
+          {/* 🆕 Sélectionner les mêmes */}
+          {firstSelected && sameMaterialCount > totalSelected && (
+            <button
+              type="button"
+              onClick={selectSameMaterial}
+              className="text-[10px] text-indigo-500 hover:text-indigo-700 underline ml-1"
+              title={`Sélectionner toutes les plaques "${firstSelected.item.nom}"`}
+            >
+              +{sameMaterialCount - totalSelected} mêmes
+            </button>
+          )}
           <button
             type="button"
             onClick={clearSelection}
@@ -401,9 +491,11 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       {nonEmptySections.map((section) => {
         const sectionRows = grouped.get(section) || [];
         const canGroup = GROUPABLE_SECTIONS.includes(section);
+        const inSelectionMode = selectionMode.has(section);
         const checkedInSection = sectionRows.filter(
           (r) => selectedIds.has(r.item.id) && !r.item.groupe_enfants,
         ).length;
+        const selectableInSection = sectionRows.filter(r => !r.item.groupe_enfants).length;
 
         return (
           <div key={section} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
@@ -412,15 +504,45 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                 <span className="text-sm">{sectionIcon[section]}</span>
                 <span className="text-xs font-semibold uppercase tracking-wide">{section}</span>
                 <span className="text-[10px] opacity-50">({sectionRows.length})</span>
+
+                {/* 🆕 Bouton mode sélection (Découpe/Vinyl uniquement) */}
+                {canGroup && (
+                  <button
+                    type="button"
+                    onClick={() => toggleSelectionMode(section)}
+                    className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${
+                      inSelectionMode
+                        ? "bg-indigo-500 text-white"
+                        : "bg-white/60 text-gray-500 hover:bg-white hover:text-indigo-600 border border-gray-300/50"
+                    }`}
+                    title={inSelectionMode ? "Quitter le mode sélection" : "Activer le mode sélection"}
+                  >
+                    {inSelectionMode ? <CheckSquare size={11} /> : <Square size={11} />}
+                    <span>{inSelectionMode ? `Sélection (${checkedInSection})` : "Sélectionner"}</span>
+                  </button>
+                )}
+
+                {/* 🆕 Tout sélectionner — visible en mode sélection */}
+                {inSelectionMode && selectableInSection > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => selectAllInSection(section)}
+                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-medium"
+                    title="Sélectionner toutes les plaques"
+                  >
+                    Tout
+                  </button>
+                )}
               </div>
-              {/* 🆕 Bouton Feuille — apparaît quand ≥1 plaque cochée */}
-              {canGroup && checkedInSection >= 1 && (
+
+              {/* 🆕 Bouton Feuille — apparaît quand ≥2 plaques cochées */}
+              {canGroup && checkedInSection >= 2 && (
                 <button
                   type="button"
                   onClick={() => { setGroupDialogSection(section); setGroupWarning(null); }}
                   className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md bg-indigo-500 text-white hover:bg-indigo-600 font-bold transition-colors shadow-sm"
                 >
-                  F
+                  <Layers size={13} />
                   <span className="font-normal">Feuille ({checkedInSection})</span>
                 </button>
               )}
@@ -462,8 +584,9 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                           ? () => handleAddEnfant(section, r.index)
                           : undefined
                       }
-                      // 🆕 Swipe selection
+                      // 🆕 Swipe selection + mode sélection explicite
                       selectable={canGroup && !isGroup}
+                      selectionMode={inSelectionMode}
                       selected={selectedIds.has(r.item.id)}
                       onToggleSelect={() => handleToggleSelect(r.item.id)}
                       // 🆕 Dissocier enfant
@@ -506,7 +629,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         </div>
       ))}
 
-      {/* 🆕 Dialogue groupage amélioré */}
+      {/* 🆕 Dialogue groupage */}
       {groupDialogSection && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center p-4"
@@ -559,6 +682,13 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                 </strong>
               </p>
             </div>
+
+            {/* 🆕 Warning validation */}
+            {groupWarning && (
+              <div className="px-5 py-2 bg-amber-50 border-b border-amber-100">
+                <p className="text-xs text-amber-700">⚠️ {groupWarning}</p>
+              </div>
+            )}
 
             {/* Choix du matériau feuille */}
             <div className="px-5 py-4">
