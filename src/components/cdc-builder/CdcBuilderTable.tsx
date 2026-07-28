@@ -3,7 +3,7 @@
 // v7: mode sélection explicite (toggle), sélection rapide par matériau, badge groupe amélioré.
 
 import React, { useMemo, useCallback, useState } from "react";
-import { Plus, Layers, X, CheckSquare, Square } from "lucide-react";
+import { Plus, Layers, X, Square, Check } from "lucide-react";
 import CdcBuilderRow from "./CdcBuilderRow";
 import MaterialSuggestions from "@/components/materials/MaterialSuggestions";
 import type { MaterialItem } from "@/types";
@@ -462,7 +462,9 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       {/* 🆕 Indicateur de sélection active */}
       {totalSelected > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
-          <CheckSquare size={14} className="text-indigo-500 shrink-0" />
+          <div className="shrink-0 w-[14px] h-[14px] rounded-sm bg-indigo-500 flex items-center justify-center">
+            <Check size={10} className="text-white" />
+          </div>
           <span className="text-indigo-700 font-medium">
             {totalSelected} plaque{totalSelected > 1 ? "s" : ""} sélectionnée{totalSelected > 1 ? "s" : ""}
           </span>
@@ -517,7 +519,11 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                     }`}
                     title={inSelectionMode ? "Quitter le mode sélection" : "Activer le mode sélection"}
                   >
-                    {inSelectionMode ? <CheckSquare size={11} /> : <Square size={11} />}
+                    {inSelectionMode ? (
+                      <div className="w-[11px] h-[11px] rounded-sm bg-indigo-500 flex items-center justify-center">
+                        <Check size={8} className="text-white" />
+                      </div>
+                    ) : <Square size={11} />}
                     <span>{inSelectionMode ? `Sélection (${checkedInSection})` : "Sélectionner"}</span>
                   </button>
                 )}
