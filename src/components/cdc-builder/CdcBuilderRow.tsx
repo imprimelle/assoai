@@ -107,10 +107,14 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   // 🆕 Scroll sync — ref sur le conteneur scrollable
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 🆕 Reset scroll quand la ligne perd l'activité
+  // 🆕 Scroll sync pour les lignes enfants
+  const enfantScrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // 🆕 Reset scroll quand la ligne perd l'activité (parent + enfants)
   useEffect(() => {
-    if (!isActive && scrollRef.current) {
-      scrollRef.current.scrollLeft = 0;
+    if (!isActive) {
+      if (scrollRef.current) scrollRef.current.scrollLeft = 0;
+      enfantScrollRefs.current.forEach((el) => { el.scrollLeft = 0; });
     }
   }, [isActive]);
 
@@ -312,7 +316,14 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
 
     return (
       <div key={enfant.id} className="py-1.5 border-b border-gray-100 last:border-b-0">
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-subtle scrollbar-hide-idle">
+        <div
+          ref={(el) => {
+            if (el) enfantScrollRefs.current.set(enfant.id, el);
+            else enfantScrollRefs.current.delete(enfant.id);
+          }}
+          onTouchStart={() => onActivate?.()}
+          className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-subtle scrollbar-hide-idle"
+        >
           <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-3">
             <div className="w-[200px] shrink-0">
               <MaterialCell
