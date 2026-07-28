@@ -487,16 +487,14 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
     staleTime: 30_000,
   });
 
-  // État initial par défaut
-  const emptyEnseigne = createEmptyEnseigne();
-
+  // État initial par défaut — vide, sans enseigne
   const [state, setState] = useState<CdcBuilderState>({
     projectName: "",
     cdcNumero: "", // sera rempli par le RPC au mount
     commandeId: "",
     statut: "Brouillon",
-    enseignes: [emptyEnseigne],
-    materiauxByEnseigne: { [emptyEnseigne.id]: {} },
+    enseignes: [],
+    materiauxByEnseigne: {},
     equipe: [],
   });
 
@@ -1044,6 +1042,8 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
             <span>Liste des CDC</span>
           </button>
           <div className="flex items-center gap-1.5">
+            {/* Boutons de statut — visibles uniquement quand un projet est attaché */}
+            {loaderResult?.project?.id && (<>
             {/* Bouton Vérifier — gris, ouvre le dialogue, si Brouillon ou Terminé */}
             {!["vérification", "achat", "fabrication", "installation"].includes((state.statut || "").toLowerCase()) && (
               <button
@@ -1114,6 +1114,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
                 <span>Terminé</span>
               </button>
             )}
+            </>)}
             {state.savedMessageId && (
               <button
                 type="button"
