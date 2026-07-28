@@ -171,7 +171,9 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
     >
       {/* 🆕 Fond des boutons swipe — révélé à droite */}
       <div
-        className="absolute inset-y-0 right-0 flex items-center gap-0.5 bg-gray-100 rounded-r-lg z-40"
+        className={`absolute inset-y-0 right-0 flex items-center gap-0.5 bg-gray-100 rounded-r-lg z-40 ${
+          cardSwipeX < 0 ? "pointer-events-auto" : "pointer-events-none"
+        }`}
         style={{
           width: SWIPE_CARD_REVEAL,
           opacity: cardSwipeX < 0 ? Math.min(1, Math.abs(cardSwipeX) / SWIPE_CARD_REVEAL) : 0,
