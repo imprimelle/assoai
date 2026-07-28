@@ -118,6 +118,8 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
   }, [cardSwipeX]);
 
   const handleCardTouchStart = (e: React.TouchEvent) => {
+    // Swipe désactivé quand l'accordéon est ouvert
+    if (isOpen) return;
     // Ignorer les touches sur des boutons (image, toggle, actions)
     const target = e.target as HTMLElement;
     if (target.closest("button")) return;
