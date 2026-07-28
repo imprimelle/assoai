@@ -4,6 +4,37 @@
 
 import type { MaterialItem, TeamMember, DeliveryAddress } from "./material";
 
+// ── Types pour le groupage optimisé (shelf packing) ──
+
+/** Position 2D d'une plaque sur une feuille */
+export interface Placement2D {
+  enfant_id: string;
+  /** Position X depuis le coin supérieur gauche (mètres) */
+  x: number;
+  /** Position Y depuis le coin supérieur gauche (mètres) */
+  y: number;
+  largeur: number;
+  hauteur: number;
+  /** true si la plaque a été pivotée à 90° */
+  rotated: boolean;
+  nom: string;
+}
+
+/** Zone de chute rectangulaire sur une feuille */
+export interface Chute2D {
+  x: number;
+  y: number;
+  largeur: number;
+  hauteur: number;
+}
+
+/** Résultat de placement pour une feuille */
+export interface FeuillePlacement {
+  feuille_index: number;
+  placements: Placement2D[];
+  chutes: Chute2D[];
+}
+
 export interface CdcBuilderEnseigne {
   id: string;
   nom: string;

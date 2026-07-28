@@ -3,7 +3,7 @@
 // v10: selectionMode pour checkbox visible sans swipe, badge groupe amélioré.
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { Trash2, Plus, Check, Layers } from "lucide-react";
+import { Trash2, Plus, Check, Layers, Eye } from "lucide-react";
 import MaterialCell from "./MaterialCell";
 import {
   UNITES,
@@ -14,6 +14,8 @@ import {
 import type { MaterialItem } from "@/types";
 import type { FlatMaterialRow } from "@/components/templates/shared/MaterialTable";
 import type { MaterialCatalogEntry } from "@/types/materialCatalog";
+import type { FeuillePlacement } from "@/types/cdcBuilder";
+import SheetPreview from "./SheetPreview";
 
 // --- Règles de visibilité ---
 const showHauteur = (section: string) =>
@@ -55,6 +57,8 @@ export interface CdcBuilderRowProps {
   onActivate?: () => void;
   // 🆕 Mode sélection explicite — checkbox visible sans swipe
   selectionMode?: boolean;
+  // 🆕 Recalculer le placement 2D (shelf pack)
+  onRequestRepack?: () => void;
 }
 
 // ── Composant pour fermer les swipes au clic extérieur ──
@@ -98,9 +102,11 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   isActive = false,
   onActivate,
   selectionMode = false,
+  onRequestRepack,
 }) => {
   const { section, item } = row;
   const [expanded, setExpanded] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const isGroup = !!(item.groupe_enfants && item.groupe_enfants.length > 0);
   const enfantCount = item.groupe_enfants?.length || 0;
 
@@ -468,17 +474,33 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             </div>
           )}
 
-          {/* 🆕 Badge groupe amélioré */}
+          {/* 🆕 Badge groupe — bouton Aperçu (remplace le toggle Déplier) */}
+          {isGroup && (
+            <button
+              type="button"
+              data-no-select="true"
+              onClick={() => setShowPreview(true)}
+              className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-indigo-600 bg-indigo-100 hover:bg-indigo-200 transition-colors"
+              title="Voir l'aperçu de la feuille"
+            >
+              <Eye size={11} />
+              <span>{enfantCount} plaques</span>
+              {(item.groupe_nb_feuilles_requis ?? 0) > 1 && (
+                <span className="text-amber-600">· {item.groupe_nb_feuilles_requis} feuilles</span>
+              )}
+            </button>
+          )}
+
+          {/* 🆕 Toggle expand enfants (petit chevron) */}
           {isGroup && (
             <button
               type="button"
               data-no-select="true"
               onClick={() => setExpanded(!expanded)}
-              className="shrink-0 flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-semibold text-indigo-600 bg-indigo-100 hover:bg-indigo-200 transition-colors"
-              title={expanded ? "Replier" : "Déplier"}
+              className="shrink-0 text-gray-300 hover:text-gray-500 p-0.5 transition-colors"
+              title={expanded ? "Replier les plaques" : "Déplier les plaques"}
             >
-              <Layers size={10} />
-              <span>{enfantCount}</span>
+              <span className={`inline-block text-[10px] transition-transform ${expanded ? "rotate-90" : ""}`}>▸</span>
             </button>
           )}
 
@@ -618,6 +640,19 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             </button>
           )}
         </div>
+      )}
+
+      {/* 🆕 SheetPreview modal — remplace le toggle Déplier */}
+      {showPreview && isGroup && (
+        <SheetPreview
+          feuilleL={item.largeur || item.groupe_largeur || 0}
+          feuilleH={item.hauteur || item.groupe_hauteur || 0}
+          feuilles={item.groupe_placements || []}
+          nomMateriau={item.nom}
+          hasPlacements={!!(item.groupe_placements && item.groupe_placements.length > 0)}
+          onClose={() => setShowPreview(false)}
+          onRecalculer={onRequestRepack}
+        />
       )}
     </div>
   );

@@ -9,6 +9,8 @@ import MaterialSuggestions from "@/components/materials/MaterialSuggestions";
 import type { MaterialItem } from "@/types";
 import type { FlatMaterialRow } from "@/components/templates/shared/MaterialTable";
 import type { MaterialCatalogEntry } from "@/types/materialCatalog";
+import { shelfPack, packStats } from "@/lib/shelfPacker";
+import type { FeuillePlacement } from "@/types/cdcBuilder";
 
 const DEFAULT_SECTIONS = [
   "Découpe",
@@ -19,6 +21,11 @@ const DEFAULT_SECTIONS = [
 ] as const;
 
 const GROUPABLE_SECTIONS = ["Découpe", "Vinyl"];
+
+/** Formate un nombre en mètres (ex: 1.22 → "1.22m") */
+function fmtM(v: number): string {
+  return v.toFixed(2).replace(/\.?0+$/, "") + "m";
+}
 
 const sectionBadge: Record<string, string> = {
   Découpe: "bg-red-100 text-red-700",
@@ -203,7 +210,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     [rows, onDissocierDirect],
   );
 
-  /** Confirmer le groupe avec un matériau */
+  /** Confirmer le groupe avec un matériau — utilise shelfPacker pour le placement 2D */
   const handleConfirmGroup = useCallback(
     (entry: MaterialCatalogEntry) => {
       if (!groupDialogSection) return;
@@ -213,76 +220,87 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         (r) => r.section === section && selectedIds.has(r.item.id) && !r.item.groupe_enfants,
       );
 
+      const feuilleL = entry.largeur_std || 0;
+      const feuilleH = entry.hauteur_std || 0;
+
+      // 🆕 Construire les plaques pour le shelfPacker
+      const plaquesInput = selectedRows.map((r) => ({
+        id: r.item.id,
+        largeur: r.item.largeur || 0,
+        hauteur: r.item.hauteur || 0,
+        nom: r.item.nom || "Sans nom",
+        quantite: r.item.quantite || 1,
+      }));
+
+      // 🆕 Lancer l'algorithme de placement
+      const packResult = shelfPack(plaquesInput, feuilleL, feuilleH, true);
+      const stats = packStats(packResult, feuilleL, feuilleH);
+
+      // Validation — plaques non placées
+      if (packResult.unplaced.length > 0) {
+        const names = packResult.unplaced.map((p) => `${p.nom} (${p.largeur}×${p.hauteur}m)`).join(", ");
+        setGroupWarning(
+          `${packResult.unplaced.length} plaque(s) ne tiennent pas sur la feuille (${fmtM(feuilleL)}×${fmtM(feuilleH)}) : ${names}`,
+        );
+        // On crée quand même le groupe mais avec juste les plaques placées
+      }
+
+      const nbFeuilles = stats.nbFeuilles;
+
+      // 🆕 Construire les FeuillePlacement[]
+      const groupePlacements: FeuillePlacement[] = packResult.sheets.map((sheet, i) => ({
+        feuille_index: i,
+        placements: sheet.placements.map((p) => ({
+          ...p,
+          couleur_hex: undefined as any, // sera ignoré, le SheetPreview a sa propre palette
+        })),
+        chutes: sheet.chutes,
+      }));
+
+      // 🆕 Enfants : on garde les plaques originales + chutes totales (une entrée par feuille)
       const enfants: MaterialItem[] = selectedRows.map((r) => ({
         ...r.item,
         id: crypto.randomUUID?.() || `pla-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       }));
 
-      const feuilleSurface = (entry.largeur_std || 0) * (entry.hauteur_std || 0);
-      const surfaceOccupee = enfants.reduce(
-        (sum, e) => sum + (e.largeur || 0) * (e.hauteur || 0) * (e.quantite || 1),
+      // Chute totale (pour affichage dans la liste : une seule ligne "Chute" si >0)
+      const surfaceOccupee = selectedRows.reduce(
+        (sum, r) => sum + (r.item.largeur || 0) * (r.item.hauteur || 0) * (r.item.quantite || 1),
         0,
       );
-      const chuteSurface = Math.max(0, feuilleSurface - surfaceOccupee);
+      const chuteTotale = Math.max(0, nbFeuilles * feuilleL * feuilleH - surfaceOccupee);
 
-      // 🆕 Validation géométrique 1D
-      const feuilleL = entry.largeur_std || 0;
-      const feuilleH = entry.hauteur_std || 0;
-      const feuilleMax = Math.max(feuilleL, feuilleH);
-      const feuilleMin = Math.min(feuilleL, feuilleH);
-      let totalLong = 0;
-      const oversized: string[] = [];
-      for (const e of enfants) {
-        const el = e.largeur ?? 0;
-        const eh = e.hauteur ?? 0;
-        const eMax = Math.max(el, eh);
-        const eMin = Math.min(el, eh);
-        if (eMax > feuilleMax || eMin > feuilleMin) {
-          oversized.push(`${e.nom || "plaque"} (${el}×${eh}m)`);
-        }
-        totalLong += eMax * (e.quantite ?? 1);
-      }
-      const fitWarning =
-        oversized.length > 0
-          ? `${oversized.length} plaque(s) dépassent les dimensions de la feuille (${feuilleL}×${feuilleH}m) : ${oversized.join(", ")}`
-          : totalLong > feuilleMax * 1.05
-            ? `La somme des longueurs (${totalLong.toFixed(2)}m) dépasse la longueur de la feuille (${feuilleMax}m). Le groupe est créé mais les plaques risquent de ne pas tenir.`
-            : null;
-
-      if (fitWarning) {
-        setGroupWarning(fitWarning);
+      if (chuteTotale > 0.001) {
+        enfants.push({
+          id: crypto.randomUUID?.() || `chu-${Date.now()}`,
+          nom: "Chute",
+          quantite: 1,
+          unite: "plaque",
+          largeur: Math.round(Math.sqrt(chuteTotale) * 100) / 100,
+          hauteur: Math.round(Math.sqrt(chuteTotale) * 100) / 100,
+        } as MaterialItem);
       }
 
       const groupItem: MaterialItem = {
         id: crypto.randomUUID?.() || `grp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         nom: `${entry.materiau}${entry.epaisseur ? ` ${entry.epaisseur}` : ""}`,
-        quantite: 1,
+        quantite: nbFeuilles,                                     // 🆕 dynamique
         unite: "Feuille",
-        largeur: entry.largeur_std ?? undefined,
-        hauteur: entry.hauteur_std ?? undefined,
+        largeur: feuilleL || undefined,
+        hauteur: feuilleH || undefined,
         epaisseur: entry.epaisseur || undefined,
         material_id: entry.id,
         format_standard: entry.format_standard || undefined,
         cout_unitaire: entry.cout_min ?? undefined,
         couleurs_dispo: entry.couleurs?.length ? entry.couleurs : undefined,
-        groupe_enfants: [
-          ...enfants,
-          ...(chuteSurface > 0.001
-            ? [{
-                id: crypto.randomUUID?.() || `chu-${Date.now()}`,
-                nom: "Chute",
-                quantite: 1,
-                unite: "plaque",
-                largeur: Math.round(Math.sqrt(chuteSurface) * 100) / 100,
-                hauteur: Math.round(Math.sqrt(chuteSurface) * 100) / 100,
-              } as MaterialItem]
-            : []),
-        ],
+        groupe_enfants: enfants,
         groupe_material_id: entry.id,
         groupe_nom: `${entry.materiau}${entry.epaisseur ? ` ${entry.epaisseur}` : ""}`,
         groupe_format: entry.format_standard || undefined,
-        groupe_largeur: entry.largeur_std ?? undefined,
-        groupe_hauteur: entry.hauteur_std ?? undefined,
+        groupe_largeur: feuilleL || undefined,
+        groupe_hauteur: feuilleH || undefined,
+        groupe_nb_feuilles_requis: nbFeuilles,                   // 🆕
+        groupe_placements: groupePlacements,                      // 🆕
       };
 
       const idsToRemove = new Set(selectedIds);
@@ -339,6 +357,55 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       const newRows = rows.map((r) =>
         r.section === section && r.index === index
           ? { ...r, item: { ...r.item, groupe_enfants: enfants } }
+          : r,
+      );
+      onRowsChange(newRows);
+    },
+    [rows, onRowsChange],
+  );
+
+  // 🆕 Recalculer le placement 2D d'un groupe existant
+  const handleRepack = useCallback(
+    (section: string, index: number) => {
+      const row = rows.find((r) => r.section === section && r.index === index);
+      if (!row?.item.groupe_enfants) return;
+
+      const feuilleL = row.item.groupe_largeur || row.item.largeur || 0;
+      const feuilleH = row.item.groupe_hauteur || row.item.hauteur || 0;
+      if (feuilleL <= 0 || feuilleH <= 0) return;
+
+      // Filtrer la chute (enfant avec nom "Chute")
+      const plaques = (row.item.groupe_enfants || [])
+        .filter((e) => e.nom !== "Chute");
+
+      const plaquesInput = plaques.map((e) => ({
+        id: e.id,
+        largeur: e.largeur || 0,
+        hauteur: e.hauteur || 0,
+        nom: e.nom || "Sans nom",
+        quantite: e.quantite || 1,
+      }));
+
+      const packResult = shelfPack(plaquesInput, feuilleL, feuilleH, true);
+      const stats = packStats(packResult, feuilleL, feuilleH);
+
+      const groupePlacements: FeuillePlacement[] = packResult.sheets.map((sheet, i) => ({
+        feuille_index: i,
+        placements: sheet.placements.map((p) => ({ ...p, couleur_hex: undefined as any })),
+        chutes: sheet.chutes,
+      }));
+
+      const newRows = rows.map((r) =>
+        r.section === section && r.index === index
+          ? {
+              ...r,
+              item: {
+                ...r.item,
+                quantite: stats.nbFeuilles,
+                groupe_nb_feuilles_requis: stats.nbFeuilles,
+                groupe_placements: groupePlacements,
+              },
+            }
           : r,
       );
       onRowsChange(newRows);
@@ -600,6 +667,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
                       // 🆕 Scroll sync
                       isActive={activeRowKey === `${enseigneId || "ens"}-${section}-${r.item.id}`}
                       onActivate={() => handleRowActivate(`${enseigneId || "ens"}-${section}-${r.item.id}`)}
+                      // 🆕 Repack 2D
+                      onRequestRepack={isGroup ? () => handleRepack(section, r.index) : undefined}
                     />
                   </div>
                 );

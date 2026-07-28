@@ -26,6 +26,9 @@ export interface MaterialItem {
   groupe_format?: string;            // format feuille (ex: "Grande feuille - 3,30m/2,14m")
   groupe_largeur?: number;           // dimension feuille en mètres
   groupe_hauteur?: number;           // dimension feuille en mètres
+  // 🆕 Placement 2D optimisé (shelf packing)
+  groupe_nb_feuilles_requis?: number; // calculé automatiquement par shelfPacker
+  groupe_placements?: import("./cdcBuilder").FeuillePlacement[]; // une entrée par feuille
 }
 
 export interface TeamMember {
