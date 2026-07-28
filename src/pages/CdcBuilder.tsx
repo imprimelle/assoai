@@ -581,8 +581,8 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
     try {
       const plaquesInput = plaques.map((e) => ({
         id: e.id,
-        largeur: e.largeur || 0,
-        hauteur: e.hauteur || 0,
+        largeur: (e.largeur || 0) / 100,
+        hauteur: (e.hauteur || 0) / 100,
         nom: e.nom || "Sans nom",
         quantite: e.quantite || 1,
       }));

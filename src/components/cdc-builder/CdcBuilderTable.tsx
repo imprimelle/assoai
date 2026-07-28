@@ -227,11 +227,11 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       const feuilleL = entry.largeur_std || 0;
       const feuilleH = entry.hauteur_std || 0;
 
-      // 🆕 Construire les plaques pour le shelfPacker
+      // 🆕 Construire les plaques pour le shelfPacker (cm → m : /100)
       const plaquesInput = selectedRows.map((r) => ({
         id: r.item.id,
-        largeur: r.item.largeur || 0,
-        hauteur: r.item.hauteur || 0,
+        largeur: (r.item.largeur || 0) / 100,
+        hauteur: (r.item.hauteur || 0) / 100,
         nom: r.item.nom || "Sans nom",
         quantite: r.item.quantite || 1,
       }));
