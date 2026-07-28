@@ -118,6 +118,9 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
   }, [cardSwipeX]);
 
   const handleCardTouchStart = (e: React.TouchEvent) => {
+    // Ignorer les touches sur des boutons (image, toggle, actions)
+    const target = e.target as HTMLElement;
+    if (target.closest("button")) return;
     cardTouchStart.current = e.touches[0].clientX;
     cardIsSwiping.current = false;
   };
@@ -226,12 +229,14 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {/* Miniature de l'enseigne */}
           {enseigne.image_url ? (
-            <button
-              type="button"
+            <span
+              role="button"
+              tabIndex={0}
               onClick={(e) => {
                 e.stopPropagation();
                 setImageModalOpen(true);
               }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setImageModalOpen(true); } }}
               className="shrink-0 w-10 h-10 rounded-lg overflow-hidden border-2 border-white shadow-sm
                          hover:shadow-md hover:scale-105 transition-all duration-200 cursor-pointer"
               title="Voir l'image"
@@ -241,7 +246,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
                 alt={enseigne.nom}
                 className="w-full h-full object-cover"
               />
-            </button>
+            </span>
           ) : (
             <div className="shrink-0 w-10 h-10 rounded-lg bg-gray-100 border border-gray-200
                             flex items-center justify-center">
