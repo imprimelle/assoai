@@ -311,40 +311,8 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
     };
 
     return (
-      <div key={enfant.id} className="relative overflow-hidden">
-        {/* Fond dissocier à droite */}
-        <div
-          className="absolute inset-y-0 right-0 flex items-center justify-center bg-amber-50 rounded-r-lg z-50"
-          style={{ width: SWIPE_REVEAL + 20, opacity: checkOp, transition: "opacity 0.15s" }}
-        >
-          <button
-            type="button"
-            data-swipe-check="true"
-            onClick={(e) => { 
-              e.stopPropagation(); 
-              onDissocierEnfant?.(index); 
-            }}
-            className="text-[10px] font-medium text-amber-700 hover:text-amber-900 px-1 py-1 rounded"
-          >
-            ✂
-          </button>
-        </div>
-
-        <div
-          onTouchStart={onStart}
-          onTouchMove={onMove}
-          onTouchEnd={onEnd}
-          onClick={() => {
-            if (sX !== 0) {
-              setChildNoAnim(true);
-              setChildSwipes(prev => ({ ...prev, [enfant.id]: 0 }));
-              setTimeout(() => setChildNoAnim(false), 50);
-            }
-          }}
-          style={{ transform: `translateX(${sX}px)` }}
-          className={`${!childNoAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-1.5 border-b border-gray-100 last:border-b-0 scrollbar-subtle scrollbar-hide-idle pr-[68px]`}
-        >
-          <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-3">
+      <div key={enfant.id} className="py-1.5 border-b border-gray-100 last:border-b-0">
+        <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-3">
             <div className="w-[200px] shrink-0">
               <MaterialCell
                 value={enfant.nom}
@@ -415,17 +383,23 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
                   ).map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               ) : null}
+              {!disabled && onDissocierEnfant && (
+                <button type="button" onClick={(e) => { e.stopPropagation(); onDissocierEnfant(index); }}
+                  className="text-amber-500 hover:text-amber-700 p-1 transition-colors shrink-0"
+                  title="Dissocier cette plaque du groupe">
+                  ✂
+                </button>
+              )}
               {!disabled && onDeleteEnfant && (
                 <button type="button" onClick={() => onDeleteEnfant(index)}
                   className="text-red-400 hover:text-red-600 p-1 transition-colors shrink-0"
-                  title="Retirer cette plaque du groupe">
+                  title="Supprimer cette plaque">
                   <Trash2 size={16} />
                 </button>
               )}
             </div>
           </div>
         </div>
-      </div>
     );
   };
 
