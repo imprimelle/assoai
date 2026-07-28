@@ -312,7 +312,8 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
 
     return (
       <div key={enfant.id} className="py-1.5 border-b border-gray-100 last:border-b-0">
-        <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-3">
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-subtle scrollbar-hide-idle">
+          <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-3">
             <div className="w-[200px] shrink-0">
               <MaterialCell
                 value={enfant.nom}
@@ -399,6 +400,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
               )}
             </div>
           </div>
+          </div>
         </div>
     );
   };
@@ -419,44 +421,13 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         isGroup ? "bg-indigo-50/30 rounded-lg" : ""
       }`}
     >
-      {/* Fond swipe — checkbox à droite (désactivé en selectionMode) */}
-      {selectable && !selectionMode && (
-        <div
-          className="absolute inset-y-0 right-0 flex items-center justify-center bg-indigo-50 rounded-r-lg z-50"
-          style={{
-            width: SWIPE_REVEAL,
-            opacity: checkOpacity,
-            transition: "opacity 0.15s",
-          }}
-        >
-          <button
-            type="button"
-            data-swipe-check="true"
-            onClick={handleCheckClick}
-            className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
-              selected
-                ? "bg-indigo-500 border-indigo-500 text-white"
-                : "border-gray-300 bg-white text-transparent"
-            }`}
-          >
-            {selected && <Check size={14} />}
-          </button>
-        </div>
-      )}
-
-      {/* Carte swipeable */}
+      {/* Carte — contenu scrollable horizontalement */}
       <div
         ref={scrollRef}
-        onTouchStart={(e) => {
-          onActivate?.();
-          handleTouchStart(e);
-        }}
+        onTouchStart={() => onActivate?.()}
         onFocusCapture={() => onActivate?.()}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
         onClick={handleRowClick}
-        style={{ transform: `translateX(${swipeX}px)` }}
-        className={`${!isGroup && !noAnim ? 'transition-transform duration-200' : ''} overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle scrollbar-hide-idle ${
+        className={`overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 py-2 border-b border-gray-100 last:border-b-0 scrollbar-subtle scrollbar-hide-idle ${
           selected ? "border-l-2 border-l-indigo-500" : ""
         } ${
           selectionMode && selectable ? "cursor-pointer" : ""
