@@ -3,6 +3,7 @@
 // v7: mode sélection explicite (toggle), sélection rapide par matériau, badge groupe amélioré.
 
 import React, { useMemo, useCallback, useState } from "react";
+import { createPortal } from "react-dom";
 import { Plus, Layers, X, Square, Check } from "lucide-react";
 import CdcBuilderRow from "./CdcBuilderRow";
 import MaterialSuggestions from "@/components/materials/MaterialSuggestions";
@@ -250,10 +251,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       // 🆕 Construire les FeuillePlacement[]
       const groupePlacements: FeuillePlacement[] = packResult.sheets.map((sheet, i) => ({
         feuille_index: i,
-        placements: sheet.placements.map((p) => ({
-          ...p,
-          couleur_hex: undefined as any, // sera ignoré, le SheetPreview a sa propre palette
-        })),
+        placements: sheet.placements,
         chutes: sheet.chutes,
       }));
 
@@ -367,48 +365,67 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
   // 🆕 Recalculer le placement 2D d'un groupe existant
   const handleRepack = useCallback(
     (section: string, index: number) => {
-      const row = rows.find((r) => r.section === section && r.index === index);
-      if (!row?.item.groupe_enfants) return;
+      try {
+        const row = rows.find((r) => r.section === section && r.index === index);
+        if (!row?.item.groupe_enfants) {
+          console.warn("[handleRepack] Aucun groupe_enfants trouvé");
+          return;
+        }
 
-      const feuilleL = row.item.groupe_largeur || row.item.largeur || 0;
-      const feuilleH = row.item.groupe_hauteur || row.item.hauteur || 0;
-      if (feuilleL <= 0 || feuilleH <= 0) return;
+        const feuilleL = row.item.groupe_largeur || row.item.largeur || 0;
+        const feuilleH = row.item.groupe_hauteur || row.item.hauteur || 0;
+        if (feuilleL <= 0 || feuilleH <= 0) {
+          console.warn("[handleRepack] Dimensions feuille invalides:", feuilleL, feuilleH);
+          return;
+        }
 
-      // Filtrer la chute (enfant avec nom "Chute")
-      const plaques = (row.item.groupe_enfants || [])
-        .filter((e) => e.nom !== "Chute");
+        // Filtrer la chute (enfant avec nom "Chute")
+        const plaques = (row.item.groupe_enfants || [])
+          .filter((e) => e.nom !== "Chute");
 
-      const plaquesInput = plaques.map((e) => ({
-        id: e.id,
-        largeur: e.largeur || 0,
-        hauteur: e.hauteur || 0,
-        nom: e.nom || "Sans nom",
-        quantite: e.quantite || 1,
-      }));
+        if (plaques.length === 0) {
+          console.warn("[handleRepack] Aucune plaque (hors chute) à placer");
+          return;
+        }
 
-      const packResult = shelfPack(plaquesInput, feuilleL, feuilleH, true);
-      const stats = packStats(packResult, feuilleL, feuilleH);
+        const plaquesInput = plaques.map((e) => ({
+          id: e.id,
+          largeur: e.largeur || 0,
+          hauteur: e.hauteur || 0,
+          nom: e.nom || "Sans nom",
+          quantite: e.quantite || 1,
+        }));
 
-      const groupePlacements: FeuillePlacement[] = packResult.sheets.map((sheet, i) => ({
-        feuille_index: i,
-        placements: sheet.placements.map((p) => ({ ...p, couleur_hex: undefined as any })),
-        chutes: sheet.chutes,
-      }));
+        console.log("[handleRepack] Lancement shelfPack:", plaquesInput.length, "plaques sur", feuilleL, "×", feuilleH);
 
-      const newRows = rows.map((r) =>
-        r.section === section && r.index === index
-          ? {
-              ...r,
-              item: {
-                ...r.item,
-                quantite: stats.nbFeuilles,
-                groupe_nb_feuilles_requis: stats.nbFeuilles,
-                groupe_placements: groupePlacements,
-              },
-            }
-          : r,
-      );
-      onRowsChange(newRows);
+        const packResult = shelfPack(plaquesInput, feuilleL, feuilleH, true);
+        const stats = packStats(packResult, feuilleL, feuilleH);
+
+        console.log("[handleRepack] Résultat:", stats.nbFeuilles, "feuilles,", stats.nbUnplaced, "non placées");
+
+        const groupePlacements: FeuillePlacement[] = packResult.sheets.map((sheet, i) => ({
+          feuille_index: i,
+          placements: sheet.placements,
+          chutes: sheet.chutes,
+        }));
+
+        const newRows = rows.map((r) =>
+          r.section === section && r.index === index
+            ? {
+                ...r,
+                item: {
+                  ...r.item,
+                  quantite: stats.nbFeuilles || 1,
+                  groupe_nb_feuilles_requis: stats.nbFeuilles || 1,
+                  groupe_placements: groupePlacements,
+                },
+              }
+            : r,
+        );
+        onRowsChange(newRows);
+      } catch (err) {
+        console.error("[handleRepack] Erreur:", err);
+      }
     },
     [rows, onRowsChange],
   );
@@ -704,9 +721,10 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         </div>
       ))}
 
-      {/* 🆕 Dialogue groupage */}
-      {groupDialogSection && (
-        <div
+      {/* 🆕 Dialogue groupage — portailé au document.body */}
+      {groupDialogSection &&
+        createPortal(
+          <div
           className="fixed inset-0 z-[200] flex items-center justify-center p-4"
           style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
           onClick={() => setGroupDialogSection(null)}
@@ -793,7 +811,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

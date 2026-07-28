@@ -3,6 +3,7 @@
 // v10: selectionMode pour checkbox visible sans swipe, badge groupe amélioré.
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Trash2, Plus, Check, Layers, Eye } from "lucide-react";
 import MaterialCell from "./MaterialCell";
 import {
@@ -642,18 +643,21 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
         </div>
       )}
 
-      {/* 🆕 SheetPreview modal — remplace le toggle Déplier */}
-      {showPreview && isGroup && (
-        <SheetPreview
-          feuilleL={item.largeur || item.groupe_largeur || 0}
-          feuilleH={item.hauteur || item.groupe_hauteur || 0}
-          feuilles={item.groupe_placements || []}
-          nomMateriau={item.nom}
-          hasPlacements={!!(item.groupe_placements && item.groupe_placements.length > 0)}
-          onClose={() => setShowPreview(false)}
-          onRecalculer={onRequestRepack}
-        />
-      )}
+      {/* 🆕 SheetPreview modal — portailé au document.body (échappe au overflow-hidden/transform du conteneur) */}
+      {showPreview && isGroup &&
+        createPortal(
+          <SheetPreview
+            feuilleL={item.largeur || item.groupe_largeur || 0}
+            feuilleH={item.hauteur || item.groupe_hauteur || 0}
+            feuilles={item.groupe_placements || []}
+            nomMateriau={item.nom}
+            hasPlacements={!!(item.groupe_placements && item.groupe_placements.length > 0)}
+            onClose={() => setShowPreview(false)}
+            onRecalculer={onRequestRepack}
+          />,
+          document.body
+        )
+      }
     </div>
   );
 };
