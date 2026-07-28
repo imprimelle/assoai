@@ -127,6 +127,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
     cardIsSwiping.current = false;
   };
   const handleCardTouchMove = (e: React.TouchEvent) => {
+    if (isOpen) return;
     const dx = e.touches[0].clientX - cardTouchStart.current;
     if (!cardIsSwiping.current) {
       if (Math.abs(dx) > 8) cardIsSwiping.current = true;
