@@ -56,6 +56,7 @@ interface EnseigneAccordionProps {
   defaultOpen?: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  canDelete?: boolean;
   onRowsChange: (rows: FlatMaterialRow[]) => void;
   onUpdateEnseigne: (changes: Partial<CdcBuilderEnseigne>) => void;
   highlights?: HighlightMap;
@@ -74,6 +75,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
   defaultOpen = false,
   onEdit,
   onDelete,
+  canDelete = true,
   onRowsChange,
   onUpdateEnseigne,
   highlights,
@@ -205,6 +207,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
         >
           <Pencil size={16} />
         </button>
+        {canDelete && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
@@ -213,6 +216,7 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
         >
           <Trash2 size={16} />
         </button>
+        )}
       </div>
 
       {/* Carte swipeable */}
@@ -1218,6 +1222,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
                     defaultOpen={allOpen}
                     onEdit={() => handleEditEnseigne(enseigne)}
                     onDelete={() => handleDeleteEnseigne(enseigne)}
+                    canDelete={state.enseignes.length > 1}
                     onRowsChange={(newRows) =>
                       handleRowsChange(enseigne.id, newRows)
                     }

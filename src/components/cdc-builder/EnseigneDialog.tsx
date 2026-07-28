@@ -26,11 +26,13 @@ const EnseigneDialog: React.FC<EnseigneDialogProps> = ({
   const [form, setForm] = useState<CdcBuilderEnseigne>(
     enseigne || createEmptyEnseigne(),
   );
+  const [error, setError] = useState<string | null>(null);
 
   // Synchroniser le formulaire si l'enseigne change
   useEffect(() => {
     if (open) {
       setForm(enseigne || createEmptyEnseigne());
+      setError(null);
     }
   }, [open, enseigne]);
 
@@ -47,10 +49,6 @@ const EnseigneDialog: React.FC<EnseigneDialogProps> = ({
     });
   };
 
-  const handleTechChange = (field: string, value: string) => {
-    handleChange("technique", { ...form.technique, [field]: value });
-  };
-
   // Sélection d'un produit depuis le catalogue
   const handleProductSelect = useCallback(
     (product: { description: string; prixUnitaire: number; image_url?: string | null }) => {
@@ -64,8 +62,14 @@ const EnseigneDialog: React.FC<EnseigneDialogProps> = ({
   );
 
   const handleSave = () => {
-    if (!form.nom.trim()) return;
-    if (form.dimensions.largeur <= 0 || form.dimensions.hauteur <= 0) return;
+    if (!form.nom.trim()) {
+      setError("Veuillez entrer un nom pour l'enseigne.");
+      return;
+    }
+    if (form.dimensions.largeur <= 0 || form.dimensions.hauteur <= 0) {
+      setError("Veuillez renseigner les dimensions (largeur et hauteur) avant de sauvegarder.");
+      return;
+    }
     onSave(form);
   };
 
@@ -102,6 +106,14 @@ const EnseigneDialog: React.FC<EnseigneDialogProps> = ({
 
           {/* Body */}
           <div className="px-6 py-4 space-y-5">
+            {/* Bandeau d'erreur */}
+            {error && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                <span>⚠️</span>
+                <span>{error}</span>
+              </div>
+            )}
+
             {/* Recherche produit catalogue */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -192,44 +204,6 @@ const EnseigneDialog: React.FC<EnseigneDialogProps> = ({
               </div>
             </div>
 
-            {/* Technique */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                🔧 Technique
-              </label>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-0.5">
-                    Type de structure
-                  </label>
-                  <input
-                    type="text"
-                    value={form.technique.type_structure}
-                    onChange={(e) =>
-                      handleTechChange("type_structure", e.target.value)
-                    }
-                    placeholder="Ex: Cadre aluminium"
-                    className="h-9 w-full border border-gray-200 rounded px-3 bg-white
-                               focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-0.5">
-                    Méthode de fabrication
-                  </label>
-                  <input
-                    type="text"
-                    value={form.technique.method_fabrication}
-                    onChange={(e) =>
-                      handleTechChange("method_fabrication", e.target.value)
-                    }
-                    placeholder="Ex: Découpe CNC + assemblage"
-                    className="h-9 w-full border border-gray-200 rounded px-3 bg-white
-                               focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
-                  />
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Footer */}
@@ -245,10 +219,8 @@ const EnseigneDialog: React.FC<EnseigneDialogProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              disabled={!form.nom.trim() || form.dimensions.largeur <= 0 || form.dimensions.hauteur <= 0}
               className="px-5 py-2 text-sm font-medium text-white bg-indigo-600
-                         rounded-lg hover:bg-indigo-700 transition-colors
-                         disabled:opacity-50 disabled:cursor-not-allowed"
+                         rounded-lg hover:bg-indigo-700 transition-colors"
             >
               💾 Sauvegarder
             </button>
