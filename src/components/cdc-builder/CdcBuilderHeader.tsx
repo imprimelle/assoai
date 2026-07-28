@@ -195,7 +195,24 @@ const CdcBuilderHeader: React.FC<CdcBuilderHeaderProps> = ({
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <span className="text-lg shrink-0">🏗️</span>
             <div className="min-w-0 text-left flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-bold text-gray-800">{title}</span>
+              {project ? (
+                <span className="text-sm font-bold text-gray-800">{title}</span>
+              ) : !expanded ? (
+                /* @ Projet rapide — visible uniquement en collapsed sans projet */
+                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                  <span className="text-[10px] text-gray-400 shrink-0">@</span>
+                  <input
+                    ref={projectInputRef}
+                    type="text"
+                    value={projectInput}
+                    onChange={(e) => { setProjectInput(e.target.value); setShowProjectDropdown(true); }}
+                    onFocus={() => { if (availableProjects?.length) setShowProjectDropdown(true); }}
+                    onKeyDown={handleProjectKeyDown}
+                    placeholder="Lier un projet…"
+                    className="h-7 border border-gray-200 rounded px-2 bg-white text-xs text-gray-700 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none w-[160px]"
+                  />
+                </div>
+              )}
               {/* Badge CDC */}
               {cdcId && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-mono font-semibold border border-violet-200">
