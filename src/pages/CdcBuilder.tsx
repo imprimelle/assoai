@@ -167,6 +167,9 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
     <div
       ref={cardRef}
       data-enseigne-accordion="true"
+      onTouchStart={handleCardTouchStart}
+      onTouchMove={handleCardTouchMove}
+      onTouchEnd={handleCardTouchEnd}
       className="border border-gray-200 rounded-lg bg-gray-50 mb-4 overflow-hidden shadow-sm relative"
     >
       {/* 🆕 Fond des boutons swipe — révélé à droite */}
@@ -208,9 +211,6 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
 
       {/* Carte swipeable */}
       <div
-        onTouchStart={handleCardTouchStart}
-        onTouchMove={handleCardTouchMove}
-        onTouchEnd={handleCardTouchEnd}
         style={{ transform: `translateX(${cardSwipeX}px)` }}
         className={`${!cardNoAnim ? 'transition-transform duration-200' : ''} bg-gray-50`}
       >
