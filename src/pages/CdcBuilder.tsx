@@ -291,7 +291,8 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
           />
         </div>
       )}
-      {/* Modal image */}
+      </div>{/* fin swipeable */}
+      {/* Modal image — en dehors du div swipeable (transform) pour que fixed fonctionne sur le viewport */}
       {imageModalOpen && enseigne.image_url && (
         <div
           className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
@@ -358,7 +359,6 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
           </div>
         </div>
       )}
-      </div>{/* fin swipeable */}
     </div>
   );
 };
