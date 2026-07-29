@@ -2,8 +2,8 @@
 // Aperçu visuel SVG du placement des plaques sur une ou plusieurs feuilles.
 // v2 : cotations extérieures, lettres (A,B,C...), légende, sans grille.
 
-import React, { useState, useMemo } from "react";
-import { X, RotateCcw } from "lucide-react";
+import React, { useState, useMemo, useRef, useCallback } from "react";
+import { X, RotateCcw, Download } from "lucide-react";
 import type { FeuillePlacement } from "@/types/cdcBuilder";
 
 const SCALE = 100;       // pixels par mètre (1m = 100px dans le SVG)
@@ -61,6 +61,8 @@ const SheetPreview: React.FC<SheetPreviewProps> = ({
   hasPlacements = true,
 }) => {
   const [activeSheet, setActiveSheet] = useState(0);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const svgContainerRef = useRef<HTMLDivElement>(null);
   const current = feuilles[activeSheet];
 
   const svgW = feuilleL * SCALE + MARGIN * 2;
@@ -303,6 +305,65 @@ const SheetPreview: React.FC<SheetPreviewProps> = ({
   const totalChute = Math.max(0, totalSurface - totalUsed);
   const totalRatio = totalSurface > 0 ? totalUsed / totalSurface : 0;
 
+  // ── Téléchargement PDF ──
+  const handleDownloadPdf = useCallback(async () => {
+    if (!svgContainerRef.current || isGeneratingPdf) return;
+    setIsGeneratingPdf(true);
+    try {
+      // Récupérer tous les SVGs du DOM (toutes les feuilles)
+      const svgs = svgContainerRef.current.querySelectorAll("svg");
+      const svgHtmls: string[] = [];
+      svgs.forEach((svg) => svgHtmls.push(svg.outerHTML));
+
+      // Construire le HTML pour Puppeteer
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; padding: 20px; }
+  h1 { font-size: 18px; margin-bottom: 4px; color: #1e293b; }
+  .sub { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+  .sheet { page-break-after: always; margin-bottom: 24px; }
+  .sheet:last-child { page-break-after: auto; }
+  svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+  .legend { margin-top: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #475569; margin: 2px 0; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+</style></head><body>
+<h1>Aperçu — ${nomMateriau}</h1>
+<p class="sub">Feuille ${fmtM(feuilleL)} × ${fmtM(feuilleH)} — ${feuilles.length} feuille(s)</p>
+${svgHtmls.map((svg, i) => `
+<div class="sheet">
+  ${svg}
+  <div class="legend">
+    ${feuilles[i]?.placements.map((p, j) => {
+      const color = colorMap.get(p.nom) || PLAQUE_COLORS[0];
+      return `<div class="legend-item"><span class="legend-dot" style="background:${color}"></span><b>${indexToLetter(j)}</b> ${p.nom} — ${fmtM(p.largeur)} × ${fmtM(p.hauteur)}${p.rotated ? " ↻" : ""}</div>`;
+    }).join("")}
+  </div>
+</div>`).join("")}
+</body></html>`;
+
+      // Envoyer au serveur PDF
+      const resp = await fetch("/api/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "text/html" },
+        body: html,
+      });
+      if (!resp.ok) throw new Error(`PDF service: ${resp.status}`);
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `apercu-${nomMateriau.replace(/\\s+/g, "-").toLowerCase()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("[SheetPreview] Erreur PDF:", err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  }, [nomMateriau, feuilleL, feuilleH, feuilles, colorMap, isGeneratingPdf]);
+
   // ── Rendu principal ──
 
   return (
@@ -331,13 +392,30 @@ const SheetPreview: React.FC<SheetPreviewProps> = ({
               )}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-1">
+            {hasPlacements && (
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={isGeneratingPdf}
+                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                title="Télécharger en PDF"
+              >
+                {isGeneratingPdf ? (
+                  <span className="inline-block w-[18px] h-[18px] border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin" />
+                ) : (
+                  <Download size={18} />
+                )}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Tabs multi-feuille */}
@@ -361,7 +439,7 @@ const SheetPreview: React.FC<SheetPreviewProps> = ({
         )}
 
         {/* Contenu SVG */}
-        <div className="flex-1 overflow-auto p-4">
+        <div ref={svgContainerRef} className="flex-1 overflow-auto p-4">
           {hasPlacements && current
             ? (
               <>

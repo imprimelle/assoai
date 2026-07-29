@@ -558,6 +558,26 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
     groupIndex: number;
   } | null>(null);
 
+  // 🆕 Recalcul automatique à l'ouverture de l'aperçu
+  const autoRepackRef = useRef(false);
+  useEffect(() => {
+    if (!previewState) { autoRepackRef.current = false; return; }
+    if (autoRepackRef.current) return;
+    const { enseigneId, section, groupIndex } = previewState;
+    const groupItem = state.materiauxByEnseigne[enseigneId]?.[section]?.[groupIndex];
+    if (!groupItem?.groupe_enfants?.length) return;
+    // Lancer le repack seulement si pas de placements ou placements vides
+    if (!groupItem.groupe_placements || groupItem.groupe_placements.length === 0) {
+      autoRepackRef.current = true;
+      // Utiliser setTimeout pour laisser le state se stabiliser
+      const t = setTimeout(() => {
+        handleRepackPageLevel();
+        autoRepackRef.current = false;
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [previewState, state.materiauxByEnseigne, handleRepackPageLevel]);
+
   // 🆕 Recalculer le placement 2D — opère directement sur le state de la page
   const handleRepackPageLevel = useCallback(() => {
     if (!previewState) return;

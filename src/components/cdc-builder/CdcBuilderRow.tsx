@@ -3,7 +3,7 @@
 // v10: selectionMode pour checkbox visible sans swipe, badge groupe amélioré.
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { Trash2, Plus, Check, Layers, Eye } from "lucide-react";
+import { Trash2, Plus, Check, Layers, Eye, ChevronRight } from "lucide-react";
 import MaterialCell from "./MaterialCell";
 import {
   UNITES,
@@ -471,33 +471,30 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             </div>
           )}
 
-          {/* 🆕 Badge groupe — bouton Aperçu au niveau page */}
+          {/* Badge groupe — F + nb plaques, cliquable pour l'aperçu */}
           {isGroup && (
             <button
               type="button"
               data-no-select="true"
               onClick={() => onOpenPreview?.()}
-              className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-indigo-600 bg-indigo-100 hover:bg-indigo-200 transition-colors"
+              className="shrink-0 flex items-center gap-0.5 px-1 py-0 rounded text-[10px] font-bold text-indigo-600 bg-indigo-100 hover:bg-indigo-200 transition-colors"
               title="Voir l'aperçu de la feuille"
             >
-              <Eye size={11} />
-              <span>{enfantCount} plaques</span>
-              {(item.groupe_nb_feuilles_requis ?? 0) > 1 && (
-                <span className="text-amber-600">· {item.groupe_nb_feuilles_requis} feuilles</span>
-              )}
+              <Eye size={10} />
+              <span>F {enfantCount}</span>
             </button>
           )}
 
-          {/* 🆕 Toggle expand enfants (petit chevron) */}
+          {/* Toggle expand enfants */}
           {isGroup && (
             <button
               type="button"
               data-no-select="true"
               onClick={() => setExpanded(!expanded)}
-              className="shrink-0 text-gray-300 hover:text-gray-500 p-0.5 transition-colors"
+              className="shrink-0 text-gray-400 hover:text-gray-600 p-0 transition-colors"
               title={expanded ? "Replier les plaques" : "Déplier les plaques"}
             >
-              <span className={`inline-block text-[10px] transition-transform ${expanded ? "rotate-90" : ""}`}>▸</span>
+              <ChevronRight size={14} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
             </button>
           )}
 
