@@ -1,16 +1,19 @@
 // src/components/cdc-builder/SheetPreview.tsx
 // Aperçu visuel SVG du placement des plaques sur une ou plusieurs feuilles.
-// Remplace le toggle "Déplier" — affiche les plaques disposées spatialement.
+// v2 : cotations extérieures, lettres (A,B,C...), légende, sans grille.
 
 import React, { useState, useMemo } from "react";
-import { X, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
-import type { FeuillePlacement, Placement2D, Chute2D } from "@/types/cdcBuilder";
+import { X, RotateCcw } from "lucide-react";
+import type { FeuillePlacement } from "@/types/cdcBuilder";
 
-const SCALE = 100; // pixels par mètre (1m = 100px dans le SVG)
+const SCALE = 100;       // pixels par mètre (1m = 100px dans le SVG)
+const MARGIN = 50;       // marge pour les cotations (px)
+const ARROW = 8;         // taille des flèches de cotation (px)
 
 const PLAQUE_COLORS = [
-  "#818cf8", "#34d399", "#fbbf24", "#f472b6",
-  "#38bdf8", "#a78bfa", "#fb923c", "#4ade80",
+  "#6366f1", "#10b981", "#f59e0b", "#ec4899",
+  "#0ea5e9", "#8b5cf6", "#f97316", "#22c55e",
+  "#ef4444", "#14b8a6", "#a855f7", "#eab308",
 ];
 
 /** Assombrit une couleur hex pour le contour */
@@ -23,7 +26,18 @@ function darken(hex: string, amount: number): string {
 
 /** Formate un nombre en mètres avec 2 décimales */
 function fmtM(v: number): string {
-  return v.toFixed(2) + "m";
+  return v.toFixed(2).replace(/\.?0+$/, "") + "m";
+}
+
+/** Convertit un index en lettre : 0→A, 1→B, ..., 25→Z, 26→AA, etc. */
+function indexToLetter(i: number): string {
+  let n = i;
+  let result = "";
+  do {
+    result = String.fromCharCode(65 + (n % 26)) + result;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return result;
 }
 
 export interface SheetPreviewProps {
@@ -49,6 +63,9 @@ const SheetPreview: React.FC<SheetPreviewProps> = ({
   const [activeSheet, setActiveSheet] = useState(0);
   const current = feuilles[activeSheet];
 
+  const svgW = feuilleL * SCALE + MARGIN * 2;
+  const svgH = feuilleH * SCALE + MARGIN * 2;
+
   // Assigner des couleurs stables aux plaques par leur nom
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -64,129 +81,189 @@ const SheetPreview: React.FC<SheetPreviewProps> = ({
     return map;
   }, [feuilles]);
 
-  // Stats pour cette feuille
-  const sheetSurface = feuilleL * feuilleH;
-  const usedSurface = current
-    ? current.placements.reduce((s, p) => s + p.largeur * p.hauteur, 0)
-    : 0;
-  const chuteSurface = Math.max(0, sheetSurface - usedSurface);
-  const ratio = sheetSurface > 0 ? usedSurface / sheetSurface : 0;
+  // ── Rendu SVG d'une feuille ──
 
-  // Stats globales
-  const totalSurface = feuilles.length * sheetSurface;
-  const totalUsed = feuilles.reduce(
-    (s, f) => s + f.placements.reduce((ss, p) => ss + p.largeur * p.hauteur, 0),
-    0,
-  );
-  const totalChute = Math.max(0, totalSurface - totalUsed);
-  const totalRatio = totalSurface > 0 ? totalUsed / totalSurface : 0;
+  const renderSheet = (sheet: FeuillePlacement) => {
+    const fw = feuilleL * SCALE;
+    const fh = feuilleH * SCALE;
 
-  const svgW = feuilleL * SCALE;
-  const svgH = feuilleH * SCALE;
+    return (
+      <svg
+        viewBox={`0 0 ${svgW} ${svgH}`}
+        className="w-full bg-white rounded-lg"
+        style={{ maxHeight: "60vh" }}
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {/* Fond de la feuille */}
+        <rect
+          x={MARGIN}
+          y={MARGIN}
+          width={fw}
+          height={fh}
+          fill="#fafbfc"
+          stroke="#475569"
+          strokeWidth={2.5}
+          rx={2}
+        />
 
-  const renderSheet = (sheet: FeuillePlacement) => (
-    <svg
-      viewBox={`0 0 ${svgW} ${svgH}`}
-      className="w-full border border-gray-300 rounded-lg bg-white"
-      style={{ maxHeight: "55vh" }}
-      preserveAspectRatio="xMidYMid meet"
-    >
-      {/* Grille fine */}
-      <defs>
-        <pattern
-          id={`grid-${sheet.feuille_index}`}
-          width={0.1 * SCALE}
-          height={0.1 * SCALE}
-          patternUnits="userSpaceOnUse"
+        {/* ── Cotations extérieures ── */}
+
+        {/* Cotation horizontale (haut) */}
+        <line
+          x1={MARGIN}
+          y1={MARGIN - 18}
+          x2={MARGIN + fw}
+          y2={MARGIN - 18}
+          stroke="#64748b"
+          strokeWidth={1}
+        />
+        {/* Flèche gauche */}
+        <line x1={MARGIN} y1={MARGIN - 18} x2={MARGIN + ARROW} y2={MARGIN - 18 - ARROW / 2} stroke="#64748b" strokeWidth={1.2} />
+        <line x1={MARGIN} y1={MARGIN - 18} x2={MARGIN + ARROW} y2={MARGIN - 18 + ARROW / 2} stroke="#64748b" strokeWidth={1.2} />
+        {/* Flèche droite */}
+        <line x1={MARGIN + fw} y1={MARGIN - 18} x2={MARGIN + fw - ARROW} y2={MARGIN - 18 - ARROW / 2} stroke="#64748b" strokeWidth={1.2} />
+        <line x1={MARGIN + fw} y1={MARGIN - 18} x2={MARGIN + fw - ARROW} y2={MARGIN - 18 + ARROW / 2} stroke="#64748b" strokeWidth={1.2} />
+        {/* Texte L */}
+        <text
+          x={MARGIN + fw / 2}
+          y={MARGIN - 26}
+          textAnchor="middle"
+          fontSize={13}
+          fill="#475569"
+          fontWeight={600}
+          fontFamily="system-ui, sans-serif"
         >
-          <path
-            d={`M ${0.1 * SCALE} 0 L 0 0 0 ${0.1 * SCALE}`}
-            fill="none"
-            stroke="#f1f5f9"
-            strokeWidth={0.5}
+          {fmtM(feuilleL)}
+        </text>
+
+        {/* Cotation verticale (gauche) */}
+        <line
+          x1={MARGIN - 18}
+          y1={MARGIN}
+          x2={MARGIN - 18}
+          y2={MARGIN + fh}
+          stroke="#64748b"
+          strokeWidth={1}
+        />
+        {/* Flèche haut */}
+        <line x1={MARGIN - 18} y1={MARGIN} x2={MARGIN - 18 - ARROW / 2} y2={MARGIN + ARROW} stroke="#64748b" strokeWidth={1.2} />
+        <line x1={MARGIN - 18} y1={MARGIN} x2={MARGIN - 18 + ARROW / 2} y2={MARGIN + ARROW} stroke="#64748b" strokeWidth={1.2} />
+        {/* Flèche bas */}
+        <line x1={MARGIN - 18} y1={MARGIN + fh} x2={MARGIN - 18 - ARROW / 2} y2={MARGIN + fh - ARROW} stroke="#64748b" strokeWidth={1.2} />
+        <line x1={MARGIN - 18} y1={MARGIN + fh} x2={MARGIN - 18 + ARROW / 2} y2={MARGIN + fh - ARROW} stroke="#64748b" strokeWidth={1.2} />
+        {/* Texte H (pivoté) */}
+        <text
+          x={MARGIN - 26}
+          y={MARGIN + fh / 2}
+          textAnchor="middle"
+          fontSize={13}
+          fill="#475569"
+          fontWeight={600}
+          fontFamily="system-ui, sans-serif"
+          transform={`rotate(-90, ${MARGIN - 26}, ${MARGIN + fh / 2})`}
+        >
+          {fmtM(feuilleH)}
+        </text>
+
+        {/* Plaques */}
+        {sheet.placements.map((p, i) => {
+          const color = colorMap.get(p.nom) || PLAQUE_COLORS[0];
+          const px = MARGIN + p.x * SCALE;
+          const py = MARGIN + p.y * SCALE;
+          const pw = p.largeur * SCALE;
+          const ph = p.hauteur * SCALE;
+          const letter = indexToLetter(i);
+
+          return (
+            <g key={p.enfant_id || i}>
+              <rect
+                x={px}
+                y={py}
+                width={pw}
+                height={ph}
+                fill={color}
+                fillOpacity={0.82}
+                stroke={darken(color, 0.2)}
+                strokeWidth={2}
+                rx={4}
+              />
+              {/* Indicateur rotation */}
+              {p.rotated && (
+                <text
+                  x={px + 8}
+                  y={py + 16}
+                  fontSize={14}
+                  fill="white"
+                  fontWeight="bold"
+                  opacity={0.9}
+                >
+                  ↻
+                </text>
+              )}
+              {/* Lettre centrée */}
+              <text
+                x={px + pw / 2}
+                y={py + ph / 2 + 1}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontSize={Math.min(22, Math.max(12, Math.min(pw, ph) * 0.3))}
+                fill="white"
+                fontWeight={700}
+                fontFamily="system-ui, sans-serif"
+                style={{ textShadow: "0 1px 3px rgba(0,0,0,0.3)" }}
+              >
+                {letter}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Chutes */}
+        {sheet.chutes.map((c, i) => (
+          <rect
+            key={`chute-${i}`}
+            x={MARGIN + c.x * SCALE}
+            y={MARGIN + c.y * SCALE}
+            width={c.largeur * SCALE}
+            height={c.hauteur * SCALE}
+            fill="#f1f5f9"
+            stroke="#cbd5e1"
+            strokeWidth={1}
+            strokeDasharray="6 4"
+            rx={2}
           />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#grid)" />
+        ))}
+      </svg>
+    );
+  };
 
-      {/* Contour feuille */}
-      <rect
-        width={svgW}
-        height={svgH}
-        fill="none"
-        stroke="#94a3b8"
-        strokeWidth={2}
-      />
+  // ── Légende ──
 
-      {/* Plaques */}
+  const renderLegend = (sheet: FeuillePlacement) => (
+    <div className="mt-3 space-y-1">
       {sheet.placements.map((p, i) => {
         const color = colorMap.get(p.nom) || PLAQUE_COLORS[0];
         return (
-          <g
-            key={p.enfant_id || i}
-            transform={`translate(${p.x * SCALE}, ${p.y * SCALE})`}
-          >
-            <rect
-              width={p.largeur * SCALE}
-              height={p.hauteur * SCALE}
-              fill={color}
-              fillOpacity={0.85}
-              stroke={darken(color, 0.15)}
-              strokeWidth={1.5}
-              rx={3}
-            />
-            {p.rotated && (
-              <text x={5} y={16} fontSize={12} fill="white" fontWeight="bold">
-                ↻
-              </text>
-            )}
-            {/* Nom de la plaque */}
-            <text
-              x={(p.largeur * SCALE) / 2}
-              y={(p.hauteur * SCALE) / 2 - 5}
-              textAnchor="middle"
-              fontSize={13}
-              fill="white"
-              fontWeight={600}
-              fontFamily="system-ui, sans-serif"
+          <div key={p.enfant_id || i} className="flex items-center gap-2 text-xs text-gray-600">
+            <span
+              className="inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold text-white shrink-0"
+              style={{ backgroundColor: color }}
             >
-              {p.nom}
-            </text>
-            {/* Dimensions */}
-            <text
-              x={(p.largeur * SCALE) / 2}
-              y={(p.hauteur * SCALE) / 2 + 12}
-              textAnchor="middle"
-              fontSize={10}
-              fill="white"
-              fillOpacity={0.85}
-              fontFamily="system-ui, sans-serif"
-            >
+              {indexToLetter(i)}
+            </span>
+            <span className="truncate font-medium text-gray-700">{p.nom}</span>
+            <span className="text-gray-400 shrink-0">
               {fmtM(p.largeur)} × {fmtM(p.hauteur)}
-            </text>
-          </g>
+            </span>
+            {p.rotated && <span className="text-gray-400 text-[10px]">↻</span>}
+          </div>
         );
       })}
-
-      {/* Chutes */}
-      {sheet.chutes.map((c, i) => (
-        <rect
-          key={`chute-${i}`}
-          x={c.x * SCALE}
-          y={c.y * SCALE}
-          width={c.largeur * SCALE}
-          height={c.hauteur * SCALE}
-          fill="#f1f5f9"
-          stroke="#cbd5e1"
-          strokeWidth={1}
-          strokeDasharray="6 4"
-          rx={2}
-        />
-      ))}
-    </svg>
+    </div>
   );
 
-  // Rendu "pas de placements" (legacy)
+  // ── État "pas de placements" (legacy) ──
+
   const renderNoPlacements = () => (
     <div className="flex flex-col items-center justify-center py-12 text-gray-400">
       <div className="text-4xl mb-3">📐</div>
@@ -208,6 +285,25 @@ const SheetPreview: React.FC<SheetPreviewProps> = ({
       )}
     </div>
   );
+
+  // ── Stats ──
+
+  const sheetSurface = feuilleL * feuilleH;
+  const usedSurface = current
+    ? current.placements.reduce((s, p) => s + p.largeur * p.hauteur, 0)
+    : 0;
+  const chuteSurface = Math.max(0, sheetSurface - usedSurface);
+  const ratio = sheetSurface > 0 ? usedSurface / sheetSurface : 0;
+
+  const totalSurface = feuilles.length * sheetSurface;
+  const totalUsed = feuilles.reduce(
+    (s, f) => s + f.placements.reduce((ss, p) => ss + p.largeur * p.hauteur, 0),
+    0,
+  );
+  const totalChute = Math.max(0, totalSurface - totalUsed);
+  const totalRatio = totalSurface > 0 ? totalUsed / totalSurface : 0;
+
+  // ── Rendu principal ──
 
   return (
     <div
@@ -267,7 +363,12 @@ const SheetPreview: React.FC<SheetPreviewProps> = ({
         {/* Contenu SVG */}
         <div className="flex-1 overflow-auto p-4">
           {hasPlacements && current
-            ? renderSheet(current)
+            ? (
+              <>
+                {renderSheet(current)}
+                {renderLegend(current)}
+              </>
+            )
             : renderNoPlacements()}
         </div>
 
