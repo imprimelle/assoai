@@ -501,7 +501,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
               type="button"
               data-no-select="true"
               onClick={() => setExpanded(!expanded)}
-              className="shrink-0 text-gray-400 hover:text-gray-600 p-0 -mr-2 transition-colors"
+              className="shrink-0 text-gray-400 hover:text-gray-600 p-0 -mr-3 transition-colors"
               title={expanded ? "Replier les plaques" : "Déplier les plaques"}
             >
               <ChevronRight size={14} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
@@ -509,7 +509,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           )}
 
           {/* Colonne 1 : Matériau */}
-          <div className={`w-[200px] shrink-0 ${isGroup ? "-ml-1" : ""}`} data-no-select="true">
+          <div className={`w-[200px] shrink-0 ${isGroup ? "-ml-2" : ""}`} data-no-select="true">
             {enseigneBadge && (
               <span
                 className="inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium mb-1 truncate max-w-full"
