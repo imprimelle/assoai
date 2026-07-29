@@ -495,21 +495,19 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             </button>
           )}
 
-          {/* Toggle expand enfants */}
-          {isGroup && (
-            <button
-              type="button"
-              data-no-select="true"
-              onClick={() => setExpanded(!expanded)}
-              className="shrink-0 text-gray-400 hover:text-gray-600 p-0 -mr-3 transition-colors"
-              title={expanded ? "Replier les plaques" : "Déplier les plaques"}
-            >
-              <ChevronRight size={14} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
-            </button>
-          )}
-
-          {/* Colonne 1 : Matériau */}
-          <div className={`w-[200px] shrink-0 ${isGroup ? "-ml-2" : ""}`} data-no-select="true">
+          {/* Colonne 1 : Matériau + toggle (superposé) */}
+          <div className={`w-[200px] shrink-0 relative ${isGroup ? "[&_input]:pl-5" : ""}`} data-no-select="true">
+            {isGroup && (
+              <button
+                type="button"
+                data-no-select="true"
+                onClick={() => setExpanded(!expanded)}
+                className="absolute left-0.5 top-1/2 -translate-y-1/2 z-10 text-gray-400 hover:text-gray-600 p-0 transition-colors"
+                title={expanded ? "Replier les plaques" : "Déplier les plaques"}
+              >
+                <ChevronRight size={14} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
+              </button>
+            )}
             {enseigneBadge && (
               <span
                 className="inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium mb-1 truncate max-w-full"
