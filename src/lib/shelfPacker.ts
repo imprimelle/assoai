@@ -210,9 +210,10 @@ export function shelfPack(
       }
 
       // Split : partie droite du rectangle utilisé
+      // ⚠️ Hauteur = bestH (pas oldFr.h !) — sinon chevauchement avec le split haut
       const rightW = oldFr.x + oldFr.w - (bestX + bestW);
       if (rightW > EPSILON) {
-        newFree.push({ x: bestX + bestW, y: oldFr.y, w: rightW, h: oldFr.h });
+        newFree.push({ x: bestX + bestW, y: oldFr.y, w: rightW, h: bestH });
       }
 
       // Split : partie haute du rectangle utilisé
