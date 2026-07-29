@@ -509,7 +509,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           )}
 
           {/* Colonne 1 : Matériau */}
-          <div className="w-[200px] shrink-0" data-no-select="true">
+          <div className={`w-[200px] shrink-0 ${isGroup ? "-ml-1" : ""}`} data-no-select="true">
             {enseigneBadge && (
               <span
                 className="inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium mb-1 truncate max-w-full"
