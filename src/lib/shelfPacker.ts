@@ -1,7 +1,12 @@
 // src/lib/shelfPacker.ts
-// Algorithme guillotine shelf packing pour le groupage CDC Builder.
+// Algorithme MaxRects bin packing pour le groupage CDC Builder.
 // Place N plaques sur K feuilles avec rotation optionnelle.
-// Retourne les placements 2D + zones de chute pour l'aperçu visuel.
+// Remplace l'ancien shelf packing guillotine — MaxRects est un algorithme
+// libre (pas de contrainte de coupes guillotine) qui trouve de meilleurs
+// placements, surtout quand les plaques ont des hauteurs différentes.
+//
+// Référence : Jukka Jylänki, "A Thousand Ways to Pack the Bin"
+// Heuristique : Best Short Side Fit (BSSF)
 
 export interface PlaqueInput {
   id: string;
@@ -38,22 +43,30 @@ export interface PackResult {
   unplaced: PlaqueInput[];
 }
 
-interface Shelf {
+interface FreeRect {
+  x: number;
   y: number;
-  height: number;
-  x_cursor: number;
+  w: number;
+  h: number;
+}
+
+const EPSILON = 0.0001;
+
+/** Compare deux nombres flottants avec tolérance */
+function feq(a: number, b: number): boolean {
+  return Math.abs(a - b) < EPSILON;
 }
 
 /**
- * Place les plaques sur des feuilles avec un algorithme guillotine shelf.
- * 
+ * Place les plaques sur des feuilles avec l'algorithme MaxRects.
+ *
  * Stratégie :
- * 1. Trier les plaques par surface décroissante
- * 2. Pour chaque plaque, essayer de la placer dans une shelf existante
- * 3. Si aucune shelf ne convient, créer une nouvelle shelf
- * 4. Si plus d'espace vertical, passer à la feuille suivante
- * 5. Si la plaque est trop grande (même avec rotation), la mettre dans unplaced
- * 
+ * 1. Trier les plaques par plus grande dimension décroissante
+ * 2. Pour chaque plaque, évaluer tous les free rectangles × orientations
+ * 3. Choisir le placement qui minimise le « short side waste » (BSSF)
+ * 4. Mettre à jour la liste des free rectangles après chaque placement
+ * 5. Si aucune place, passer à la feuille suivante
+ *
  * @param plaques - Liste des plaques à placer
  * @param feuilleL - Largeur d'une feuille en mètres
  * @param feuilleH - Hauteur d'une feuille en mètres
@@ -87,11 +100,14 @@ export function shelfPack(
     }
   }
 
-  // Trier par surface décroissante (priorité aux plus grandes)
+  // Tri par plus grande dimension décroissante (max(w,h) puis min(w,h))
   const sorted = [...expanded].sort((a, b) => {
-    const areaB = b.largeur * b.hauteur;
-    const areaA = a.largeur * a.hauteur;
-    return areaB - areaA;
+    const aMax = Math.max(a.largeur, a.hauteur);
+    const bMax = Math.max(b.largeur, b.hauteur);
+    if (!feq(aMax, bMax)) return bMax - aMax;
+    const aMin = Math.min(a.largeur, a.hauteur);
+    const bMin = Math.min(b.largeur, b.hauteur);
+    return bMin - aMin;
   });
 
   const sheets: FeuilleResult[] = [];
@@ -103,96 +119,152 @@ export function shelfPack(
   const feuilleMin = Math.min(feuilleL, feuilleH);
 
   while (remaining.length > 0) {
-    const shelves: Shelf[] = [];
+    const freeRects: FreeRect[] = [{ x: 0, y: 0, w: feuilleL, h: feuilleH }];
     const placements: Placement2D[] = [];
     const stillRemaining: PlaqueInput[] = [];
 
     for (const plaque of remaining) {
-      let placed = false;
-
-      // Vérifier que la plaque peut tenir sur la feuille (même avec rotation)
+      // Vérifier que la plaque peut tenir sur la feuille
       const pMax = Math.max(plaque.largeur, plaque.hauteur);
       const pMin = Math.min(plaque.largeur, plaque.hauteur);
       if (pMax > feuilleMax || pMin > feuilleMin) {
-        // Plaque trop grande dans les deux dimensions
         unplaced.push(plaque);
         continue;
       }
 
-      // Essayer les deux orientations (originale + rotation)
+      // Générer les orientations
       const orientations: Array<{ w: number; h: number; rotated: boolean }> = [
         { w: plaque.largeur, h: plaque.hauteur, rotated: false },
       ];
-      if (allowRotation && plaque.largeur !== plaque.hauteur) {
+      if (allowRotation && !feq(plaque.largeur, plaque.hauteur)) {
         orientations.push({ w: plaque.hauteur, h: plaque.largeur, rotated: true });
       }
 
+      // Évaluer tous les free rects × orientations → BSSF
+      let bestScore = Infinity;
+      let bestX = 0;
+      let bestY = 0;
+      let bestW = 0;
+      let bestH = 0;
+      let bestRotated = false;
+      let bestFreeIdx = -1;
+
       for (const orient of orientations) {
-        // 1. Chercher une shelf existante
-        for (const shelf of shelves) {
-          const remainingWidth = feuilleL - shelf.x_cursor;
-          // Vérifier largeur ET hauteur : la plaque ne doit pas dépasser la shelf
-          if (orient.w <= remainingWidth && orient.h <= shelf.height) {
-            placements.push({
-              enfant_id: plaque.id,
-              x: shelf.x_cursor,
-              y: shelf.y,
-              largeur: orient.w,
-              hauteur: orient.h,
-              rotated: orient.rotated,
-              nom: plaque.nom,
-            });
-            shelf.x_cursor += orient.w;
-            placed = true;
+        for (let fi = 0; fi < freeRects.length; fi++) {
+          const fr = freeRects[fi];
+          if (orient.w <= fr.w + EPSILON && orient.h <= fr.h + EPSILON) {
+            // Best Short Side Fit : minimiser le gaspillage sur le petit côté
+            const leftoverW = fr.w - orient.w;
+            const leftoverH = fr.h - orient.h;
+            const score = Math.min(leftoverW, leftoverH);
+            if (score < bestScore) {
+              bestScore = score;
+              bestX = fr.x;
+              bestY = fr.y;
+              bestW = orient.w;
+              bestH = orient.h;
+              bestRotated = orient.rotated;
+              bestFreeIdx = fi;
+            }
+          }
+        }
+      }
+
+      if (bestFreeIdx < 0) {
+        // Aucun free rect ne peut accueillir cette plaque
+        stillRemaining.push(plaque);
+        continue;
+      }
+
+      // Placer la plaque
+      placements.push({
+        enfant_id: plaque.id,
+        x: bestX,
+        y: bestY,
+        largeur: bestW,
+        hauteur: bestH,
+        rotated: bestRotated,
+        nom: plaque.nom,
+      });
+
+      const oldFr = freeRects[bestFreeIdx];
+
+      // Mise à jour des free rects
+      const newFree: FreeRect[] = [];
+
+      for (const fr of freeRects) {
+        // Supprimer le rectangle utilisé
+        if (feq(fr.x, oldFr.x) && feq(fr.y, oldFr.y) && feq(fr.w, oldFr.w) && feq(fr.h, oldFr.h)) {
+          continue;
+        }
+        // Supprimer les rectangles entièrement couverts par le placement
+        if (
+          fr.x >= bestX - EPSILON &&
+          fr.y >= bestY - EPSILON &&
+          fr.x + fr.w <= bestX + bestW + EPSILON &&
+          fr.y + fr.h <= bestY + bestH + EPSILON
+        ) {
+          continue;
+        }
+        newFree.push(fr);
+      }
+
+      // Split : partie droite du rectangle utilisé
+      const rightW = oldFr.x + oldFr.w - (bestX + bestW);
+      if (rightW > EPSILON) {
+        newFree.push({ x: bestX + bestW, y: oldFr.y, w: rightW, h: oldFr.h });
+      }
+
+      // Split : partie haute du rectangle utilisé
+      const topH = oldFr.y + oldFr.h - (bestY + bestH);
+      if (topH > EPSILON) {
+        newFree.push({ x: oldFr.x, y: bestY + bestH, w: oldFr.w, h: topH });
+      }
+
+      // Nettoyer : supprimer les rectangles contenus dans d'autres
+      const clean: FreeRect[] = [];
+      for (let i = 0; i < newFree.length; i++) {
+        const r = newFree[i];
+        let contained = false;
+        for (let j = 0; j < newFree.length; j++) {
+          if (i === j) continue;
+          const r2 = newFree[j];
+          if (
+            r.x >= r2.x - EPSILON &&
+            r.y >= r2.y - EPSILON &&
+            r.x + r.w <= r2.x + r2.w + EPSILON &&
+            r.y + r.h <= r2.y + r2.h + EPSILON
+          ) {
+            contained = true;
             break;
           }
         }
-
-        if (placed) break;
-
-        // 2. Créer une nouvelle shelf
-        const usedHeight = shelves.reduce((sum, s) => sum + s.height, 0);
-        const remainingHeight = feuilleH - usedHeight;
-
-        if (orient.h <= remainingHeight) {
-          const newShelf: Shelf = {
-            y: usedHeight,
-            height: orient.h,
-            x_cursor: 0,
-          };
-          placements.push({
-            enfant_id: plaque.id,
-            x: 0,
-            y: usedHeight,
-            largeur: orient.w,
-            hauteur: orient.h,
-            rotated: orient.rotated,
-            nom: plaque.nom,
-          });
-          newShelf.x_cursor = orient.w;
-          shelves.push(newShelf);
-          placed = true;
-          break;
+        if (!contained && r.w > EPSILON && r.h > EPSILON) {
+          clean.push(r);
         }
       }
 
-      if (!placed) {
-        stillRemaining.push(plaque);
-      }
+      freeRects.length = 0;
+      freeRects.push(...clean);
     }
 
-    // Calculer les zones de chute pour cette feuille
-    const chutes = computeChutes(feuilleL, feuilleH, shelves);
-
     if (placements.length === 0) {
-      // Aucune plaque n'a pu être placée sur cette feuille
-      // → les plaques restantes ne rentrent pas (problème de dimensions)
-      // On les ajoute à unplaced sauf si on boucle
+      // Aucune plaque placée → les restantes sont unplacées
       for (const p of stillRemaining) {
         unplaced.push(p);
       }
       break;
     }
+
+    // Chutes = free rects restants après placement
+    const chutes: Chute2D[] = freeRects
+      .filter((fr) => fr.w > 0.001 && fr.h > 0.001)
+      .map((fr) => ({
+        x: fr.x,
+        y: fr.y,
+        largeur: fr.w,
+        hauteur: fr.h,
+      }));
 
     sheets.push({ placements, chutes });
     remaining = stillRemaining;
@@ -202,48 +274,13 @@ export function shelfPack(
 }
 
 /**
- * Calcule les zones de chute rectangulaires après placement.
- * Approche simple : chute à droite de chaque shelf + chute en bas après la dernière shelf.
- */
-function computeChutes(feuilleL: number, feuilleH: number, shelves: Shelf[]): Chute2D[] {
-  const chutes: Chute2D[] = [];
-
-  if (shelves.length === 0) return chutes;
-
-  // Chutes à droite de chaque shelf
-  for (const shelf of shelves) {
-    const remainingWidth = feuilleL - shelf.x_cursor;
-    if (remainingWidth > 0.001) {
-      chutes.push({
-        x: shelf.x_cursor,
-        y: shelf.y,
-        largeur: remainingWidth,
-        hauteur: shelf.height,
-      });
-    }
-  }
-
-  // Chute en bas (après la dernière shelf)
-  const lastShelf = shelves[shelves.length - 1];
-  const bottomY = lastShelf.y + lastShelf.height;
-  const remainingBottom = feuilleH - bottomY;
-  if (remainingBottom > 0.001) {
-    chutes.push({
-      x: 0,
-      y: bottomY,
-      largeur: feuilleL,
-      hauteur: remainingBottom,
-    });
-  }
-
-  return chutes;
-}
-
-/**
  * Calcule les statistiques d'un résultat de packing.
- * Utile pour le footer d'aperçu.
  */
-export function packStats(result: PackResult, feuilleL: number, feuilleH: number): {
+export function packStats(
+  result: PackResult,
+  feuilleL: number,
+  feuilleH: number,
+): {
   nbFeuilles: number;
   surfaceTotale: number;
   surfaceUtilisee: number;
@@ -263,7 +300,8 @@ export function packStats(result: PackResult, feuilleL: number, feuilleH: number
   }
 
   const surfaceChute = Math.max(0, surfaceTotale - surfaceUtilisee);
-  const ratioUtilisation = surfaceTotale > 0 ? surfaceUtilisee / surfaceTotale : 0;
+  const ratioUtilisation =
+    surfaceTotale > 0 ? surfaceUtilisee / surfaceTotale : 0;
 
   return {
     nbFeuilles,
