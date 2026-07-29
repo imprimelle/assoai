@@ -130,6 +130,16 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
   const childIsSwiping = useRef(false);
   const childCurrentId = useRef<string | null>(null);
 
+  // 🆕 Scroll sync enfants — seule la ligne enfant active garde son scroll
+  const [activeEnfantId, setActiveEnfantId] = useState<string | null>(null);
+  useEffect(() => {
+    enfantScrollRefs.current.forEach((el, id) => {
+      if (id !== activeEnfantId) {
+        el.scrollLeft = 0;
+      }
+    });
+  }, [activeEnfantId]);
+
   // --- Swipe state (sélection) — désactivé en selectionMode ---
   // 🔴 Fix stale closure : useRef pour la position courante, useState pour le rendu seul
   const [swipeX, setSwipeX] = useState(0);
@@ -324,7 +334,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
             if (el) enfantScrollRefs.current.set(enfant.id, el);
             else enfantScrollRefs.current.delete(enfant.id);
           }}
-          onTouchStart={() => onActivate?.()}
+          onTouchStart={() => { setActiveEnfantId(enfant.id); onActivate?.(); }}
           className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-subtle scrollbar-hide-idle"
         >
           <div className="flex items-center gap-2 min-w-[620px] md:min-w-0 pl-3">
@@ -447,7 +457,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
           selectionMode && selectable ? "cursor-pointer" : ""
         }`}
       >
-        <div className="flex items-center gap-2 min-w-[620px] md:min-w-0">
+        <div className="flex items-center gap-1.5 min-w-[620px] md:min-w-0">
           {/* 🆕 Checkbox gauche — visible en selectionMode */}
           {selectionMode && selectable && (
             <button
