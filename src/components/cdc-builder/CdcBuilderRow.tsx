@@ -501,7 +501,7 @@ const CdcBuilderRow: React.FC<CdcBuilderRowProps> = ({
               type="button"
               data-no-select="true"
               onClick={() => setExpanded(!expanded)}
-              className="shrink-0 text-gray-400 hover:text-gray-600 p-0 transition-colors"
+              className="shrink-0 text-gray-400 hover:text-gray-600 p-0 -mr-1 transition-colors"
               title={expanded ? "Replier les plaques" : "Déplier les plaques"}
             >
               <ChevronRight size={14} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
