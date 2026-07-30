@@ -649,23 +649,24 @@ Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimension
     // Contexte détaillé de TOUTES les enseignes (toujours inclus, filtré des lignes vides)
     const validMateriaux = filterValidMaterials(state.materiauxByEnseigne);
     const allEnseignesText = state.enseignes
-      .map((ens) => {
-        const mats = Object.values(
-          validMateriaux[ens.id] || {},
-        ).flat();
-        const matList =
-          mats.length > 0
-            ? mats
-                .map(
-                  (m) => {
-                    const isGroup = !!(m.groupe_enfants && m.groupe_enfants.length > 0);
-                    const prefix = isGroup ? "📐 [GROUPE] " : `    [${/* section */ ""}] `;
-                    return `${prefix}${m.nom} ×${m.quantite} ${m.unite || ""}`;
-                  },
-                )
-                .join("\n")
-            : "    (aucun matériau)";
-        return `- ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm)\n${matList}`;
+      .map((ens, ensIdx) => {
+        const sections = validMateriaux[ens.id] || {};
+        const productInfo = ens.produits?.length
+          ? ` | 📦 ${ens.produits.map(p => `${p.nom} (product_id: ${p.id})`).join(", ")}`
+          : "";
+        const sectionsText = Object.entries(sections)
+          .filter(([, items]) => items.length > 0)
+          .map(([section, items]) => {
+            const lines = items.map((m) => {
+              const isGroup = !!(m.groupe_enfants && m.groupe_enfants.length > 0);
+              const prefix = isGroup ? "    📐 [GROUPE] " : "      • ";
+              const dims = m.largeur != null && m.hauteur != null ? ` (${m.largeur}×${m.hauteur}${m.unite === "m²" ? "m" : "cm"})` : "";
+              return `${prefix}${m.nom}${dims} ×${m.quantite} ${m.unite || ""}`;
+            });
+            return `    [${section}] (${items.length} matériau${items.length > 1 ? "x" : ""})\n${lines.join("\n")}`;
+          })
+          .join("\n\n");
+        return `- [${ensIdx}] ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm)${ens.dimensions.profondeur ? `×${ens.dimensions.profondeur}cm` : ""}${productInfo}\n${sectionsText || "    (aucun matériau)"}`;
       })
       .join("\n\n");
 
@@ -676,10 +677,12 @@ Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimension
       : "";
 
     const focusBlock = targetEns
-      ? `\n🎯 Enseigne mentionnée par l'utilisateur: ${targetEns.nom}
-Dimensions: ${targetEns.dimensions.largeur}×${targetEns.dimensions.hauteur}cm
-⚠️ Recherche aussi sa nomenclature (BOM) si pertinent.`
-      : `\n📋 Aucune enseigne spécifique mentionnée — c'est toi qui détermines laquelle modifier selon la demande.`;
+      ? `\n🎯 Enseigne mentionnée par l'utilisateur: ${targetEns.nom} (enseigneIndex = ${state.enseignes.findIndex(e => e.id === targetEns.id)})
+Dimensions: ${targetEns.dimensions.largeur}×${targetEns.dimensions.hauteur}${targetEns.dimensions.profondeur ? `×${targetEns.dimensions.profondeur}` : ""} cm${
+          targetEns.produits?.length ? `\n📦 Produit(s) lié(s): ${targetEns.produits.map(p => `${p.nom} (id: ${p.id})`).join(", ")}` : ""
+        }
+⚠️ Recherche aussi sa nomenclature (BOM) si un produit est lié (product_id → table product_bom).`
+      : `\n📋 Aucune enseigne spécifique mentionnée avec @ — voici le CDC complet. Détermine toi-même quelle(s) enseigne(s) modifier en fonction de la demande de l'utilisateur. Tu as TOUTES les sections et matériaux ci-dessus pour prendre ta décision.`;
 
     return `[CDC Builder — Mode Modifier]
 Tu es Brico. Voici le CDC en cours de construction.
