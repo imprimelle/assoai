@@ -337,7 +337,19 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<"modifier" | "demander">("modifier");
-  const [messages, setMessages] = useState<CdcBuilderFooterMessage[]>([]);
+
+  // 🆕 Persistence du fil de discussion par CDC
+  const LS_CHAT_PREFIX = "assoai-cdc-chat-";
+  const chatKey = state.savedMessageId || state.cdcNumero || `draft-${persistentSessionId}`;
+
+  const [messages, setMessages] = useState<CdcBuilderFooterMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem(LS_CHAT_PREFIX + chatKey);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(false); // enrichissement catalogue en cours
 
@@ -408,6 +420,37 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // 🆕 Persister les messages dans localStorage à chaque changement
+  useEffect(() => {
+    try {
+      const key = LS_CHAT_PREFIX + chatKey;
+      if (messages.length > 0) {
+        localStorage.setItem(key, JSON.stringify(messages));
+      } else {
+        localStorage.removeItem(key);
+      }
+    } catch {
+      // localStorage plein → ignorer silencieusement
+    }
+  }, [messages, chatKey, LS_CHAT_PREFIX]);
+
+  // 🆕 Migration : quand le CDC passe de cdcNumero → savedMessageId, déplacer les messages
+  const prevChatKeyRef = useRef(chatKey);
+  useEffect(() => {
+    const prevKey = prevChatKeyRef.current;
+    if (prevKey !== chatKey && prevKey) {
+      try {
+        const oldData = localStorage.getItem(LS_CHAT_PREFIX + prevKey);
+        if (oldData && messages.length === 0) {
+          const parsed = JSON.parse(oldData);
+          setMessages(parsed);
+        }
+        localStorage.removeItem(LS_CHAT_PREFIX + prevKey);
+      } catch {}
+    }
+    prevChatKeyRef.current = chatKey;
+  }, [chatKey, LS_CHAT_PREFIX, messages.length]);
 
   useEffect(() => {
     return () => {
