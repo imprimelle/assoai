@@ -1067,15 +1067,17 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
     const templateData = { data: payload, version: (state as any)._version || 1 };
 
     try {
-      const projectId = searchParams.get("projectId") || searchParams.get("cdcId")
-        ? (loaderResult?.project?.id || null)
-        : null;
+      // 🆕 project_id depuis le loader (source de vérité) — peut être null (CDC sans projet)
+      const projectId = loaderResult?.project?.id || null;
 
       if (state.savedMessageId) {
         // UPDATE existant
         const { error } = await supabase
           .from("messages")
           .update({
+            user_id: user.id,          // 🆕 obligatoire (NOT NULL)
+            sender: "user",            // 🆕 obligatoire (CHECK constraint)
+            project_id: projectId,     // 🆕 mettre à jour le lien projet si changé
             template_data: templateData,
             timestamp: new Date().toISOString(),
           })
@@ -1087,6 +1089,8 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
         const { data, error } = await supabase
           .from("messages")
           .insert({
+            user_id: user.id,          // 🆕 obligatoire (NOT NULL)
+            sender: "user",            // 🆕 obligatoire (CHECK constraint)
             project_id: projectId,
             template_type: "cahier_des_charges",
             template_data: templateData,
@@ -1274,6 +1278,8 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           onSelectProject={handleSelectProject}
           enseigneCount={state.enseignes.length}
           onUnlinkProject={() => {
+            // 🆕 Confirmation avant de perdre tout le travail
+            if (!window.confirm("Délier le projet ? Tout le travail non sauvegardé sera perdu.")) return;
             setSearchParams({});
             const ens = createEmptyEnseigne();
             const newState: CdcBuilderState = {
@@ -1577,6 +1583,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           onStateChange={setState}
           user={user}
           persistentSessionId={persistentSessionId}
+          projectId={loaderResult?.project?.id || null}
           onHighlightsChange={setHighlights}
           showConsolidated={showConsolidated}
           onToggleConsolidated={() => setShowConsolidated((p) => !p)}

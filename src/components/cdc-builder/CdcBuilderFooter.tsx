@@ -52,6 +52,8 @@ export interface CdcBuilderFooterProps {
   onStateChange: (state: CdcBuilderState) => void;
   user: User;
   persistentSessionId: string;
+  /** 🆕 ID du projet lié (null si aucun projet) */
+  projectId?: string | null;
   onHighlightsChange?: (
     highlights: Record<string, "added" | "modified">,
   ) => void;
@@ -319,6 +321,7 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   onStateChange,
   user,
   persistentSessionId,
+  projectId,
   onHighlightsChange,
   showConsolidated,
   onToggleConsolidated,
@@ -428,7 +431,7 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
     const prompt = `[CDC Builder — Mode Modifier]
 Tu es Brico. Régénère TOUS les matériaux de cette enseigne à partir de zéro.
 
-Projet: ${state.projectName || "Sans titre"}
+Projet: ${state.projectName || "Sans titre"}${projectId ? ` (ID: ${projectId})` : ""}
 CDC N°: ${state.cdcNumero || "?"}
 
 🎯 Enseigne à régénérer : ${ens.nom} (enseigneIndex = ${ensIdx})
@@ -575,7 +578,7 @@ Dimensions: ${targetEns.dimensions.largeur}×${targetEns.dimensions.hauteur}cm
     return `[CDC Builder — Mode Modifier]
 Tu es Brico. Voici le CDC en cours de construction.
 
-Projet: ${state.projectName || "Sans titre"}
+Projet: ${state.projectName || "Sans titre"}${projectId ? ` (ID: ${projectId})` : ""}
 CDC N°: ${state.cdcNumero || "?"}
 Commande N°: ${state.commandeId || "?"}
 
@@ -615,7 +618,7 @@ Analyse : j'ajoute du Forex 5mm dans la section Découpe car la demande concerne
     return `[CDC Builder — Génération complète]
 Tu es Brico. Génère un Cahier des Charges complet pour ce projet.
 
-Projet: ${state.projectName || "Sans titre"}
+Projet: ${state.projectName || "Sans titre"}${projectId ? ` (ID: ${projectId})` : ""}
 CDC N°: ${state.cdcNumero || "?"}
 Commande N°: ${state.commandeId || "?"}
 
