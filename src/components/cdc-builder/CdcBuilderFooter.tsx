@@ -71,6 +71,8 @@ export interface CdcBuilderFooterProps {
   onCdcGenerated?: (state: CdcBuilderState) => void;
   /** 🆕 ID de l'enseigne à régénérer — déclenche un envoi auto à Brico */
   regenerateEnseigneId?: string | null;
+  /** 🆕 Message utilisateur optionnel pour préciser la régénération */
+  regenerateMessage?: string;
   /** 🆕 Callback pour vider l'ID après traitement */
   onClearRegenerate?: () => void;
 }
@@ -384,6 +386,7 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   hasProjectWithoutCdc = false,
   onCdcGenerated,
   regenerateEnseigneId,
+  regenerateMessage,
   onClearRegenerate,
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -533,6 +536,11 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
     // Trouver l'index de l'enseigne
     const ensIdx = state.enseignes.findIndex((e) => e.id === regenerateEnseigneId);
 
+    // 🆕 Info produit pour la BOM
+    const productInfo = ens.produits?.length
+      ? `\n📦 Produit(s) lié(s): ${ens.produits.map(p => `${p.nom} (product_id: ${p.id})`).join(", ")}`
+      : "";
+
     // Construire le prompt
     const prompt = `[CDC Builder — Mode Modifier]
 Tu es Brico. Régénère TOUS les matériaux de cette enseigne à partir de zéro.
@@ -541,16 +549,24 @@ Projet: ${state.projectName || "Sans titre"}${projectId ? ` (ID: ${projectId})` 
 CDC N°: ${state.cdcNumero || "?"}
 
 🎯 Enseigne à régénérer : ${ens.nom} (enseigneIndex = ${ensIdx})
-Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimensions.profondeur ? `×${ens.dimensions.profondeur}` : ""} cm
+Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimensions.profondeur ? `×${ens.dimensions.profondeur}` : ""} cm${
+      ens.produits?.length ? `\n📦 Produit(s) lié(s): ${ens.produits.map(p => `${p.nom} (product_id: ${p.id})`).join(", ")}` : ""
+    }${
+      regenerateMessage ? `\n\n💬 Précision de l'utilisateur : ${regenerateMessage}` : ""
+    }
 
 ⚠️ INSTRUCTIONS :
 1. Supprime TOUS les matériaux existants de cette enseigne (enseigneIndex=${ensIdx}) — utilise "delete" pour chaque item dans chaque section.
 2. Recrée les 5 sections (Découpe, Éclairage, Outillage, Métal, Vinyl) avec des matériaux frais basés sur les règles de fabrication.
-3. Respecte les dimensions de l'enseigne.
-4. ⚠️ FORMAT : analyse + JSON actions (SANS triple-backticks).`;
+3. ${ens.produits?.length ? "Si un produit est lié, charge sa nomenclature (BOM) via product_bom." : "Utilise les règles de fabrication standards (manufacturing-rules)."}
+4. Respecte les dimensions de l'enseigne.${regenerateMessage ? "\n5. Applique la précision de l'utilisateur." : ""}
+6. ⚠️ FORMAT : analyse + JSON actions (SANS triple-backticks).`;
 
     // Message utilisateur dans le chat
-    setMessages((prev) => [...prev, { role: "user", text: `🔄 Régénérer « ${ens.nom} »` }]);
+    const chatLabel = regenerateMessage
+      ? `🔄 Régénérer « ${ens.nom} » — "${regenerateMessage}"`
+      : `🔄 Régénérer « ${ens.nom} »`;
+    setMessages((prev) => [...prev, { role: "user", text: chatLabel }]);
     setExpanded(true);
     setLoading(true);
     setMode("modifier");
@@ -719,8 +735,12 @@ Analyse : j'ajoute du Forex 5mm dans la section Découpe car la demande concerne
   const buildGenerationPrompt = (): string => {
     const allEnseignesText = state.enseignes
       .map(
-        (ens) =>
-          `- ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm)`,
+        (ens) => {
+          const productInfo = ens.produits?.length
+            ? ` | 📦 ${ens.produits.map(p => `${p.nom} (product_id: ${p.id})`).join(", ")}`
+            : "";
+          return `- ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm)${productInfo}`;
+        },
       )
       .join("\n");
 
@@ -733,6 +753,8 @@ Commande N°: ${state.commandeId || "?"}
 
 Enseignes à couvrir:
 ${allEnseignesText}
+
+⚠️ Pour chaque enseigne qui a un 📦 product_id, interroge la table product_bom pour obtenir la nomenclature exacte. C'est ta source de vérité.
 
 ⚠️ INSTRUCTIONS CRITIQUES :
 1. Pour CHAQUE enseigne, remplis les 5 sections (Découpe, Éclairage, Outillage, Métal, Vinyl) avec des matériaux pertinents.
