@@ -187,6 +187,34 @@ const EnseigneDialog: React.FC<EnseigneDialogProps> = ({
               />
             </div>
 
+            {/* Quantité */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                🔢 Quantité
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={999}
+                  value={form.quantite || 1}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v) && v >= 1) handleChange("quantite", v);
+                  }}
+                  className="h-9 w-24 border border-gray-200 rounded px-3 bg-white text-center
+                             focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
+                />
+                <span className="text-sm text-gray-500">
+                  exemplaire{form.quantite > 1 ? "s" : ""} à fabriquer
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Brico multipliera les matériaux par cette quantité
+              </p>
+            </div>
+
             {/* Image */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

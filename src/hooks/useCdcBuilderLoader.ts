@@ -95,6 +95,7 @@ async function loadFromCdcId(cdcId: string): Promise<CdcBuilderLoaderResult> {
     (ens: any): CdcBuilderEnseigne => ({
       id: ens.id || crypto.randomUUID(),
       nom: ens.nom || "",
+      quantite: ens.quantite || 1,
       dimensions: ens.details?.dimensions || { largeur: 200, hauteur: 100 },
       image_url: ens.details?.image_url || ens.image_url,
       technique: ens.details?.technique || {
@@ -197,6 +198,7 @@ async function loadFromProjectId(projectId: string): Promise<CdcBuilderLoaderRes
       (ens: any): CdcBuilderEnseigne => ({
         id: ens.id || crypto.randomUUID(),
         nom: ens.nom || "",
+        quantite: ens.quantite || 1,
         dimensions: ens.details?.dimensions || { largeur: 200, hauteur: 100 },
         image_url: ens.details?.image_url || ens.image_url,
         technique: ens.details?.technique || {

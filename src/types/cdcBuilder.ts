@@ -38,6 +38,7 @@ export interface FeuillePlacement {
 export interface CdcBuilderEnseigne {
   id: string;
   nom: string;
+  quantite: number;
   dimensions: {
     largeur: number;
     hauteur: number;
@@ -104,6 +105,7 @@ export function createEmptyEnseigne(): CdcBuilderEnseigne {
   return {
     id: crypto.randomUUID?.() || `ens-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     nom: "Nouvelle enseigne",
+    quantite: 1,
     dimensions: { largeur: 0, hauteur: 0 },
     technique: { type_structure: "", method_fabrication: "" },
     produits: [],

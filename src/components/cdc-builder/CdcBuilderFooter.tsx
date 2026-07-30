@@ -548,7 +548,7 @@ Tu es Brico. Régénère TOUS les matériaux de cette enseigne à partir de zér
 Projet: ${state.projectName || "Sans titre"}${projectId ? ` (ID: ${projectId})` : ""}
 CDC N°: ${state.cdcNumero || "?"}
 
-🎯 Enseigne à régénérer : ${ens.nom} (enseigneIndex = ${ensIdx})
+🎯 Enseigne à régénérer : ${ens.nom} (enseigneIndex = ${ensIdx})${ens.quantite > 1 ? ` ×${ens.quantite} exemplaires` : ""}
 Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimensions.profondeur ? `×${ens.dimensions.profondeur}` : ""} cm${
       ens.produits?.length ? `\n📦 Produit(s) lié(s): ${ens.produits.map(p => `${p.nom} (product_id: ${p.id})`).join(", ")}` : ""
     }${
@@ -559,8 +559,9 @@ Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimension
 1. Supprime TOUS les matériaux existants de cette enseigne (enseigneIndex=${ensIdx}) — utilise "delete" pour chaque item dans chaque section.
 2. Recrée les 5 sections (Découpe, Éclairage, Outillage, Métal, Vinyl) avec des matériaux frais basés sur les règles de fabrication.
 3. ${ens.produits?.length ? "Si un produit est lié, charge sa nomenclature (BOM) via product_bom." : "Utilise les règles de fabrication standards (manufacturing-rules)."}
-4. Respecte les dimensions de l'enseigne.${regenerateMessage ? "\n5. Applique la précision de l'utilisateur." : ""}
-6. ⚠️ FORMAT : analyse + JSON actions (SANS triple-backticks).`;
+4. 🔢 MULTIPLIE les quantités par le nombre d'exemplaires : cette enseigne doit être fabriquée en ${ens.quantite} exemplaire${ens.quantite > 1 ? "s" : ""}.
+5. Respecte les dimensions de l'enseigne.${regenerateMessage ? "\n6. Applique la précision de l'utilisateur." : ""}
+7. ⚠️ FORMAT : analyse + JSON actions (SANS triple-backticks).`;
 
     // Message utilisateur dans le chat
     const chatLabel = regenerateMessage
@@ -682,7 +683,7 @@ Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimension
             return `    [${section}] (${items.length} matériau${items.length > 1 ? "x" : ""})\n${lines.join("\n")}`;
           })
           .join("\n\n");
-        return `- [${ensIdx}] ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm)${ens.dimensions.profondeur ? `×${ens.dimensions.profondeur}cm` : ""}${productInfo}\n${sectionsText || "    (aucun matériau)"}`;
+        return `- [${ensIdx}] ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm)${ens.dimensions.profondeur ? `×${ens.dimensions.profondeur}cm` : ""}${ens.quantite > 1 ? ` ×${ens.quantite} exemplaires` : ""}${productInfo}\n${sectionsText || "    (aucun matériau)"}`;
       })
       .join("\n\n");
 
@@ -727,6 +728,8 @@ Analyse : j'ajoute du Forex 5mm dans la section Découpe car la demande concerne
 
 ⚠️ Pour grouper des plaques en feuille, utilise le type "group" (sections Découpe et Vinyl uniquement).
 ⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne s'applique chaque action.
+⚠️ 🔢 MULTIPLIE les quantités de TOUS les matériaux par le nombre d'exemplaires indiqué pour chaque enseigne.
+   Ex: si [0] Façade ×3 exemplaires et qu'il faut 2 plaques par exemplaire → quantite=6 pour cette enseigne.
 ⚠️ Le JSON doit être valide — pas de virgule après le dernier élément, pas de commentaires.`;
 
   };
@@ -739,7 +742,7 @@ Analyse : j'ajoute du Forex 5mm dans la section Découpe car la demande concerne
           const productInfo = ens.produits?.length
             ? ` | 📦 ${ens.produits.map(p => `${p.nom} (product_id: ${p.id})`).join(", ")}`
             : "";
-          return `- ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm)${productInfo}`;
+          return `- ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm)${ens.quantite > 1 ? ` ×${ens.quantite} exemplaires` : ""}${productInfo}`;
         },
       )
       .join("\n");
@@ -760,6 +763,7 @@ ${allEnseignesText}
 1. Pour CHAQUE enseigne, remplis les 5 sections (Découpe, Éclairage, Outillage, Métal, Vinyl) avec des matériaux pertinents.
 2. Utilise tes connaissances des règles de fabrication (manufacturing-rules) pour déterminer les bons matériaux.
 3. Les quantités doivent respecter les dimensions de chaque enseigne.
+   🔢 MULTIPLIE les quantités par le nombre d'exemplaires (×N) de chaque enseigne.
 4. 🆕 Pour les sections Découpe et Vinyl, regroupe les plaques compatibles en feuilles via des actions "group" quand c'est pertinent (même matériau, même épaisseur).
 5. ⚠️ FORMAT DE RÉPONSE OBLIGATOIRE :
    a) Une analyse (2-4 phrases) résumant les matériaux générés pour chaque enseigne.

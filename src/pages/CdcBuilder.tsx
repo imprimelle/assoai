@@ -271,6 +271,11 @@ const EnseigneAccordion: React.FC<EnseigneAccordionProps> = ({
               <h3 className="text-base font-semibold text-gray-800 truncate">
                 {enseigne.nom}
               </h3>
+              {enseigne.quantite > 1 && (
+                <span className="shrink-0 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-semibold">
+                  ×{enseigne.quantite}
+                </span>
+              )}
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
               {enseigne.dimensions.largeur}×{enseigne.dimensions.hauteur}
@@ -402,6 +407,7 @@ function buildCdcPayload(state: CdcBuilderState) {
     enseignes: state.enseignes.map((ens) => ({
       id: ens.id,
       nom: ens.nom,
+      quantite: ens.quantite,
       produits: ens.produits,
       details: {
         image_url: ens.image_url,
@@ -811,6 +817,11 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
       if (saved) {
         const parsed = JSON.parse(saved) as CdcBuilderState;
         if (parsed.enseignes?.length) {
+          // 🆕 Migration : ajouter quantite=1 aux enseignes qui n'en ont pas
+          parsed.enseignes = parsed.enseignes.map((ens: any) => ({
+            ...ens,
+            quantite: ens.quantite || 1,
+          }));
           setState(parsed);
           // 🆕 Reset compteur après restauration localStorage
           const { savedMessageId, ...trackable } = parsed as any;
