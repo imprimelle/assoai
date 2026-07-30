@@ -2,7 +2,6 @@ import React, { useMemo, useCallback } from "react";
 import { Package, Tag } from "lucide-react";
 import { Product, ProductVariant } from "@/types/product";
 import { useProducts } from "@/hooks/useProducts";
-import { formatCFA } from "@/utils/format";
 import { smartSearch } from "@/utils/productSearch";
 import { SearchableDropdown, type DropdownItem } from "./SearchableDropdown";
 
@@ -53,7 +52,7 @@ const ProductSuggestions: React.FC<ProductSuggestionsProps> = ({
       items.push({
         id: p.id,
         label: p.name || "Sans nom",
-        subtitle: formatCFA(p.variants?.[0]?.price || 0),
+        subtitle: "",
         price: p.variants?.[0]?.price || 0,
         isVariant: false,
         imageUrl: p.main_image_url,
@@ -69,7 +68,7 @@ const ProductSuggestions: React.FC<ProductSuggestionsProps> = ({
           items.push({
             id: v.id || "",
             label: v.name || "Variante",
-            subtitle: `${p.name} • ${formatCFA(v.price || 0)}`,
+            subtitle: p.name || "",
             price: v.price || 0,
             isVariant: true,
             parentProduct: p.name,

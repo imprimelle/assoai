@@ -329,7 +329,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
     (section: string) => {
       const newItem: MaterialItem = {
         id: crypto.randomUUID?.() || `mat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        nom: "",
+        nom: "@",  // 🆕 Pré-rempli pour déclencher le dropdown catalogue
         quantite: 1,
         unite: "",
         largeur: section === "Découpe" || section === "Vinyl" ? defaultDimensions.largeur : undefined,

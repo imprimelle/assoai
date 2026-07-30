@@ -9,6 +9,39 @@ import ProductSuggestions from "@/components/shared/ProductSuggestions";
 import { createEmptyEnseigne } from "@/types/cdcBuilder";
 import type { CdcBuilderEnseigne } from "@/types/cdcBuilder";
 
+/** 🆕 Parse les dimensions (L×H ou L×H×P) depuis un nom de variante.
+ *  Supporte : "200×100", "4m×1.5m", "200cm×100cm×15cm", "Caisson 200×100"
+ *  Conversion automatique en cm (m→×100, mm→÷10, cm→inchangé). */
+function parseDimensionsFromName(name: string): { largeur: number; hauteur: number; profondeur?: number } | null {
+  // Normaliser les séparateurs : ×, x, X → ×
+  const normalized = name.replace(/\s*[xX]\s*/g, "×");
+
+  // Extraire les paires nombre+unité optionnelle : "200", "4m", "1.5cm", "15"
+  const numberPattern = /(\d+[.,]?\d*)\s*(cm|m|mm)?/g;
+  const matches = [...normalized.matchAll(numberPattern)];
+
+  if (matches.length < 2) return null;
+
+  // Vérifier qu'au moins 2 nombres sont séparés par ×
+  const dimPattern = /(\d+[.,]?\d*)\s*(cm|m|mm)?\s*×\s*(\d+[.,]?\d*)\s*(cm|m|mm)?(?:\s*×\s*(\d+[.,]?\d*)\s*(cm|m|mm)?)?/i;
+  const dimMatch = normalized.match(dimPattern);
+  if (!dimMatch) return null;
+
+  const toCm = (value: string, unit?: string): number => {
+    const n = parseFloat(value.replace(",", "."));
+    if (!unit || unit === "cm") return n;
+    if (unit === "m") return n * 100;
+    if (unit === "mm") return n / 10;
+    return n;
+  };
+
+  const largeur = toCm(dimMatch[1], dimMatch[2]);
+  const hauteur = toCm(dimMatch[3], dimMatch[4]);
+  const profondeur = dimMatch[5] ? toCm(dimMatch[5], dimMatch[6]) : undefined;
+
+  return { largeur, hauteur, profondeur };
+}
+
 export interface EnseigneDialogProps {
   open: boolean;
   enseigne?: CdcBuilderEnseigne;
@@ -52,10 +85,21 @@ const EnseigneDialog: React.FC<EnseigneDialogProps> = ({
   // Sélection d'un produit depuis le catalogue
   const handleProductSelect = useCallback(
     (product: { description: string; prixUnitaire: number; image_url?: string | null }) => {
+      // 🆕 Tenter de parser les dimensions depuis le nom du produit/variante
+      const dims = parseDimensionsFromName(product.description);
+
       setForm((prev) => ({
         ...prev,
         nom: product.description || prev.nom,
         image_url: product.image_url || prev.image_url,
+        // 🆕 Auto-fill dimensions si parsées depuis le nom
+        ...(dims ? {
+          dimensions: {
+            largeur: dims.largeur,
+            hauteur: dims.hauteur,
+            profondeur: dims.profondeur ?? prev.dimensions.profondeur ?? 0,
+          },
+        } : {}),
       }));
     },
     [],

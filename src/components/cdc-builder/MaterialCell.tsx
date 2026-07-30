@@ -7,7 +7,6 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Package, Loader2 } from "lucide-react";
 import { useMaterials } from "@/hooks/useMaterials";
-import { formatCFA } from "@/utils/format";
 import type { MaterialItem } from "@/types";
 import type { MaterialCatalogEntry } from "@/types/materialCatalog";
 
@@ -116,6 +115,21 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
     return () => document.removeEventListener("mousedown", handler);
   }, [showDropdown]);
 
+  // 🆕 Auto-open dropdown au montage si la valeur contient @ (ex: nouvelle ligne)
+  useEffect(() => {
+    if (value && value.includes("@")) {
+      const atIdx = value.lastIndexOf("@");
+      setAtQuery(value.slice(atIdx + 1));
+      // Timeout pour laisser le DOM se stabiliser avant d'ouvrir
+      const t = setTimeout(() => {
+        setShowDropdown(true);
+        inputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Scroll automatique vers l'élément actif
   useEffect(() => {
     if (!showDropdown || materials.length === 0) return;
@@ -157,11 +171,9 @@ const MaterialCell: React.FC<MaterialCellProps> = ({
       ) : (
         <ul className="py-1">
           {materials.map((entry, idx) => {
-            const cost = entry.cout_min != null
-              ? ` • ${formatCFA(entry.cout_min)}/${entry.unite}` : "";
             const colors = entry.couleurs.length
               ? ` • ${entry.couleurs.join(", ")}` : "";
-            const subtitle = `${entry.format_standard || entry.categorie}${colors}${cost}`;
+            const subtitle = `${entry.format_standard || entry.categorie}${colors}`;
             return (
               <li
                 key={entry.id}
