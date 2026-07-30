@@ -111,6 +111,57 @@ function extractContent(container: HTMLElement): {
   container.childNodes.forEach(walk);
   return { text: text.replace(/\u00A0/g, " ").trim(), chips };
 }
+
+/** 🆕 Convertit le markdown basique en HTML pour l'affichage dans le chat.
+ *  Supporte : **gras**, *italique*, `code`, listes à puces, tableaux simples. */
+function renderMarkdownToHtml(md: string): string {
+  let html = md;
+
+  // Échapper le HTML existant
+  html = html.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  // Code inline — traiter AVANT les autres formats
+  html = html.replace(/`([^`]+)`/g, '<code class="bg-gray-700 text-amber-400 px-1 py-0.5 rounded text-[11px] font-mono">$1</code>');
+
+  // Gras
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
+
+  // Italique
+  html = html.replace(/\*([^*]+)\*/g, '<em class="italic">$1</em>');
+
+  // Tableaux : | col1 | col2 |
+  const lines = html.split("\n");
+  const result: string[] = [];
+  let inTable = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\|(.+)\|$/.test(line.trim())) {
+      const trimmed = line.trim();
+      // Ignorer les séparateurs (|---|---|)
+      if (/^\|[\s\-:]+\|/.test(trimmed)) continue;
+      if (!inTable) {
+        result.push('<table class="w-full text-[11px] border-collapse border border-gray-600 rounded overflow-hidden my-1"><tbody>');
+        inTable = true;
+      }
+      const cells = trimmed.slice(1, -1).split("|").map(c => c.trim());
+      result.push("<tr>" + cells.map(c => `<td class="border border-gray-600 px-2 py-1 text-gray-300">${c}</td>`).join("") + "</tr>");
+    } else {
+      if (inTable) { result.push("</tbody></table>"); inTable = false; }
+      result.push(line);
+    }
+  }
+  if (inTable) result.push("</tbody></table>");
+  html = result.join("\n");
+
+  // Listes à puces
+  html = html.replace(/^- (.+)$/gm, '<li class="ml-4 list-disc text-gray-200">$1</li>');
+
+  // Sauts de ligne
+  html = html.replace(/\n/g, "<br>");
+
+  return html;
+}
+
 function parseBricoResponse(
   response: { textFallback?: string; cdcActions?: BricoAction[] }
 ): { message: string; actions?: BricoAction[] } {
@@ -350,6 +401,18 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
       return [];
     }
   });
+
+  // 🆕 Recharger les messages quand le chatKey change
+  // (ex: après restauration du state depuis localStorage qui change cdcNumero)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LS_CHAT_PREFIX + chatKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as CdcBuilderFooterMessage[];
+        if (parsed.length > 0) setMessages(parsed);
+      }
+    } catch {}
+  }, [chatKey, LS_CHAT_PREFIX]);
   const [loading, setLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(false); // enrichissement catalogue en cours
 
@@ -1534,7 +1597,9 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
                           : "bg-gray-800 border border-gray-700 text-gray-200 rounded-bl-sm"
                       }`}
                     >
-                      {msg.text}
+                      {msg.role === "brico"
+                        ? <span dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(msg.text) }} />
+                        : msg.text}
                     </div>
                     {msg.role === "user" && (
                       <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mt-0.5">
@@ -1600,7 +1665,9 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
                           : "bg-gray-800 border border-gray-700 text-gray-200 rounded-bl-sm"
                       }`}
                     >
-                      {msg.text}
+                      {msg.role === "brico"
+                        ? <span dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(msg.text) }} />
+                        : msg.text}
                     </div>
                     {msg.role === "user" && (
                       <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mt-0.5">
