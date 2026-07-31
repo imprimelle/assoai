@@ -488,18 +488,25 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   }, [messages]);
 
   // 🆕 Persister les messages dans localStorage à chaque changement
+  // ⚠️ chatKey est lu via ref pour éviter la race condition :
+  //   quand chatKey change, le save effect se déclenchait avant le load effect
+  //   → removeItem(ancienKey) supprimait l'historique avant qu'il ne soit rechargé
+  const chatKeyRef = useRef(chatKey);
+  chatKeyRef.current = chatKey;
+
   useEffect(() => {
     try {
-      const key = LS_CHAT_PREFIX + chatKey;
+      const key = LS_CHAT_PREFIX + chatKeyRef.current;
       if (messages.length > 0) {
         localStorage.setItem(key, JSON.stringify(messages));
-      } else {
-        localStorage.removeItem(key);
       }
+      // Ne PAS faire removeItem quand messages est vide — c'est le load
+      // qui doit décider, pas le save. Un removeItem ici détruirait
+      // l'historique lors du changement de chatKey.
     } catch {
       // localStorage plein → ignorer silencieusement
     }
-  }, [messages, chatKey, LS_CHAT_PREFIX]);
+  }, [messages]); // 🔴 Uniquement messages, PAS chatKey
 
   // 🆕 Migration : quand le CDC passe de cdcNumero → savedMessageId, déplacer les messages
   const prevChatKeyRef = useRef(chatKey);
