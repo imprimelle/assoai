@@ -57,6 +57,7 @@ export function useFinancialTransactions(filters: TransactionFilters) {
       if (error) throw error;
       return data as any[];
     },
+    staleTime: 10_000, // les données restent fraîches 10s (évite refetch inutile à chaque montage)
     refetchInterval: 8_000, // auto-refresh toutes les 8 secondes
   });
 }

@@ -285,7 +285,7 @@ export function TransactionList() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [detailTx, setDetailTx] = useState<TxDisplay | null>(null);
 
-  const { data: transactions, isLoading } = useFinancialTransactions({ period, type: typeFilter, search: search || undefined });
+  const { data: transactions, isLoading, isError, error } = useFinancialTransactions({ period, type: typeFilter, search: search || undefined });
   const deleteTx = useDeleteTransaction();
 
   const grouped = useMemo(() => {
@@ -340,6 +340,11 @@ export function TransactionList() {
       {/* Liste groupée */}
       {isLoading ? (
         <div className="p-8 text-center text-gray-400"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></div>
+      ) : isError ? (
+        <div className="p-8 text-center">
+          <p className="text-red-500 text-sm font-medium mb-1">⚠️ Erreur de chargement</p>
+          <p className="text-gray-400 text-xs">{(error as any)?.message || "Impossible de récupérer les transactions"}</p>
+        </div>
       ) : grouped.length === 0 ? (
         <div className="p-8 text-center text-gray-400 text-sm">Aucune transaction</div>
       ) : (

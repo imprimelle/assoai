@@ -26,10 +26,12 @@ function formatFCFA(value: number): string {
 
 /* ── Hook : totaux ajustés (exclut les flux monnaie des revenus/dépenses) ── */
 function useAdjustedBalance() {
-  const { data: txs, isLoading } = useFinancialTransactions({ period: "month" });
+  const { data: txs, isLoading, isError, error } = useFinancialTransactions({ period: "month" });
 
   return useMemo(() => {
-    if (!txs) return { realIncome: 0, realExpenses: 0, monnaieConfiee: 0, monnaieCompensee: 0, monnaieRendue: 0, isLoading };
+    if (isLoading) return { realIncome: 0, realExpenses: 0, monnaieConfiee: 0, monnaieCompensee: 0, monnaieRendue: 0, isLoading: true, isError: false, error: null as Error | null };
+    if (isError) return { realIncome: 0, realExpenses: 0, monnaieConfiee: 0, monnaieCompensee: 0, monnaieRendue: 0, isLoading: false, isError: true, error: error as Error | null };
+    if (!txs) return { realIncome: 0, realExpenses: 0, monnaieConfiee: 0, monnaieCompensee: 0, monnaieRendue: 0, isLoading: false, isError: false, error: null };
 
     let realIncome = 0;
     let realExpenses = 0;
@@ -54,8 +56,8 @@ function useAdjustedBalance() {
       }
     }
 
-    return { realIncome, realExpenses, monnaieConfiee, monnaieCompensee, monnaieRendue, isLoading };
-  }, [txs, isLoading]);
+    return { realIncome, realExpenses, monnaieConfiee, monnaieCompensee, monnaieRendue, isLoading: false, isError: false, error: null };
+  }, [txs, isLoading, isError, error]);
 }
 
 /* ── Hook : monnaie en circulation (surplus − réservations) ── */
@@ -164,6 +166,13 @@ export default function Finance() {
         <div className="max-w-5xl mx-auto px-4 space-y-2">
           {/* Barre opérationnelle */}
           <div className="bg-white rounded-xl border shadow-sm px-4 py-3">
+            {adjusted.isError ? (
+              <div className="text-center py-1">
+                <p className="text-red-500 text-xs font-medium">⚠️ Erreur chargement solde</p>
+                <p className="text-gray-400 text-[10px] mt-0.5">{adjusted.error?.message || "Impossible de charger les données"}</p>
+              </div>
+            ) : (
+            <>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Opérationnel</span>
               <div className="flex items-center gap-3 text-xs">
@@ -197,6 +206,8 @@ export default function Finance() {
                 }
               </span>
             </div>
+            </>
+            )}
           </div>
 
           {/* Barre monnaie en circulation */}
