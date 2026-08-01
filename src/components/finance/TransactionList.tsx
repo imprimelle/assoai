@@ -346,7 +346,18 @@ export function TransactionList() {
           <p className="text-gray-400 text-xs">{(error as any)?.message || "Impossible de récupérer les transactions"}</p>
         </div>
       ) : grouped.length === 0 ? (
-        <div className="p-8 text-center text-gray-400 text-sm">Aucune transaction</div>
+        <div className="p-8 text-center space-y-3">
+          <p className="text-gray-400 text-sm">Aucune transaction</p>
+          {period !== "all" && (
+            <button
+              type="button"
+              onClick={() => setPeriod("all")}
+              className="text-xs text-blue-600 hover:text-blue-800 underline"
+            >
+              Voir toutes les transactions (changer la période)
+            </button>
+          )}
+        </div>
       ) : (
         <div>
           {grouped.map(([periodKey, txs]) => {
