@@ -575,6 +575,8 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
     const prompt = `[CDC Builder — Mode Modifier]
 Tu es Brico. Régénère TOUS les matériaux de cette enseigne à partir de zéro.
 
+⚠️ RÈGLE : Toutes les dimensions sont en CENTIMÈTRES (cm).
+
 Projet: ${state.projectName || "Sans titre"}${projectId ? ` (ID: ${projectId})` : ""}
 CDC N°: ${state.cdcNumero || "?"}
 
@@ -671,9 +673,9 @@ Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimension
             .filter(e => e.nom !== "Chute")
             .reduce((sum, e) => sum + (e.largeur || 0) * (e.hauteur || 0) * (e.quantite || 1), 0);
           const chute = Math.max(0, feuilleSurface - occupee);
-          lines.push(`📐 [${section}] Feuille ${item.nom} (${feuilleL}×${feuilleH}m, surface ${feuilleSurface.toFixed(2)}m²) :`);
+          lines.push(`📐 [${section}] Feuille ${item.nom} (${feuilleL}×${feuilleH}cm, surface ${feuilleSurface.toFixed(2)}cm²) :`);
           for (const e of enfants) {
-            const dims = e.largeur != null && e.hauteur != null ? ` (${e.largeur}×${e.hauteur}m)` : "";
+            const dims = e.largeur != null && e.hauteur != null ? ` (${e.largeur}×${e.hauteur}cm)` : "";
             lines.push(`    • ${e.nom}${dims} ×${e.quantite} ${e.unite || ""}`);
           }
           if (chute > 0.001) lines.push(`    • Chute ~${chute.toFixed(2)}m²`);
@@ -707,7 +709,7 @@ Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimension
             const lines = items.map((m) => {
               const isGroup = !!(m.groupe_enfants && m.groupe_enfants.length > 0);
               const prefix = isGroup ? "    📐 [GROUPE] " : "      • ";
-              const dims = m.largeur != null && m.hauteur != null ? ` (${m.largeur}×${m.hauteur}${m.unite === "m²" ? "m" : "cm"})` : "";
+              const dims = m.largeur != null && m.hauteur != null ? ` (${m.largeur}×${m.hauteur}cm)` : "";
               return `${prefix}${m.nom}${dims} ×${m.quantite} ${m.unite || ""}`;
             });
             return `    [${section}] (${items.length} matériau${items.length > 1 ? "x" : ""})\n${lines.join("\n")}`;
@@ -734,6 +736,8 @@ Dimensions: ${targetEns.dimensions.largeur}×${targetEns.dimensions.hauteur}${ta
     return `[CDC Builder — Mode Modifier]
 Tu es Brico. Voici le CDC en cours de construction.
 
+⚠️ RÈGLE : Toutes les dimensions sont en CENTIMÈTRES (cm). Pour les feuilles (groupe), utilise des valeurs en cm aussi (ex: 305 au lieu de 3.05 pour 3,05m).
+
 Projet: ${state.projectName || "Sans titre"}${projectId ? ` (ID: ${projectId})` : ""}
 CDC N°: ${state.cdcNumero || "?"}
 Commande N°: ${state.commandeId || "?"}
@@ -756,7 +760,7 @@ Analyse : j'ajoute du Forex 5mm dans la section Découpe car la demande concerne
   {"type":"add","section":"Découpe","enseigneIndex":0,"item":{"nom":"Forex 5mm","quantite":1,"unite":"plaque","largeur":5,"hauteur":70}}
 ]}
 
-⚠️ Pour grouper des plaques en feuille, utilise le type "group" (sections Découpe et Vinyl uniquement).
+⚠️ Pour grouper des plaques en feuille, utilise le type "group" (sections Découpe et Vinyl uniquement). Les dimensions de la feuille (largeur_feuille, hauteur_feuille) et des plaques enfants sont en CM (ex: 305 pour 3,05m, 50 pour 0,5m).
 ⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne s'applique chaque action.
 ⚠️ 🔢 MULTIPLIE les quantités de TOUS les matériaux par le nombre d'exemplaires indiqué pour chaque enseigne.
    Ex: si [0] Façade ×3 exemplaires et qu'il faut 2 plaques par exemplaire → quantite=6 pour cette enseigne.
@@ -779,6 +783,8 @@ Analyse : j'ajoute du Forex 5mm dans la section Découpe car la demande concerne
 
     return `[CDC Builder — Génération complète]
 Tu es Brico. Génère un Cahier des Charges complet pour ce projet.
+
+⚠️ RÈGLE : Toutes les dimensions sont en CENTIMÈTRES (cm). Pour les feuilles (groupe), utilise des valeurs en cm (ex: 305 au lieu de 3.05 pour 3,05m).
 
 Projet: ${state.projectName || "Sans titre"}${projectId ? ` (ID: ${projectId})` : ""}
 CDC N°: ${state.cdcNumero || "?"}
@@ -837,7 +843,7 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
           const lines = items.map((m) => {
             const isGroup = !!(m.groupe_enfants && m.groupe_enfants.length > 0);
             const prefix = isGroup ? "    📐 [GROUPE] " : "      • ";
-            const dims = m.largeur != null && m.hauteur != null ? ` (${m.largeur}×${m.hauteur}${m.unite === "m²" ? "m" : "cm"})` : "";
+            const dims = m.largeur != null && m.hauteur != null ? ` (${m.largeur}×${m.hauteur}cm)` : "";
             return `${prefix}${m.nom}${dims} ×${m.quantite} ${m.unite || ""}`;
           });
           return `    [${section}] (${items.length} matériau${items.length > 1 ? "x" : ""})\n${lines.join("\n")}`;
@@ -845,6 +851,8 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
         .join("\n\n");
 
       return `Tu es Brico, l'ingénieur de conception d'Imprimelle. Tu es en DISCUSSION avec l'utilisateur sur le CDC Builder.
+
+⚠️ RÈGLE : Toutes les dimensions sont en CENTIMÈTRES (cm).
 
 📋 Contexte du CDC :
 Projet: ${state.projectName || "Sans titre"}${projectId ? ` (ID: ${projectId})` : ""}
@@ -875,7 +883,7 @@ ${sectionsText || "    (aucun matériau)"}
             const lines = items.map((m) => {
               const isGroup = !!(m.groupe_enfants && m.groupe_enfants.length > 0);
               const prefix = isGroup ? "    📐 [GROUPE] " : "      • ";
-              const dims = m.largeur != null && m.hauteur != null ? ` (${m.largeur}×${m.hauteur}${m.unite === "m²" ? "m" : "cm"})` : "";
+              const dims = m.largeur != null && m.hauteur != null ? ` (${m.largeur}×${m.hauteur}cm)` : "";
               return `${prefix}${m.nom}${dims} ×${m.quantite} ${m.unite || ""}`;
             });
             return `    [${section}] (${items.length} matériau${items.length > 1 ? "x" : ""})\n${lines.join("\n")}`;
@@ -891,6 +899,8 @@ ${sectionsText || "    (aucun matériau)"}
       : "";
 
     return `Tu es Brico, l'ingénieur de conception d'Imprimelle. Tu es en DISCUSSION avec l'utilisateur sur le CDC Builder.
+
+⚠️ RÈGLE : Toutes les dimensions sont en CENTIMÈTRES (cm).
 
 📋 Contexte complet du CDC :
 Projet: ${state.projectName || "Sans titre"}${projectId ? ` (ID: ${projectId})` : ""}
@@ -927,7 +937,7 @@ ${allEnseignesDetailed}${groupsBlock}
       const eMin = Math.min(el, eh);
 
       if (eMax > feuilleMax || eMin > feuilleMin) {
-        oversized.push(`${e.nom || "plaque"} (${el}×${eh}m)`);
+        oversized.push(`${e.nom || "plaque"} (${el}×${eh}cm)`);
       }
       totalLong += eMax * (e.quantite ?? 1);
       totalShort += eMin * (e.quantite ?? 1);
@@ -936,7 +946,7 @@ ${allEnseignesDetailed}${groupsBlock}
     if (oversized.length > 0) {
       return {
         ok: false,
-        warning: `⚠️ ${oversized.length} plaque(s) dépassent les dimensions de la feuille (${feuilleL}×${feuilleH}m) : ${oversized.join(", ")}`,
+        warning: `⚠️ ${oversized.length} plaque(s) dépassent les dimensions de la feuille (${feuilleL}×${feuilleH}cm) : ${oversized.join(", ")}`,
       };
     }
 
@@ -944,7 +954,7 @@ ${allEnseignesDetailed}${groupsBlock}
     if (totalLong > feuilleMax * 1.05) {
       return {
         ok: false,
-        warning: `⚠️ La somme des longueurs des plaques (${totalLong.toFixed(2)}m) dépasse la longueur de la feuille (${feuilleMax}m). Les plaques risquent de ne pas tenir.`,
+        warning: `⚠️ La somme des longueurs des plaques (${totalLong.toFixed(2)}cm) dépasse la longueur de la feuille (${feuilleMax}cm). Les plaques risquent de ne pas tenir.`,
       };
     }
 
@@ -1044,22 +1054,23 @@ ${allEnseignesDetailed}${groupsBlock}
           }
           case "group": {
             // 🆕 Action de groupe : fusionne N plaques en une feuille
+            // ⚠️ Brico renvoie les dimensions en MÈTRES → conversion en CM pour stockage unifié
             if (action.groupe && action.indices && action.indices.length >= 2) {
-              const feuilleSurface =
-                (action.groupe.largeur_feuille || 0) *
-                (action.groupe.hauteur_feuille || 0);
+              const feuilleL_cm = (action.groupe.largeur_feuille || 0) * 100;
+              const feuilleH_cm = (action.groupe.hauteur_feuille || 0) * 100;
+              const feuilleSurface = feuilleL_cm * feuilleH_cm;
               const occupee = action.groupe.enfants.reduce(
                 (sum, e) =>
-                  sum + (e.largeur || 0) * (e.hauteur || 0) * (e.quantite || 1),
+                  sum + (e.largeur || 0) * 100 * (e.hauteur || 0) * 100 * (e.quantite || 1),
                 0,
               );
               const chuteSurface = Math.max(0, feuilleSurface - occupee);
 
-              // 🆕 Validation géométrique
+              // 🆕 Validation géométrique (en cm)
               const fit = validateGroupFit(
-                action.groupe.largeur_feuille || 0,
-                action.groupe.hauteur_feuille || 0,
-                action.groupe.enfants.filter(e => e.nom !== "Chute"),
+                feuilleL_cm,
+                feuilleH_cm,
+                action.groupe.enfants.map(e => ({ ...e, largeur: (e.largeur || 0) * 100, hauteur: (e.hauteur || 0) * 100 })).filter(e => e.nom !== "Chute"),
               );
               if (!fit.ok && fit.warning) {
                 console.warn("[applyActions group] Validation:", fit.warning);
@@ -1075,8 +1086,11 @@ ${allEnseignesDetailed}${groupsBlock}
                       .toString(36)
                       .slice(2, 6)}`,
                   unite: e.unite || "plaque",
+                  // Conversion m → cm
+                  largeur: (e.largeur || 0) * 100,
+                  hauteur: (e.hauteur || 0) * 100,
                 })),
-                // Ajouter la chute si surface > 0
+                // Ajouter la chute si surface > 0 (en cm² → dimensions en cm)
                 ...(chuteSurface > 0.001
                   ? [
                       {
@@ -1089,9 +1103,9 @@ ${allEnseignesDetailed}${groupsBlock}
                         quantite: 1,
                         unite: "plaque",
                         largeur:
-                          Math.round(Math.sqrt(chuteSurface) * 100) / 100,
+                          Math.round(Math.sqrt(chuteSurface)),
                         hauteur:
-                          Math.round(Math.sqrt(chuteSurface) * 100) / 100,
+                          Math.round(Math.sqrt(chuteSurface)),
                       } as MaterialItem,
                     ]
                   : []),
@@ -1106,16 +1120,16 @@ ${allEnseignesDetailed}${groupsBlock}
                 nom: action.groupe.nom,
                 quantite: 1,
                 unite: "Feuille",
-                largeur: action.groupe.largeur_feuille,
-                hauteur: action.groupe.hauteur_feuille,
+                largeur: feuilleL_cm,
+                hauteur: feuilleH_cm,
                 material_id: action.groupe.material_id,
                 format_standard: action.groupe.format,
                 groupe_enfants: enfants,
                 groupe_material_id: action.groupe.material_id,
                 groupe_nom: action.groupe.nom,
                 groupe_format: action.groupe.format,
-                groupe_largeur: action.groupe.largeur_feuille,
-                groupe_hauteur: action.groupe.hauteur_feuille,
+                groupe_largeur: feuilleL_cm,
+                groupe_hauteur: feuilleH_cm,
               };
 
               // Supprimer les lignes aux indices spécifiés (ordre décroissant)

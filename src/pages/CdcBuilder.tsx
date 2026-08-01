@@ -514,17 +514,56 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   // Appliquer les données chargées du loader quand elles arrivent
   useEffect(() => {
     if (loaderResult?.initialState) {
-      setState(loaderResult.initialState);
+      const migrated = migrateGroupDimensionsToCm(loaderResult.initialState);
+      setState(migrated);
       // 🆕 Reset compteur après chargement initial
-      const { savedMessageId, ...trackable } = loaderResult.initialState as any;
+      const { savedMessageId, ...trackable } = migrated as any;
       lastSavedHashRef.current = JSON.stringify(trackable);
       setChangeCount(0);
       // 🆕 Reset historique undo
-      historyRef.current = [JSON.parse(JSON.stringify(loaderResult.initialState))];
+      historyRef.current = [JSON.parse(JSON.stringify(migrated))];
       historyIndexRef.current = 0;
-      lastCapturedRef.current = JSON.stringify(loaderResult.initialState);
+      lastCapturedRef.current = JSON.stringify(migrated);
     }
   }, [loaderResult?.initialState]);
+
+  // 🆕 Migration groupes m→cm pour les CDC existants
+  const migrateGroupDimensionsToCm = (st: CdcBuilderState): CdcBuilderState => {
+    let migrated = false;
+    const newMateriaux: Record<string, Record<string, MaterialItem[]>> = {};
+    for (const [ensId, sections] of Object.entries(st.materiauxByEnseigne)) {
+      newMateriaux[ensId] = {};
+      for (const [section, items] of Object.entries(sections)) {
+        newMateriaux[ensId][section] = items.map((item) => {
+          if (!item.groupe_enfants?.length) return item;
+          // Détection: si groupe_largeur < 100 et > 0 → en mètres → convertir
+          const gl = item.groupe_largeur ?? 0;
+          const gh = item.groupe_hauteur ?? 0;
+          if ((gl > 0 && gl < 100) || (gh > 0 && gh < 100)) {
+            migrated = true;
+            console.log(`[migration cm] ${item.nom}: ${gl}×${gh}m → ${gl*100}×${gh*100}cm`);
+            return {
+              ...item,
+              largeur: (item.largeur ?? 0) * 100,
+              hauteur: (item.hauteur ?? 0) * 100,
+              groupe_largeur: gl * 100,
+              groupe_hauteur: gh * 100,
+              groupe_enfants: item.groupe_enfants.map((e) => ({
+                ...e,
+                largeur: (e.largeur ?? 0) * 100,
+                hauteur: (e.hauteur ?? 0) * 100,
+              })),
+            };
+          }
+          return item;
+        });
+      }
+    }
+    if (migrated) {
+      return { ...st, materiauxByEnseigne: newMateriaux };
+    }
+    return st;
+  };
 
   // 🆕 Récupérer le numéro CDC via le RPC (comme tous les documents)
   useEffect(() => {
@@ -599,8 +638,8 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
         quantite: e.quantite || 1,
       }));
 
-      const packResult = shelfPack(plaquesInput, feuilleL, feuilleH, true);
-      const stats = packStats(packResult, feuilleL, feuilleH);
+      const packResult = shelfPack(plaquesInput, feuilleL / 100, feuilleH / 100, true);
+      const stats = packStats(packResult, feuilleL / 100, feuilleH / 100);
 
       const groupePlacements: FeuillePlacement[] = packResult.sheets.map((sheet, i) => ({
         feuille_index: i,
@@ -825,9 +864,11 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
             ...ens,
             quantite: ens.quantite || 1,
           }));
-          setState(parsed);
+          // 🆕 Migration dimensions groupe m→cm
+          const migrated = migrateGroupDimensionsToCm(parsed);
+          setState(migrated);
           // 🆕 Reset compteur après restauration localStorage
-          const { savedMessageId, ...trackable } = parsed as any;
+          const { savedMessageId, ...trackable } = migrated as any;
           lastSavedHashRef.current = JSON.stringify(trackable);
           setChangeCount(0);
         }
@@ -1491,8 +1532,8 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
 
         {previewGroupData && (
           <SheetPreview
-            feuilleL={previewGroupData.feuilleL}
-            feuilleH={previewGroupData.feuilleH}
+            feuilleL={previewGroupData.feuilleL / 100}
+            feuilleH={previewGroupData.feuilleH / 100}
             feuilles={previewGroupData.feuilles}
             nomMateriau={previewGroupData.nomMateriau}
             hasPlacements={previewGroupData.hasPlacements}

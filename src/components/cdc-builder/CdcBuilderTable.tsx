@@ -224,8 +224,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         (r) => r.section === section && selectedIds.has(r.item.id) && !r.item.groupe_enfants,
       );
 
-      const feuilleL = entry.largeur_std || 0;
-      const feuilleH = entry.hauteur_std || 0;
+      const feuilleL_cm = (entry.largeur_std || 0) * 100;
+      const feuilleH_cm = (entry.hauteur_std || 0) * 100;
 
       // 🆕 Construire les plaques pour le shelfPacker (cm → m : /100)
       const plaquesInput = selectedRows.map((r) => ({
@@ -237,14 +237,14 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
       }));
 
       // 🆕 Lancer l'algorithme de placement
-      const packResult = shelfPack(plaquesInput, feuilleL, feuilleH, true);
-      const stats = packStats(packResult, feuilleL, feuilleH);
+      const packResult = shelfPack(plaquesInput, feuilleL_cm / 100, feuilleH_cm / 100, true);
+      const stats = packStats(packResult, feuilleL_cm / 100, feuilleH_cm / 100);
 
       // Validation — plaques non placées
       if (packResult.unplaced.length > 0) {
-        const names = packResult.unplaced.map((p) => `${p.nom} (${p.largeur}×${p.hauteur}m)`).join(", ");
+        const names = packResult.unplaced.map((p) => `${p.nom} (${p.largeur}×${p.hauteur}cm)`).join(", ");
         setGroupWarning(
-          `${packResult.unplaced.length} plaque(s) ne tiennent pas sur la feuille (${fmtM(feuilleL)}×${fmtM(feuilleH)}) : ${names}`,
+          `${packResult.unplaced.length} plaque(s) ne tiennent pas sur la feuille (${fmtM(feuilleL_cm / 100)}×${fmtM(feuilleH_cm / 100)}) : ${names}`,
         );
         // On crée quand même le groupe mais avec juste les plaques placées
       }
@@ -269,7 +269,7 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         (sum, r) => sum + (r.item.largeur || 0) * (r.item.hauteur || 0) * (r.item.quantite || 1),
         0,
       );
-      const chuteTotale = Math.max(0, nbFeuilles * feuilleL * feuilleH - surfaceOccupee);
+      const chuteTotale = Math.max(0, nbFeuilles * feuilleL_cm * feuilleH_cm - surfaceOccupee);
 
       if (chuteTotale > 0.001) {
         enfants.push({
@@ -287,8 +287,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         nom: `${entry.materiau}${entry.epaisseur ? ` ${entry.epaisseur}` : ""}`,
         quantite: nbFeuilles,                                     // 🆕 dynamique
         unite: "Feuille",
-        largeur: feuilleL || undefined,
-        hauteur: feuilleH || undefined,
+        largeur: feuilleL_cm || undefined,
+        hauteur: feuilleH_cm || undefined,
         epaisseur: entry.epaisseur || undefined,
         material_id: entry.id,
         format_standard: entry.format_standard || undefined,
@@ -298,8 +298,8 @@ const CdcBuilderTable: React.FC<CdcBuilderTableProps> = ({
         groupe_material_id: entry.id,
         groupe_nom: `${entry.materiau}${entry.epaisseur ? ` ${entry.epaisseur}` : ""}`,
         groupe_format: entry.format_standard || undefined,
-        groupe_largeur: feuilleL || undefined,
-        groupe_hauteur: feuilleH || undefined,
+        groupe_largeur: feuilleL_cm || undefined,
+        groupe_hauteur: feuilleH_cm || undefined,
         groupe_nb_feuilles_requis: nbFeuilles,                   // 🆕
         groupe_placements: groupePlacements,                      // 🆕
       };
