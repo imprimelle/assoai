@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { QuickTransactionForm } from "../components/finance/QuickTransactionForm";
 import { TransactionList } from "../components/finance/TransactionList";
@@ -17,46 +17,62 @@ const TABS: { key: FinanceTab; label: string; icon: string }[] = [
   { key: "rapports", label: "Rapports", icon: "📑" },
 ];
 
-/* ── Noms des catégories « flux monnaie » (exclues des totaux opérationnels) ── */
-const MONNAIE_CATEGORY_NAMES = ["Monnaie confiée", "Compensation monnaie", "Monnaie rendue"];
-
 function formatFCFA(value: number): string {
   return value.toLocaleString("fr-FR").replace(/,/g, " ") + " FCFA";
 }
 
-/* ── Hook : totaux ajustés (exclut les flux monnaie des revenus/dépenses) ── */
+/* ── Hook : totaux ajustés — solde cumulatif (tout l'historique) + badge du mois courant ── */
 function useAdjustedBalance() {
-  const { data: txs, isLoading, isError, error } = useFinancialTransactions({ period: "month" });
+  const { data: txs, isLoading, isError, error } = useFinancialTransactions({ period: "all" });
 
   return useMemo(() => {
-    if (isLoading) return { realIncome: 0, realExpenses: 0, monnaieConfiee: 0, monnaieCompensee: 0, monnaieRendue: 0, isLoading: true, isError: false, error: null as Error | null };
-    if (isError) return { realIncome: 0, realExpenses: 0, monnaieConfiee: 0, monnaieCompensee: 0, monnaieRendue: 0, isLoading: false, isError: true, error: error as Error | null };
-    if (!txs) return { realIncome: 0, realExpenses: 0, monnaieConfiee: 0, monnaieCompensee: 0, monnaieRendue: 0, isLoading: false, isError: false, error: null };
+    const empty = {
+      cumulativeIncome: 0, cumulativeExpenses: 0, cumulativeBalance: 0,
+      monthIncome: 0, monthExpenses: 0, monthBalance: 0,
+      monthLabel: "", monthEmpty: true,
+      isLoading: false, isError: false, error: null as Error | null,
+    };
 
-    let realIncome = 0;
-    let realExpenses = 0;
-    let monnaieConfiee = 0;
-    let monnaieCompensee = 0;
-    let monnaieRendue = 0;
+    if (isLoading) return { ...empty, isLoading: true };
+    if (isError) return { ...empty, isError: true, error: error as Error | null };
+    if (!txs) return empty;
+
+    const months = ["Janv", "Fév", "Mars", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const monthLabel = `${months[now.getMonth()]} ${now.getFullYear()}`;
+
+    let cumulativeIncome = 0, cumulativeExpenses = 0;
+    let monthIncome = 0, monthExpenses = 0;
+    let monthHasTx = false;
 
     for (const tx of txs as any[]) {
       const catName: string = tx.category?.name || "";
       const amount = Number(tx.amount || 0);
+      const isMonnaie = catName === "Monnaie confiée" || catName === "Compensation monnaie" || catName === "Monnaie rendue";
 
-      if (catName === "Monnaie confiée") {
-        monnaieConfiee += amount;
-      } else if (catName === "Compensation monnaie") {
-        monnaieCompensee += amount;
-      } else if (catName === "Monnaie rendue") {
-        monnaieRendue += amount;
-      } else if (tx.type === "income") {
-        realIncome += amount;
+      if (isMonnaie) continue;
+
+      const isCurrentMonth = (tx.date || "") >= monthStart;
+
+      if (tx.type === "income") {
+        cumulativeIncome += amount;
+        if (isCurrentMonth) { monthIncome += amount; monthHasTx = true; }
       } else if (tx.type === "expense") {
-        realExpenses += amount;
+        cumulativeExpenses += amount;
+        if (isCurrentMonth) { monthExpenses += amount; monthHasTx = true; }
       }
     }
 
-    return { realIncome, realExpenses, monnaieConfiee, monnaieCompensee, monnaieRendue, isLoading: false, isError: false, error: null };
+    return {
+      cumulativeIncome, cumulativeExpenses,
+      cumulativeBalance: cumulativeIncome - cumulativeExpenses,
+      monthIncome, monthExpenses,
+      monthBalance: monthIncome - monthExpenses,
+      monthLabel,
+      monthEmpty: !monthHasTx,
+      isLoading: false, isError: false, error: null,
+    };
   }, [txs, isLoading, isError, error]);
 }
 
@@ -144,7 +160,7 @@ export default function Finance() {
   const user = useCurrentUser();
   const { recordVisit } = usePageVisit();
 
-  const realBalance = adjusted.realIncome - adjusted.realExpenses;
+  const cumulativeBalance = adjusted.cumulativeBalance;
   const monnaieDisponible = monnaieCirc?.totalDisponible ?? 0;
   const monnaieBrut = monnaieCirc?.totalBrut ?? 0;
   const monnaieReserve = monnaieCirc?.totalReserve ?? 0;
@@ -174,37 +190,59 @@ export default function Finance() {
             ) : (
             <>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Opérationnel</span>
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Trésorerie</span>
               <div className="flex items-center gap-3 text-xs">
                 {adjusted.isLoading ? (
                   <span className="text-gray-400">—</span>
                 ) : (
                   <>
                     <span className="text-green-600 font-medium">
-                      {adjusted.realIncome > 0 ? "+" : ""}{formatFCFA(adjusted.realIncome)}
+                      {adjusted.cumulativeIncome > 0 ? "+" : ""}{formatFCFA(adjusted.cumulativeIncome)}
                     </span>
                     <span className="text-red-500 font-medium">
-                      {adjusted.realExpenses > 0 ? "−" : ""}{formatFCFA(adjusted.realExpenses)}
+                      {adjusted.cumulativeExpenses > 0 ? "−" : ""}{formatFCFA(adjusted.cumulativeExpenses)}
                     </span>
                   </>
                 )}
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-gray-400">Solde réel (hors flux monnaie)</span>
+              <span className="text-[11px] text-gray-400">Solde cumulé (hors flux monnaie)</span>
               <span className={cn(
                 "text-sm font-bold px-3 py-0.5 rounded-full",
                 adjusted.isLoading
                   ? "text-gray-400"
-                  : realBalance >= 0
+                  : cumulativeBalance >= 0
                     ? "bg-green-50 text-green-700"
                     : "bg-red-50 text-red-700"
               )}>
                 {adjusted.isLoading
                   ? "—"
-                  : (realBalance >= 0 ? "+" : "") + formatFCFA(realBalance)
+                  : (cumulativeBalance >= 0 ? "+" : "") + formatFCFA(cumulativeBalance)
                 }
               </span>
+            </div>
+            {/* Badge du mois courant */}
+            <div className={cn(
+              "mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-[10px]",
+              adjusted.monthEmpty ? "text-gray-400" : "text-gray-500"
+            )}>
+              <span>
+                {adjusted.monthEmpty
+                  ? `📅 Aucune transaction en ${adjusted.monthLabel}`
+                  : `📅 ${adjusted.monthLabel}`
+                }
+              </span>
+              {!adjusted.monthEmpty && (
+                <span>
+                  {adjusted.monthIncome > 0 && (
+                    <span className="text-green-600 mr-2">+{formatFCFA(adjusted.monthIncome)}</span>
+                  )}
+                  {adjusted.monthExpenses > 0 && (
+                    <span className="text-red-500">−{formatFCFA(adjusted.monthExpenses)}</span>
+                  )}
+                </span>
+              )}
             </div>
             </>
             )}
