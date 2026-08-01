@@ -808,7 +808,10 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
 
     // 🔴 Nouveau CDC (ni projectId ni cdcId) → ne pas restaurer, repartir à zéro
     if (!projectId && !cdcId) {
-      try { localStorage.removeItem(LS_KEY); } catch {}
+      try {
+        localStorage.removeItem(LS_KEY);
+        localStorage.removeItem("assoai-cdc-draft-id"); // 🆕 Reset l'identité draft du chat
+      } catch {}
       return;
     }
 
@@ -1135,6 +1138,24 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
       setTimeout(() => setSaveStatus("idle"), 4000);
     }
   }, [state, saveStatus, persistentSessionId, searchParams, loaderResult?.project]);
+
+  // 🆕 Identité stable du CDC pour la persistance du chat — survit aux navigations
+  // et aux rechargements. Change uniquement quand on passe à un CDC différent.
+  const chatIdentity = useMemo(() => {
+    // CDC sauvegardé : Supabase message ID (stable, permanent)
+    if (state.savedMessageId) return state.savedMessageId;
+    // CDC chargé via URL cdcId
+    if (cdcId) return cdcId;
+    // CDC chargé via projet (pas encore sauvegardé comme CDC)
+    if (projectId) return `project-${projectId}`;
+    // Nouveau CDC : identité persistante via localStorage (survit aux rechargements)
+    const DRAFT_KEY = "assoai-cdc-draft-id";
+    const stored = localStorage.getItem(DRAFT_KEY);
+    if (stored) return stored;
+    const newId = `draft-${crypto.randomUUID()}`;
+    localStorage.setItem(DRAFT_KEY, newId);
+    return newId;
+  }, [state.savedMessageId, cdcId, projectId]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1664,6 +1685,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
 
         {/* Footer Brico */}
         <CdcBuilderFooter
+          chatIdentity={chatIdentity}
           state={state}
           onStateChange={setState}
           user={user}

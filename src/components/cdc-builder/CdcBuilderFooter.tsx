@@ -52,6 +52,8 @@ export interface CdcBuilderFooterProps {
   onStateChange: (state: CdcBuilderState) => void;
   user: User;
   persistentSessionId: string;
+  /** 🆕 Identité stable du CDC — fournie par le parent, change uniquement quand on passe à un CDC différent */
+  chatIdentity: string;
   /** 🆕 ID du projet lié (null si aucun projet) */
   projectId?: string | null;
   onHighlightsChange?: (
@@ -374,6 +376,7 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   onStateChange,
   user,
   persistentSessionId,
+  chatIdentity,
   projectId,
   onHighlightsChange,
   showConsolidated,
@@ -393,8 +396,10 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   const [mode, setMode] = useState<"modifier" | "demander">("modifier");
 
   // 🆕 Persistence du fil de discussion par CDC
+  // chatIdentity est fourni par le parent — change uniquement quand on passe
+  // d'un CDC à l'autre. Survit aux rechargements (localStorage draft ID).
   const LS_CHAT_PREFIX = "assoai-cdc-chat-";
-  const chatKey = state.savedMessageId || state.cdcNumero || `draft-${persistentSessionId}`;
+  const chatKey = chatIdentity;
 
   const [messages, setMessages] = useState<CdcBuilderFooterMessage[]>(() => {
     try {
@@ -405,17 +410,54 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
     }
   });
 
-  // 🆕 Recharger les messages quand le chatKey change
-  // (ex: après restauration du state depuis localStorage qui change cdcNumero)
+  // 🆕 Sauvegarde automatique vers localStorage (sur changement de messages)
+  // ⚠️ Ref utilisée pour éviter la race condition : quand chatKey change, on
+  //   ne veut PAS sauvegarder les anciens messages sous la nouvelle clé.
+  //   L'effet identityTransitionRef gère proprement le changement d'identité.
+  const chatKeyRef = useRef(chatKey);
+  chatKeyRef.current = chatKey;
+  const identityTransitionRef = useRef(false);
+
+  // 🆕 Détection de changement d'identité CDC (navigation, save, draft→saved)
+  const prevIdentityRef = useRef(chatIdentity);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(LS_CHAT_PREFIX + chatKey);
-      if (saved) {
-        const parsed = JSON.parse(saved) as CdcBuilderFooterMessage[];
-        if (parsed.length > 0) setMessages(parsed);
+    const prev = prevIdentityRef.current;
+    if (prev !== chatIdentity) {
+      identityTransitionRef.current = true;
+
+      try {
+        const oldKey = LS_CHAT_PREFIX + prev;
+        const newKey = LS_CHAT_PREFIX + chatIdentity;
+        const newData = localStorage.getItem(newKey);
+
+        // Cas 1 : La nouvelle identité a déjà un chat → on le charge (navigation)
+        if (newData) {
+          const parsed = JSON.parse(newData) as CdcBuilderFooterMessage[];
+          setMessages(parsed);
+        }
+        // Cas 2 : Ancienne clé = draft, nouvelle identité ≠ draft → migration (save)
+        else if (prev.startsWith("draft-")) {
+          const oldData = localStorage.getItem(oldKey);
+          if (oldData) {
+            const parsed = JSON.parse(oldData) as CdcBuilderFooterMessage[];
+            if (parsed.length > 0) {
+              setMessages(parsed);
+              localStorage.setItem(newKey, JSON.stringify(parsed));
+            }
+            localStorage.removeItem(oldKey);
+          }
+        }
+        // Cas 3 : Différent CDC, aucun chat → reset (navigation vers CDC vierge)
+        else {
+          setMessages([]);
+        }
+      } catch {
+        setMessages([]);
       }
-    } catch {}
-  }, [chatKey, LS_CHAT_PREFIX]);
+    }
+    prevIdentityRef.current = chatIdentity;
+  }, [chatIdentity, LS_CHAT_PREFIX]);
+
   const [loading, setLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(false); // enrichissement catalogue en cours
 
@@ -487,43 +529,24 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
     }
   }, [messages]);
 
-  // 🆕 Persister les messages dans localStorage à chaque changement
-  // ⚠️ chatKey est lu via ref pour éviter la race condition :
-  //   quand chatKey change, le save effect se déclenchait avant le load effect
-  //   → removeItem(ancienKey) supprimait l'historique avant qu'il ne soit rechargé
-  const chatKeyRef = useRef(chatKey);
-  chatKeyRef.current = chatKey;
-
+  // 🆕 Persister les messages dans localStorage — saute la sauvegarde
+  // pendant une transition d'identité pour éviter la pollution croisée
   useEffect(() => {
+    // Pendant une transition d'identité, ne pas sauvegarder (l'effet
+    // identityTransitionRef ci-dessus s'en charge)
+    if (identityTransitionRef.current) {
+      identityTransitionRef.current = false;
+      return;
+    }
     try {
       const key = LS_CHAT_PREFIX + chatKeyRef.current;
       if (messages.length > 0) {
         localStorage.setItem(key, JSON.stringify(messages));
       }
-      // Ne PAS faire removeItem quand messages est vide — c'est le load
-      // qui doit décider, pas le save. Un removeItem ici détruirait
-      // l'historique lors du changement de chatKey.
     } catch {
       // localStorage plein → ignorer silencieusement
     }
-  }, [messages]); // 🔴 Uniquement messages, PAS chatKey
-
-  // 🆕 Migration : quand le CDC passe de cdcNumero → savedMessageId, déplacer les messages
-  const prevChatKeyRef = useRef(chatKey);
-  useEffect(() => {
-    const prevKey = prevChatKeyRef.current;
-    if (prevKey !== chatKey && prevKey) {
-      try {
-        const oldData = localStorage.getItem(LS_CHAT_PREFIX + prevKey);
-        if (oldData && messages.length === 0) {
-          const parsed = JSON.parse(oldData);
-          setMessages(parsed);
-        }
-        localStorage.removeItem(LS_CHAT_PREFIX + prevKey);
-      } catch {}
-    }
-    prevChatKeyRef.current = chatKey;
-  }, [chatKey, LS_CHAT_PREFIX, messages.length]);
+  }, [messages]);
 
   useEffect(() => {
     return () => {
@@ -786,6 +809,100 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
 ]}
 
 ⚠️ Utilise "enseigneIndex" (0, 1, 2...) pour indiquer à quelle enseigne appartient chaque matériau.`;
+  };
+
+  /** 🆕 Prompt Discussion — contexte CDC injecté directement (pas de JSON actions) */
+  const buildDiscussionPrompt = (
+    message: string,
+    explicitTargetId?: string,
+  ): string => {
+    const targetId = explicitTargetId || targetedEnseigneId;
+    const targetEns = targetId
+      ? state.enseignes.find((e) => e.id === targetId)
+      : null;
+
+    const validMateriaux = filterValidMaterials(state.materiauxByEnseigne);
+
+    // ── Avec @enseigne : focus sur UNE seule enseigne, matériaux détaillés ──
+    if (targetEns) {
+      const ensIdx = state.enseignes.findIndex((e) => e.id === targetEns.id);
+      const sections = validMateriaux[targetEns.id] || {};
+      const productInfo = targetEns.produits?.length
+        ? `\n📦 Produit(s) lié(s): ${targetEns.produits.map(p => `${p.nom} (product_id: ${p.id})`).join(", ")}`
+        : "";
+
+      const sectionsText = Object.entries(sections)
+        .filter(([, items]) => items.length > 0)
+        .map(([section, items]) => {
+          const lines = items.map((m) => {
+            const isGroup = !!(m.groupe_enfants && m.groupe_enfants.length > 0);
+            const prefix = isGroup ? "    📐 [GROUPE] " : "      • ";
+            const dims = m.largeur != null && m.hauteur != null ? ` (${m.largeur}×${m.hauteur}${m.unite === "m²" ? "m" : "cm"})` : "";
+            return `${prefix}${m.nom}${dims} ×${m.quantite} ${m.unite || ""}`;
+          });
+          return `    [${section}] (${items.length} matériau${items.length > 1 ? "x" : ""})\n${lines.join("\n")}`;
+        })
+        .join("\n\n");
+
+      return `Tu es Brico, l'ingénieur de conception d'Imprimelle. Tu es en DISCUSSION avec l'utilisateur sur le CDC Builder.
+
+📋 Contexte du CDC :
+Projet: ${state.projectName || "Sans titre"}${projectId ? ` (ID: ${projectId})` : ""}
+CDC N°: ${state.cdcNumero || "Brouillon"}
+Commande N°: ${state.commandeId || "?"}
+
+🎯 Enseigne mentionnée: ${targetEns.nom} (enseigneIndex=${ensIdx})
+Dimensions: ${targetEns.dimensions.largeur}×${targetEns.dimensions.hauteur}${targetEns.dimensions.profondeur ? `×${targetEns.dimensions.profondeur}` : ""} cm${targetEns.quantite > 1 ? ` (×${targetEns.quantite} exemplaires)` : ""}${productInfo}
+
+📐 Matériaux de cette enseigne :
+${sectionsText || "    (aucun matériau)"}
+
+💬 Question de l'utilisateur : ${message}
+
+⚠️ Tu es en mode DISCUSSION (pas en mode modification). Réponds de façon conversationnelle, en texte simple avec émojis et markdown léger. N'utilise PAS de JSON d'actions. Base ta réponse sur le contexte ci-dessus.`;
+    }
+
+    // ── Sans @enseigne : contexte complet de TOUTES les enseignes ──
+    const allEnseignesDetailed = state.enseignes
+      .map((ens, ensIdx) => {
+        const sections = validMateriaux[ens.id] || {};
+        const productInfo = ens.produits?.length
+          ? ` | 📦 ${ens.produits.map(p => `${p.nom} (product_id: ${p.id})`).join(", ")}`
+          : "";
+        const sectionsText = Object.entries(sections)
+          .filter(([, items]) => items.length > 0)
+          .map(([section, items]) => {
+            const lines = items.map((m) => {
+              const isGroup = !!(m.groupe_enfants && m.groupe_enfants.length > 0);
+              const prefix = isGroup ? "    📐 [GROUPE] " : "      • ";
+              const dims = m.largeur != null && m.hauteur != null ? ` (${m.largeur}×${m.hauteur}${m.unite === "m²" ? "m" : "cm"})` : "";
+              return `${prefix}${m.nom}${dims} ×${m.quantite} ${m.unite || ""}`;
+            });
+            return `    [${section}] (${items.length} matériau${items.length > 1 ? "x" : ""})\n${lines.join("\n")}`;
+          })
+          .join("\n\n");
+        return `- [${ensIdx}] ${ens.nom} (${ens.dimensions.largeur}×${ens.dimensions.hauteur}cm)${ens.dimensions.profondeur ? `×${ens.dimensions.profondeur}cm` : ""}${ens.quantite > 1 ? ` ×${ens.quantite} exemplaires` : ""}${productInfo}\n${sectionsText || "    (aucun matériau)"}`;
+      })
+      .join("\n\n");
+
+    const groupsText = formatGroupsForPrompt(state.materiauxByEnseigne);
+    const groupsBlock = groupsText
+      ? `\n📐 Groupes Feuille existants (Découpe / Vinyl) :\n${groupsText}`
+      : "";
+
+    return `Tu es Brico, l'ingénieur de conception d'Imprimelle. Tu es en DISCUSSION avec l'utilisateur sur le CDC Builder.
+
+📋 Contexte complet du CDC :
+Projet: ${state.projectName || "Sans titre"}${projectId ? ` (ID: ${projectId})` : ""}
+CDC N°: ${state.cdcNumero || "Brouillon"}
+Commande N°: ${state.commandeId || "?"}
+
+📋 Toutes les enseignes du CDC (avec leurs matériaux):
+${allEnseignesDetailed}${groupsBlock}
+
+💬 Question de l'utilisateur : ${message}
+
+⚠️ Tu es en mode DISCUSSION (pas en mode modification). Réponds de façon conversationnelle, en texte simple avec émojis et markdown léger. N'utilise PAS de JSON d'actions. Base ta réponse sur le contexte ci-dessus.`;
   };
 
   /** 🆕 Validation géométrique 1D : vérifie que les plaques peuvent tenir dans la feuille.
@@ -1178,13 +1295,14 @@ Analyse : génération complète du CDC. Façade lumineuse : Plexiglass 5mm + LE
       const prompt =
         mode === "modifier"
           ? buildModifierPrompt(text, targetEnseigneId)
-          : text;
+          : buildDiscussionPrompt(text, targetEnseigneId);
 
       const payload = {
         userId: user.id,
         sessionId: persistentSessionId,
         timestamp: new Date().toISOString(),
         message: { type: "text" as const, content: prompt, attachments: [] },
+        projectId: projectId || undefined,
       };
 
       const response = await routeMessage(payload, "brico");
