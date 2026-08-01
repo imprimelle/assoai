@@ -1054,14 +1054,14 @@ ${allEnseignesDetailed}${groupsBlock}
           }
           case "group": {
             // 🆕 Action de groupe : fusionne N plaques en une feuille
-            // ⚠️ Brico renvoie les dimensions en MÈTRES → conversion en CM pour stockage unifié
+            // ⚠️ Brico renvoie les dimensions en CM (standardisé v95) — pas de conversion
             if (action.groupe && action.indices && action.indices.length >= 2) {
-              const feuilleL_cm = (action.groupe.largeur_feuille || 0) * 100;
-              const feuilleH_cm = (action.groupe.hauteur_feuille || 0) * 100;
+              const feuilleL_cm = action.groupe.largeur_feuille || 0;
+              const feuilleH_cm = action.groupe.hauteur_feuille || 0;
               const feuilleSurface = feuilleL_cm * feuilleH_cm;
               const occupee = action.groupe.enfants.reduce(
                 (sum, e) =>
-                  sum + (e.largeur || 0) * 100 * (e.hauteur || 0) * 100 * (e.quantite || 1),
+                  sum + (e.largeur || 0) * (e.hauteur || 0) * (e.quantite || 1),
                 0,
               );
               const chuteSurface = Math.max(0, feuilleSurface - occupee);
@@ -1070,7 +1070,11 @@ ${allEnseignesDetailed}${groupsBlock}
               const fit = validateGroupFit(
                 feuilleL_cm,
                 feuilleH_cm,
-                action.groupe.enfants.map(e => ({ ...e, largeur: (e.largeur || 0) * 100, hauteur: (e.hauteur || 0) * 100 })).filter(e => e.nom !== "Chute"),
+                action.groupe.enfants.filter(e => e.nom !== "Chute").map(e => ({
+                  ...e,
+                  largeur: e.largeur || 0,
+                  hauteur: e.hauteur || 0,
+                })),
               );
               if (!fit.ok && fit.warning) {
                 console.warn("[applyActions group] Validation:", fit.warning);
@@ -1086,9 +1090,9 @@ ${allEnseignesDetailed}${groupsBlock}
                       .toString(36)
                       .slice(2, 6)}`,
                   unite: e.unite || "plaque",
-                  // Conversion m → cm
-                  largeur: (e.largeur || 0) * 100,
-                  hauteur: (e.hauteur || 0) * 100,
+                  // Dimensions déjà en CM (standardisé v95)
+                  largeur: e.largeur || 0,
+                  hauteur: e.hauteur || 0,
                 })),
                 // Ajouter la chute si surface > 0 (en cm² → dimensions en cm)
                 ...(chuteSurface > 0.001
