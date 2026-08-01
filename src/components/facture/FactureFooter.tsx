@@ -898,8 +898,8 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
         <div className="max-w-6xl mx-auto flex flex-col">
           {/* ── Barre d'actions ── */}
           <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-900/50 border-b border-white/10">
-            {/* 🆕 Champs manquants → suggestion (tous modes, sauf remise) */}
-            {missingFields.length > 0 && onSuggestionAction ? (
+            {/* 🆕 Champs manquants → suggestion (mode commande uniquement) */}
+            {isCommande && missingFields.length > 0 && onSuggestionAction ? (
               <button
                 key={missingFields[0].label}
                 type="button"
