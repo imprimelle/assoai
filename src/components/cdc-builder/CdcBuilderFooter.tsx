@@ -480,25 +480,6 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
     }
   }, [messages]);
 
-  // 🆕 Persister les messages dans localStorage — saute la sauvegarde
-  // pendant une transition d'identité pour éviter la pollution croisée
-  useEffect(() => {
-    // Pendant une transition d'identité, ne pas sauvegarder (l'effet
-    // identityTransitionRef ci-dessus s'en charge)
-    if (identityTransitionRef.current) {
-      identityTransitionRef.current = false;
-      return;
-    }
-    try {
-      const key = LS_CHAT_PREFIX + chatKeyRef.current;
-      if (messages.length > 0) {
-        localStorage.setItem(key, JSON.stringify(messages));
-      }
-    } catch {
-      // localStorage plein → ignorer silencieusement
-    }
-  }, [messages]);
-
   useEffect(() => {
     return () => {
       recognitionRef.current?.abort();
