@@ -25,13 +25,14 @@ import { routeMessage } from "@/services/hermesRouter";
 import { rowsToSections, sectionsToRows } from "./CdcBuilderTable";
 import type {
   CdcBuilderState,
-  CdcBuilderFooterMessage,
   BricoAction,
 } from "@/types/cdcBuilder";
 import type { MaterialItem } from "@/types";
 import type { FlatMaterialRow } from "@/components/templates/shared/MaterialTable";
 import type { User } from "@/types/user";
 import { supabase } from "@/integrations/supabase/client";
+import { useChatPersistence } from "@/hooks/useChatPersistence";
+import type { ChatMessage } from "@/hooks/useChatPersistence";
 
 /**
  * ⚠️ ZONE CRITIQUE — Contenteditable avec chips @enseigne
@@ -395,68 +396,18 @@ const CdcBuilderFooter: React.FC<CdcBuilderFooterProps> = ({
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<"modifier" | "demander">("modifier");
 
-  // 🆕 Persistence du fil de discussion par CDC
-  // chatIdentity est fourni par le parent — change uniquement quand on passe
-  // d'un CDC à l'autre. Survit aux rechargements (localStorage draft ID).
-  const LS_CHAT_PREFIX = "assoai-cdc-chat-";
-  const chatKey = chatIdentity;
-
-  const [messages, setMessages] = useState<CdcBuilderFooterMessage[]>(() => {
-    try {
-      const saved = localStorage.getItem(LS_CHAT_PREFIX + chatKey);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+  // 🆕 Persistence du fil de discussion via useChatPersistence
+  // Architecture hybride : localStorage (cache instantané) + Supabase (source de vérité)
+  const {
+    messages,
+    setMessages,
+    loading: chatPersistenceLoading,
+  } = useChatPersistence({
+    chatIdentity,
+    documentMessageId: state.savedMessageId || null,
+    documentType: "cdc",
+    agent: "brico",
   });
-
-  // 🆕 Sauvegarde automatique vers localStorage (sur changement de messages)
-  // ⚠️ Ref utilisée pour éviter la race condition : quand chatKey change, on
-  //   ne veut PAS sauvegarder les anciens messages sous la nouvelle clé.
-  //   L'effet identityTransitionRef gère proprement le changement d'identité.
-  const chatKeyRef = useRef(chatKey);
-  chatKeyRef.current = chatKey;
-  const identityTransitionRef = useRef(false);
-
-  // 🆕 Détection de changement d'identité CDC (navigation, save, draft→saved)
-  const prevIdentityRef = useRef(chatIdentity);
-  useEffect(() => {
-    const prev = prevIdentityRef.current;
-    if (prev !== chatIdentity) {
-      identityTransitionRef.current = true;
-
-      try {
-        const oldKey = LS_CHAT_PREFIX + prev;
-        const newKey = LS_CHAT_PREFIX + chatIdentity;
-        const newData = localStorage.getItem(newKey);
-
-        // Cas 1 : La nouvelle identité a déjà un chat → on le charge (navigation)
-        if (newData) {
-          const parsed = JSON.parse(newData) as CdcBuilderFooterMessage[];
-          setMessages(parsed);
-        }
-        // Cas 2 : Ancienne clé = draft, nouvelle identité ≠ draft → migration (save)
-        else if (prev.startsWith("draft-")) {
-          const oldData = localStorage.getItem(oldKey);
-          if (oldData) {
-            const parsed = JSON.parse(oldData) as CdcBuilderFooterMessage[];
-            if (parsed.length > 0) {
-              setMessages(parsed);
-              localStorage.setItem(newKey, JSON.stringify(parsed));
-            }
-            localStorage.removeItem(oldKey);
-          }
-        }
-        // Cas 3 : Différent CDC, aucun chat → reset (navigation vers CDC vierge)
-        else {
-          setMessages([]);
-        }
-      } catch {
-        setMessages([]);
-      }
-    }
-    prevIdentityRef.current = chatIdentity;
-  }, [chatIdentity, LS_CHAT_PREFIX]);
 
   const [loading, setLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(false); // enrichissement catalogue en cours
@@ -619,7 +570,7 @@ Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimension
         const parsed = parseBricoResponse(response);
         setMessages((prev) => [
           ...prev,
-          { role: "brico", text: parsed.message || "✅ Matériaux régénérés." },
+          { role: "ai", agent: "brico", text: parsed.message || "✅ Matériaux régénérés." },
         ]);
         if (parsed.actions?.length) {
           applyActions(parsed.actions, false);
@@ -628,7 +579,7 @@ Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimension
         onClearRegenerate?.();
       })
       .catch(() => {
-        setMessages((prev) => [...prev, { role: "brico" as const, text: "❌ Erreur lors de la régénération." }]);
+        setMessages((prev) => [...prev, { role: "ai", agent: "brico", text: "❌ Erreur lors de la régénération." }]);
         setLoading(false);
         onClearRegenerate?.();
       });
@@ -1295,7 +1246,7 @@ ${allEnseignesDetailed}${groupsBlock}
     const { text, chips } = extractContent(contentEditableRef.current);
     if (!text && chips.length === 0) return;
 
-    const userMsg: CdcBuilderFooterMessage = { role: "user", text: text || "(modifications demandées)" };
+    const userMsg: ChatMessage = { role: "user", text: text || "(modifications demandées)" };
     setMessages((prev) => [...prev, userMsg]);
 
     // Vider le contenteditable
@@ -1335,7 +1286,7 @@ ${allEnseignesDetailed}${groupsBlock}
         });
         setMessages((prev) => [
           ...prev,
-          { role: "brico", text: parsed.message || responseText },
+          { role: "ai", agent: "brico", text: parsed.message || responseText },
         ]);
         if (parsed.actions?.length) {
           await applyActions(parsed.actions, false);
@@ -1348,14 +1299,14 @@ ${allEnseignesDetailed}${groupsBlock}
       } else {
         setMessages((prev) => [
           ...prev,
-          { role: "brico", text: responseText },
+          { role: "ai", agent: "brico", text: responseText },
         ]);
       }
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
         {
-          role: "brico",
+          role: "ai", agent: "brico",
           text: `❌ Erreur: ${err.message || "Impossible de contacter Brico."}`,
         },
       ]);
@@ -1397,7 +1348,7 @@ ${allEnseignesDetailed}${groupsBlock}
       });
       setMessages((prev) => [
         ...prev,
-        { role: "brico", text: parsed.message || responseText },
+        { role: "ai", agent: "brico", text: parsed.message || responseText },
       ]);
 
       if (parsed.actions?.length) {
@@ -1407,7 +1358,7 @@ ${allEnseignesDetailed}${groupsBlock}
       setMessages((prev) => [
         ...prev,
         {
-          role: "brico",
+          role: "ai", agent: "brico",
           text: `❌ Erreur: ${err.message || "Impossible de contacter Brico."}`,
         },
       ]);
@@ -1758,7 +1709,7 @@ ${allEnseignesDetailed}${groupsBlock}
                     key={idx}
                     className={`flex gap-1.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    {msg.role === "brico" && (
+                    {msg.role === "ai" && msg.agent === "brico" && (
                       <div className="w-6 h-6 rounded-full bg-indigo-900/50 flex items-center justify-center shrink-0 mt-0.5">
                         <Bot size={12} className="text-indigo-400" />
                       </div>
@@ -1770,7 +1721,7 @@ ${allEnseignesDetailed}${groupsBlock}
                           : "bg-gray-800 border border-gray-700 text-gray-200 rounded-bl-sm"
                       }`}
                     >
-                      {msg.role === "brico"
+                      {msg.role === "ai" && msg.agent === "brico"
                         ? <span dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(msg.text) }} />
                         : msg.text}
                     </div>
@@ -1826,7 +1777,7 @@ ${allEnseignesDetailed}${groupsBlock}
                     key={idx}
                     className={`flex gap-1.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    {msg.role === "brico" && (
+                    {msg.role === "ai" && msg.agent === "brico" && (
                       <div className="w-6 h-6 rounded-full bg-indigo-900/50 flex items-center justify-center shrink-0 mt-0.5">
                         <Bot size={12} className="text-indigo-400" />
                       </div>
@@ -1838,7 +1789,7 @@ ${allEnseignesDetailed}${groupsBlock}
                           : "bg-gray-800 border border-gray-700 text-gray-200 rounded-bl-sm"
                       }`}
                     >
-                      {msg.role === "brico"
+                      {msg.role === "ai" && msg.agent === "brico"
                         ? <span dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(msg.text) }} />
                         : msg.text}
                     </div>
