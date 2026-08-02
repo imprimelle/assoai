@@ -610,7 +610,8 @@ Dimensions : ${ens.dimensions.largeur}×${ens.dimensions.hauteur}${ens.dimension
         userId: user.id,
         sessionId: persistentSessionId,
         timestamp: new Date().toISOString(),
-        message: prompt,
+        message: { type: "text" as const, content: prompt, attachments: [] },
+        projectId: projectId || undefined,
       },
       "brico",
     )

@@ -845,11 +845,29 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   useEffect(() => {
     if (loaderResult?.initialState) return; // Le loader a priorité
 
-    // 🔴 Nouveau CDC (ni projectId ni cdcId) → ne pas restaurer, repartir à zéro
+    // 🔴 Nouveau CDC (ni projectId ni cdcId) → restaurer depuis localStorage si existant
     if (!projectId && !cdcId) {
       try {
+        const saved = localStorage.getItem(LS_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved) as CdcBuilderState;
+          if (parsed.enseignes?.length) {
+            parsed.enseignes = parsed.enseignes.map((ens: any) => ({
+              ...ens,
+              quantite: ens.quantite || 1,
+            }));
+            // 🆕 Migration dimensions groupe m→cm
+            const migrated = migrateGroupDimensionsToCm(parsed);
+            setState(migrated);
+            const { savedMessageId, ...trackable } = migrated as any;
+            lastSavedHashRef.current = JSON.stringify(trackable);
+            setChangeCount(0);
+            return; // ✅ Restauré → ne pas supprimer
+          }
+        }
+        // Pas de saved state → vraiment nouveau CDC, nettoyer
         localStorage.removeItem(LS_KEY);
-        localStorage.removeItem("assoai-cdc-draft-id"); // 🆕 Reset l'identité draft du chat
+        // ⚠️ Ne PAS supprimer assoai-cdc-draft-id — préserver l'identité chat entre rechargements
       } catch {}
       return;
     }
