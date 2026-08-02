@@ -30,6 +30,7 @@ function useAdjustedBalance() {
       cumulativeIncome: 0, cumulativeExpenses: 0, cumulativeBalance: 0,
       monthIncome: 0, monthExpenses: 0, monthBalance: 0,
       monthLabel: "", monthEmpty: true,
+      previousBalance: 0, previousMonthLabel: "",
       isLoading: false, isError: false, error: null as Error | null,
     };
 
@@ -71,6 +72,9 @@ function useAdjustedBalance() {
       monthBalance: monthIncome - monthExpenses,
       monthLabel,
       monthEmpty: !monthHasTx,
+      // Solde à la fin du mois précédent
+      previousBalance: cumulativeIncome - cumulativeExpenses - (monthIncome - monthExpenses),
+      previousMonthLabel: `${months[now.getMonth() === 0 ? 11 : now.getMonth() - 1]} ${now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()}`,
       isLoading: false, isError: false, error: null,
     };
   }, [txs, isLoading, isError, error]);
@@ -189,25 +193,29 @@ export default function Finance() {
               </div>
             ) : (
             <>
+            {/* Ligne 1 : flux du mois */}
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Trésorerie</span>
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                {adjusted.monthLabel}
+              </span>
               <div className="flex items-center gap-3 text-xs">
                 {adjusted.isLoading ? (
                   <span className="text-gray-400">—</span>
                 ) : (
                   <>
                     <span className="text-green-600 font-medium">
-                      {adjusted.cumulativeIncome > 0 ? "+" : ""}{formatFCFA(adjusted.cumulativeIncome)}
+                      {adjusted.monthIncome > 0 ? "+" : ""}{formatFCFA(adjusted.monthIncome)}
                     </span>
                     <span className="text-red-500 font-medium">
-                      {adjusted.cumulativeExpenses > 0 ? "−" : ""}{formatFCFA(adjusted.cumulativeExpenses)}
+                      {adjusted.monthExpenses > 0 ? "−" : ""}{formatFCFA(adjusted.monthExpenses)}
                     </span>
                   </>
                 )}
               </div>
             </div>
+            {/* Ligne 2 : solde courant */}
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-gray-400">Solde cumulé (hors flux monnaie)</span>
+              <span className="text-[11px] text-gray-400">Solde courant</span>
               <span className={cn(
                 "text-sm font-bold px-3 py-0.5 rounded-full",
                 adjusted.isLoading
@@ -222,28 +230,17 @@ export default function Finance() {
                 }
               </span>
             </div>
-            {/* Badge du mois courant */}
-            <div className={cn(
-              "mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-[10px]",
-              adjusted.monthEmpty ? "text-gray-400" : "text-gray-500"
-            )}>
-              <span>
-                {adjusted.monthEmpty
-                  ? `📅 Aucune transaction en ${adjusted.monthLabel}`
-                  : `📅 ${adjusted.monthLabel}`
-                }
-              </span>
-              {!adjusted.monthEmpty && (
-                <span>
-                  {adjusted.monthIncome > 0 && (
-                    <span className="text-green-600 mr-2">+{formatFCFA(adjusted.monthIncome)}</span>
-                  )}
-                  {adjusted.monthExpenses > 0 && (
-                    <span className="text-red-500">−{formatFCFA(adjusted.monthExpenses)}</span>
-                  )}
-                </span>
-              )}
-            </div>
+            {/* Ligne 3 : solde reporté */}
+            {!adjusted.isLoading && !adjusted.monthEmpty && (
+              <div className="mt-1 flex items-center text-[10px] text-gray-400">
+                <span>dont {formatFCFA(adjusted.previousBalance)} reportés depuis fin {adjusted.previousMonthLabel}</span>
+              </div>
+            )}
+            {!adjusted.isLoading && adjusted.monthEmpty && (
+              <div className="mt-1 text-[10px] text-gray-400">
+                📅 Aucune transaction en {adjusted.monthLabel}
+              </div>
+            )}
             </>
             )}
           </div>

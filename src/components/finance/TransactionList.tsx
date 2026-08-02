@@ -278,6 +278,7 @@ function TransactionDetailDialog({ tx, open, onClose, onDelete }: {
 /* ── Composant principal ── */
 export function TransactionList() {
   const [period, setPeriod] = useState<Period>("month");
+  const [dateRange, setDateRange] = useState<"thisMonth" | "last3Months" | "thisYear" | "all">("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [search, setSearch] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -285,7 +286,7 @@ export function TransactionList() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [detailTx, setDetailTx] = useState<TxDisplay | null>(null);
 
-  const { data: transactions, isLoading, isError, error } = useFinancialTransactions({ period, type: typeFilter, search: search || undefined });
+  const { data: transactions, isLoading, isError, error } = useFinancialTransactions({ period, dateRange, type: typeFilter, search: search || undefined });
   const deleteTx = useDeleteTransaction();
 
   const grouped = useMemo(() => {
@@ -325,6 +326,12 @@ export function TransactionList() {
             <option value="year">📊 Année</option>
             <option value="all">♾️ Tout</option>
           </select>
+          <select value={dateRange} onChange={(e) => setDateRange(e.target.value as typeof dateRange)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700">
+            <option value="all">📆 Tout</option>
+            <option value="thisMonth">📅 Ce mois</option>
+            <option value="last3Months">📆 3 derniers mois</option>
+            <option value="thisYear">📊 Cette année</option>
+          </select>
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as TypeFilter)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700">
             <option value="all">🔘 Tout</option>
             <option value="expense">🧾 Dépenses</option>
@@ -348,13 +355,13 @@ export function TransactionList() {
       ) : grouped.length === 0 ? (
         <div className="p-8 text-center space-y-3">
           <p className="text-gray-400 text-sm">Aucune transaction</p>
-          {period !== "all" && (
+          {dateRange !== "all" && (
             <button
               type="button"
-              onClick={() => setPeriod("all")}
+              onClick={() => setDateRange("all")}
               className="text-xs text-blue-600 hover:text-blue-800 underline"
             >
-              Voir toutes les transactions (changer la période)
+              Voir toutes les transactions (élargir la plage)
             </button>
           )}
         </div>

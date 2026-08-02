@@ -5,6 +5,7 @@ import type { FinancialTransaction, FinancialCategory } from '../types/finance';
 interface TransactionFilters {
   type?: 'expense' | 'income' | 'all';
   period?: 'day' | 'week' | 'month' | 'year' | 'all';
+  dateRange?: 'thisMonth' | 'last3Months' | 'thisYear' | 'all';
   project_id?: string;
   search?: string;
 }
@@ -39,15 +40,16 @@ export function useFinancialTransactions(filters: TransactionFilters) {
       if (filters.project_id)
         query = query.eq('project_id', filters.project_id);
 
-      // Filtre période
-      if (filters.period && filters.period !== 'all') {
+      // Filtre plage de dates (dateRange prioritaire, sinon fallback sur period)
+      const effectiveDateRange = filters.dateRange || (filters.period && filters.period !== 'all' ? (filters.period === 'year' ? 'thisYear' : filters.period === 'month' ? 'thisMonth' : filters.period === 'week' ? 'last3Months' : 'all') : undefined);
+
+      if (effectiveDateRange && effectiveDateRange !== 'all') {
         const now = new Date();
         let start: Date;
-        switch (filters.period) {
-          case 'day': start = new Date(now.getFullYear(), now.getMonth(), now.getDate()); break;
-          case 'week': start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
-          case 'month': start = new Date(now.getFullYear(), now.getMonth(), 1); break;
-          case 'year': start = new Date(now.getFullYear(), 0, 1); break;
+        switch (effectiveDateRange) {
+          case 'thisMonth': start = new Date(now.getFullYear(), now.getMonth(), 1); break;
+          case 'last3Months': start = new Date(now.getFullYear(), now.getMonth() - 2, 1); break;
+          case 'thisYear': start = new Date(now.getFullYear(), 0, 1); break;
           default: start = new Date(0);
         }
         query = query.gte('date', start.toISOString().slice(0, 10));
