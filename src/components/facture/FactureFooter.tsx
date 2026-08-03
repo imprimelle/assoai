@@ -37,6 +37,7 @@ import type { BuilderMode } from "@/pages/FactureBuilder";
 import { splitItemsByQuantity } from "@/pages/FactureBuilder";
 import { useChatPersistence } from "@/hooks/useChatPersistence";
 import type { ChatMessage } from "@/hooks/useChatPersistence";
+import { renderMarkdownToHtml } from "@/lib/renderMarkdown";
 
 export interface FactureFooterProps {
   data: FactureData | CommandeData;
@@ -1086,13 +1087,17 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
                       </div>
                     )}
                     <div
-                      className={`max-w-[82%] px-2.5 py-1.5 rounded-lg text-xs whitespace-pre-wrap leading-relaxed ${
+                      className={`max-w-[82%] px-2.5 py-1.5 rounded-lg text-xs leading-relaxed ${
                         msg.role === "user"
                           ? "bg-orange-600 text-white rounded-br-sm"
                           : "bg-gray-800 border border-gray-700 text-gray-200 rounded-bl-sm"
                       }`}
                     >
-                      {msg.text}
+                      {msg.role === "ai" && msg.agent === "wari" ? (
+                        <span dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(msg.text) }} />
+                      ) : (
+                        <span className="whitespace-pre-wrap">{msg.text}</span>
+                      )}
                     </div>
                     {msg.role === "user" && (
                       <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mt-0.5">
