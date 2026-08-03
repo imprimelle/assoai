@@ -6,7 +6,6 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Eye,
   Save,
   Check,
@@ -15,10 +14,12 @@ import {
   FileText,
   ArrowRightLeft,
   ShoppingCart,
+  Menu,
 } from "lucide-react";
 import FactureTemplate from "@/components/templates/FactureTemplate";
 import FactureFooter from "@/components/facture/FactureFooter";
 import FactureBuilderHeader from "@/components/facture/FactureBuilderHeader";
+import FactureListe from "@/pages/FactureListe";
 import type { FactureData, CommandeData, CommandeItem } from "@/types";
 import type { User } from "@/types/user";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,6 +31,8 @@ import { generatePDFClient } from "@/services/pdfGenerator";
 interface FactureBuilderProps {
   user: User;
   persistentSessionId: string;
+  /** Ouvre la sidebar (liste des factures) au montage */
+  initialSidebarOpen?: boolean;
 }
 
 /** Génère un numéro de facture via RPC Supabase */
@@ -177,6 +180,7 @@ export type BuilderMode = "facture" | "commande";
 const FactureBuilder: React.FC<FactureBuilderProps> = ({
   user,
   persistentSessionId,
+  initialSidebarOpen = false,
 }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -208,6 +212,9 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
   // 🆕 Projet créé
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState<string | null>(null);
+
+  // 🆕 Sidebar liste des factures
+  const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen);
 
   // 🆕 Highlights (feedback visuel après actions Wari)
   const [highlights, setHighlights] = useState<Record<string, "added" | "modified">>({});
@@ -859,13 +866,13 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
         <div className="flex items-center justify-between mb-3">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={() => setSidebarOpen((p) => !p)}
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-orange-600
                        transition-colors px-2 py-1 -ml-2 rounded-lg hover:bg-orange-50"
-            title="Retour"
+            title="Liste des factures"
           >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Retour</span>
+            <Menu className="h-4 w-4" />
+            <span>Factures</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -991,6 +998,32 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* 🆕 Sidebar — Liste des factures */}
+      {/* Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Panneau */}
+      <div
+        className={`fixed top-0 left-0 z-50 h-full w-80 max-w-[85vw] bg-white shadow-2xl
+                   transform transition-transform duration-300 ease-in-out
+                   ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        <FactureListe
+          user={user}
+          embedded
+          onSelectFacture={(messageId) => {
+            setSearchParams({ messageId }, { replace: true });
+            setSidebarOpen(false);
+          }}
+          onClose={() => setSidebarOpen(false)}
+        />
       </div>
     </div>
   );

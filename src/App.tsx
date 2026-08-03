@@ -28,7 +28,6 @@ import ConfigurateurPage from "./pages/ConfigurateurPage";
 import CdcBuilder from "./pages/CdcBuilder";
 import CdcListe from "./pages/CdcListe";
 import FactureBuilder from "./pages/FactureBuilder";
-import FactureListe from "./pages/FactureListe";
 import NotFound from "./pages/NotFound";
 import InstallBanner from "./components/pwa/InstallBanner";
 import UpdateNotification from "./components/pwa/UpdateNotification";
@@ -408,7 +407,7 @@ const AppContent = () => {
               }
             />
 
-            {/* 🆕 Facture Builder — édition de facture avec footer Wari */}
+            {/* 🆕 Facture Builder — édition de facture avec footer Wari (route directe) */}
             <Route
               path="/facture-builder"
               element={
@@ -421,12 +420,16 @@ const AppContent = () => {
               }
             />
 
-            {/* 🆕 Liste des factures */}
+            {/* 🆕 Factures — builder avec sidebar liste ouverte */}
             <Route
               path="/factures"
               element={
                 <RequireAuth persistentSessionId={persistentSessionId}>
-                  <FactureListe user={currentUser} />
+                  <FactureBuilder
+                    user={currentUser!}
+                    persistentSessionId={persistentSessionId!}
+                    initialSidebarOpen={true}
+                  />
                 </RequireAuth>
               }
             />

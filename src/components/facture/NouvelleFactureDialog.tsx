@@ -17,6 +17,8 @@ export interface NouvelleFactureDialogProps {
   open: boolean;
   onClose: () => void;
   user: AppUser;
+  /** Callback alternatif à navigate (mode embed dans FactureBuilder) */
+  onCreate?: (messageId: string) => void;
 }
 
 /** Génère un numéro de facture via RPC Supabase */
@@ -55,6 +57,7 @@ const NouvelleFactureDialog: React.FC<NouvelleFactureDialogProps> = ({
   open,
   onClose,
   user,
+  onCreate,
 }) => {
   const navigate = useNavigate();
 
@@ -130,9 +133,13 @@ const NouvelleFactureDialog: React.FC<NouvelleFactureDialogProps> = ({
 
       if (insertErr) throw insertErr;
 
-      // 4. Fermer + naviguer vers FactureBuilder
+      // 4. Fermer + naviguer vers FactureBuilder (ou callback embed)
       onClose();
-      navigate(`/facture-builder?messageId=${newMessageId}`);
+      if (onCreate) {
+        onCreate(newMessageId);
+      } else {
+        navigate(`/facture-builder?messageId=${newMessageId}`);
+      }
     } catch (err: any) {
       setError(err.message || "Erreur lors de la création.");
     } finally {

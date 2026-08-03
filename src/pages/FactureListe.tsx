@@ -40,9 +40,15 @@ interface FactureListItem {
 
 interface FactureListeProps {
   user: User | null;
+  /** Mode embed : intégré dans le FactureBuilder (pas de wrapper plein écran) */
+  embedded?: boolean;
+  /** Callback quand une facture est sélectionnée (mode embed) */
+  onSelectFacture?: (messageId: string) => void;
+  /** Callback pour fermer le panneau (mode embed) */
+  onClose?: () => void;
 }
 
-const FactureListe: React.FC<FactureListeProps> = ({ user }) => {
+const FactureListe: React.FC<FactureListeProps> = ({ user, embedded = false, onSelectFacture, onClose }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -184,13 +190,19 @@ const FactureListe: React.FC<FactureListeProps> = ({ user }) => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className={`flex flex-col bg-gray-50 ${embedded ? "h-full" : "h-screen"}`}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-gray-600" title="Retour">
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+          {embedded ? (
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600" title="Fermer">
+              <X className="h-4 w-4" />
+            </button>
+          ) : (
+            <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-gray-600" title="Retour">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          )}
           <div>
             <h1 className="text-lg font-semibold text-gray-800">Factures</h1>
             {factures && (
@@ -257,7 +269,13 @@ const FactureListe: React.FC<FactureListeProps> = ({ user }) => {
               <FactureCard
                 key={f.id}
                 facture={f}
-                onOpen={() => navigate(`/facture-builder?messageId=${f.id}`)}
+                onOpen={() => {
+                  if (embedded && onSelectFacture) {
+                    onSelectFacture(f.id);
+                  } else {
+                    navigate(`/facture-builder?messageId=${f.id}`);
+                  }
+                }}
                 onDownload={() => handleDownload(f)}
                 onDelete={() => handleDelete(f.id)}
                 downloading={downloadingIds.has(f.id)}
@@ -273,6 +291,10 @@ const FactureListe: React.FC<FactureListeProps> = ({ user }) => {
           open={showNewDialog}
           onClose={() => setShowNewDialog(false)}
           user={user}
+          onCreate={embedded ? (messageId) => {
+            setShowNewDialog(false);
+            onSelectFacture?.(messageId);
+          } : undefined}
         />
       )}
     </div>
