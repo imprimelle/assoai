@@ -351,10 +351,15 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
           <span className="text-[11px] text-gray-500 font-medium shrink-0">Qté</span>
           {isEditable && !disableAmountEdit ? (
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               min={1}
               value={quantite}
-              onChange={(e) => onChange({ quantite: Number(e.target.value) || 1 })}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, "");
+                onChange({ quantite: Number(val) || 1 });
+              }}
               className="w-14 h-7 border border-gray-300 bg-white rounded-lg px-1.5 text-xs text-center font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
             />
           ) : (
@@ -365,11 +370,16 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
           <span className="text-[11px] text-gray-500 font-medium shrink-0">PU</span>
           {isEditable && !disableAmountEdit ? (
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               min={0}
               step={500}
               value={prix}
-              onChange={(e) => onChange({ prixUnitaire: Number(e.target.value) || 0 })}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, "");
+                onChange({ prixUnitaire: Number(val) || 0 });
+              }}
               className="w-24 h-7 border border-gray-300 bg-white rounded-lg px-1.5 text-xs text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
             />
           ) : (

@@ -520,12 +520,14 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   min={0}
                   data-highlight-key="remise"
                   value={(data as any).reduction ?? 0}
                   onChange={(e) => {
-                    const val = Number(e.target.value) || 0;
+                    const val = Number(e.target.value.replace(/\D/g, "")) || 0;
                     let base = 0;
                     if (isCommande) {
                       base = ((data as CommandeData).items || []).reduce(
@@ -573,12 +575,14 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     min={0}
                     max={data.total}
                     value={(data as any).montantAvance ?? 0}
                     onChange={(e) => {
-                      const val = Number(e.target.value) || 0;
+                      const val = Number(e.target.value.replace(/\D/g, "")) || 0;
                       onChange({ ...data, montantAvance: val } as CommandeData);
                     }}
                     className="h-9 w-28 border border-gray-300 rounded-lg px-3 bg-white text-sm text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
