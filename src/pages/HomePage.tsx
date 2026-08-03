@@ -133,7 +133,7 @@ const cardDefs: Record<string, HomeCard> = {
     title: "Fabrication",
     description: "Construire un cahier des charges",
     icon: <Hammer className="h-7 w-7" />,
-    path: "/cdc-liste",
+    path: "/cdc-builder",
     color: "bg-orange-100 text-orange-700",
   },
   factures: {

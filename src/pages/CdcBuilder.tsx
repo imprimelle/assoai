@@ -14,7 +14,6 @@ import {
   Download,
   Upload,
   X,
-  ArrowLeft,
   Eye,
   Save,
   Check,
@@ -22,6 +21,8 @@ import {
   Loader2,
   RotateCcw,
   ChevronDown,
+  Menu,
+  AlertTriangle,
 } from "lucide-react";
 import { ClipboardCheck, ShoppingCart, Hammer, Wrench, CheckCircle } from "lucide-react";
 import EnseigneDialog from "@/components/cdc-builder/EnseigneDialog";
@@ -31,6 +32,7 @@ import CdcBuilderTable, {
 import CdcBuilderFooter from "@/components/cdc-builder/CdcBuilderFooter";
 import CdcBuilderHeader from "@/components/cdc-builder/CdcBuilderHeader";
 import SheetPreview from "@/components/cdc-builder/SheetPreview";
+import CdcListe from "@/pages/CdcListe";
 import { shelfPack, packStats } from "@/lib/shelfPacker";
 import {
   createEmptyEnseigne,
@@ -49,6 +51,8 @@ import { supabase } from "@/integrations/supabase/client";
 interface CdcBuilderProps {
   user: User;
   persistentSessionId: string;
+  /** Ouvre la sidebar (liste des CDC) au montage */
+  initialSidebarOpen?: boolean;
 }
 
 // ── Section enseigne individuelle (accordéon) ──
@@ -439,9 +443,9 @@ async function fetchCdcNumero(): Promise<string> {
 const CdcBuilder: React.FC<CdcBuilderProps> = ({
   user,
   persistentSessionId,
+  initialSidebarOpen = false,
 }) => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const projectId = searchParams.get("projectId");
   const cdcId = searchParams.get("cdcId");
 
@@ -592,6 +596,10 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   const [highlights, setHighlights] = useState<HighlightMap>({});
   // Ref pour éviter de clear pendant l'application séquentielle
   const highlightsTimestampRef = useRef(0);
+
+  // 🆕 Sidebar liste des CDC
+  const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen);
+  const [pendingCdcId, setPendingCdcId] = useState<string | null>(null);
 
   // 🆕 Régénération enseigne — déclenche un envoi auto dans le footer Brico
   const [regenerateEnseigneId, setRegenerateEnseigneId] = useState<string | null>(null);
@@ -1245,13 +1253,13 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
         <div className="flex items-center justify-between mb-3">
           <button
             type="button"
-            onClick={() => navigate("/cdc-liste")}
+            onClick={() => setSidebarOpen((p) => !p)}
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600
                        transition-colors px-2 py-1 -ml-2 rounded-lg hover:bg-indigo-50"
-            title="Retour à la liste des CDC"
+            title="Liste des CDC"
           >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Liste des CDC</span>
+            <Menu className="h-4 w-4" />
+            <span>CDC</span>
           </button>
           <div className="flex items-center gap-1.5">
             {/* Boutons de statut — visibles uniquement quand un projet est attaché */}
@@ -1769,6 +1777,84 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
           onClearRegenerate={() => { setRegenerateEnseigneId(null); setRegenerateMessage(""); }}
         />
       </div>
+
+      {/* 🆕 Sidebar — Liste des CDC */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <div
+        className={`fixed top-0 left-0 z-50 h-full w-80 max-w-[85vw] bg-white shadow-2xl
+                   transform transition-transform duration-300 ease-in-out
+                   ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        <CdcListe
+          embedded
+          activeCdcId={cdcId || undefined}
+          onSelectCdc={(cdcId) => {
+            if (isDirty) {
+              setPendingCdcId(cdcId);
+            } else {
+              setSearchParams({ cdcId }, { replace: true });
+              setSidebarOpen(false);
+            }
+          }}
+          onClose={() => setSidebarOpen(false)}
+        />
+      </div>
+
+      {/* 🆕 Dialogue confirmation avant d'abandonner les modifications */}
+      {pendingCdcId !== null && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setPendingCdcId(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <AlertTriangle size={18} className="text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800">Modifications non sauvegardées</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {changeCount} modification{changeCount > 1 ? "s" : ""} non sauvegardée{changeCount > 1 ? "s" : ""}.
+                </p>
+              </div>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-600">
+                Vous allez perdre les modifications en cours si vous ouvrez un autre CDC.
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
+              <button
+                onClick={() => setPendingCdcId(null)}
+                className="flex-1 h-9 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 font-medium"
+              >
+                Rester
+              </button>
+              <button
+                onClick={() => {
+                  const targetId = pendingCdcId;
+                  setPendingCdcId(null);
+                  if (targetId) {
+                    setSearchParams({ cdcId: targetId }, { replace: true });
+                    setSidebarOpen(false);
+                  }
+                }}
+                className="flex-1 h-9 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600"
+              >
+                Quitter sans sauver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

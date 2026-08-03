@@ -26,7 +26,6 @@ import PublicDocument from "./pages/PublicDocument";
 import InfinityMirror from "./pages/InfinityMirror";
 import ConfigurateurPage from "./pages/ConfigurateurPage";
 import CdcBuilder from "./pages/CdcBuilder";
-import CdcListe from "./pages/CdcListe";
 import FactureBuilder from "./pages/FactureBuilder";
 import NotFound from "./pages/NotFound";
 import InstallBanner from "./components/pwa/InstallBanner";
@@ -384,7 +383,7 @@ const AppContent = () => {
               }
             />
 
-            {/* 🆕 CDC Builder — construction manuelle de cahier des charges */}
+            {/* 🆕 CDC Builder — route directe */}
             <Route
               path="/cdc-builder"
               element={
@@ -397,12 +396,16 @@ const AppContent = () => {
               }
             />
 
-            {/* 🆕 CDC Liste — listing des CDC existants (liés ou brouillons) */}
+            {/* 🆕 CDC Liste — builder avec sidebar ouverte */}
             <Route
               path="/cdc-liste"
               element={
                 <RequireAuth persistentSessionId={persistentSessionId}>
-                  <CdcListe />
+                  <CdcBuilder
+                    user={currentUser!}
+                    persistentSessionId={persistentSessionId!}
+                    initialSidebarOpen={true}
+                  />
                 </RequireAuth>
               }
             />

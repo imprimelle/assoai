@@ -32,7 +32,18 @@ interface CdcListItem {
   enseigneImages: string[];
 }
 
-const CdcListe: React.FC = () => {
+interface CdcListeProps {
+  /** Mode embed : intégré dans le CdcBuilder (pas de wrapper plein écran) */
+  embedded?: boolean;
+  /** Callback quand un CDC est sélectionné (mode embed) */
+  onSelectCdc?: (cdcId: string) => void;
+  /** Callback pour fermer le panneau (mode embed) */
+  onClose?: () => void;
+  /** ID du CDC actuellement ouvert dans le builder */
+  activeCdcId?: string;
+}
+
+const CdcListe: React.FC<CdcListeProps> = ({ embedded = false, onSelectCdc, onClose, activeCdcId }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -160,17 +171,19 @@ const CdcListe: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className={`flex flex-col bg-gray-50 ${embedded ? "h-full" : "h-screen"}`}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-            title="Retour"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+          {embedded ? (
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors" title="Fermer">
+              <X className="h-4 w-4" />
+            </button>
+          ) : (
+            <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-gray-600 transition-colors" title="Retour">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          )}
           <div>
             <h1 className="text-lg font-semibold text-gray-800">
               Cahiers des Charges
@@ -282,8 +295,22 @@ const CdcListe: React.FC = () => {
               <CdcCard
                 key={cdc.id}
                 cdc={cdc}
-                onEdit={() => navigate(`/cdc-builder?cdcId=${cdc.id}`)}
-                onView={() => navigate(`/public/doc/${cdc.id}`)}
+                isActive={cdc.id === activeCdcId}
+                onEdit={() => {
+                  if (embedded && onSelectCdc) {
+                    onSelectCdc(cdc.id);
+                  } else {
+                    navigate(`/cdc-builder?cdcId=${cdc.id}`);
+                  }
+                }}
+                onView={() => {
+                  // En mode embed, clic = édition directe (pas d'aperçu intermédiaire)
+                  if (embedded && onSelectCdc) {
+                    onSelectCdc(cdc.id);
+                  } else {
+                    navigate(`/public/doc/${cdc.id}`);
+                  }
+                }}
                 onDelete={() => handleDelete(cdc.id)}
               />
             ))}
@@ -303,7 +330,8 @@ const CdcCard: React.FC<{
   onEdit: () => void;
   onView: () => void;
   onDelete: () => void;
-}> = ({ cdc, onEdit, onView, onDelete }) => {
+  isActive?: boolean;
+}> = ({ cdc, onEdit, onView, onDelete, isActive = false }) => {
   const st = (cdc.statut || "").toLowerCase();
   const statusBadge =
     st === "terminé" || st === "validé" || st === "valide" || st === "livré" || st === "payé"
@@ -409,8 +437,12 @@ const CdcCard: React.FC<{
           else setTranslateX(0);
         }}
         style={{ transform: `translateX(${translateX}px)` }}
-        className="relative bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-indigo-200
-                   transition-transform duration-200 cursor-pointer group"
+        className={`relative rounded-lg border shadow-sm
+                   transition-transform duration-200 cursor-pointer group
+                   ${isActive
+                     ? "bg-indigo-50 border-indigo-400 ring-1 ring-indigo-300"
+                     : "bg-white border-gray-200 hover:shadow-md hover:border-indigo-200"
+                   }`}
       >
         <div className="px-4 py-3">
           {/* Ligne 1 : Titre + Statut + Version */}
