@@ -10,6 +10,7 @@ import {
   Save,
   Check,
   AlertCircle,
+  AlertTriangle,
   Loader2,
   FileText,
   ArrowRightLeft,
@@ -215,6 +216,9 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
 
   // 🆕 Sidebar liste des factures
   const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen);
+
+  // 🆕 Dialogue confirmation avant de quitter une facture modifiée
+  const [pendingFactureId, setPendingFactureId] = useState<string | null>(null);
 
   // 🆕 Highlights (feedback visuel après actions Wari)
   const [highlights, setHighlights] = useState<Record<string, "added" | "modified">>({});
@@ -1019,12 +1023,69 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
           user={user}
           embedded
           onSelectFacture={(messageId) => {
-            setSearchParams({ messageId }, { replace: true });
-            setSidebarOpen(false);
+            if (isDirty) {
+              setPendingFactureId(messageId);
+            } else {
+              setSearchParams({ messageId }, { replace: true });
+              setSidebarOpen(false);
+            }
           }}
           onClose={() => setSidebarOpen(false)}
         />
       </div>
+
+      {/* 🆕 Dialogue : confirmation avant d'abandonner les modifications */}
+      {pendingFactureId !== null && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setPendingFactureId(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <AlertTriangle size={18} className="text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800">Modifications non sauvegardées</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {changeCount} modification{changeCount > 1 ? "s" : ""} non sauvegardée{changeCount > 1 ? "s" : ""}.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-600">
+                Vous allez perdre les modifications en cours si vous ouvrez une autre facture.
+              </p>
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
+              <button
+                onClick={() => setPendingFactureId(null)}
+                className="flex-1 h-9 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 font-medium"
+              >
+                Rester
+              </button>
+              <button
+                onClick={() => {
+                  const targetId = pendingFactureId;
+                  setPendingFactureId(null);
+                  if (targetId) {
+                    setSearchParams({ messageId: targetId }, { replace: true });
+                    setSidebarOpen(false);
+                  }
+                }}
+                className="flex-1 h-9 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600"
+              >
+                Quitter sans sauver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
