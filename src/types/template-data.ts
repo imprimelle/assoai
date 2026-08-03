@@ -199,12 +199,6 @@ export interface FactureAction {
   item?: Partial<DetailItem>;
 }
 
-/** Message dans le fil de discussion du FactureFooter */
-export interface FactureFooterMessage {
-  role: "user" | "wari";
-  text: string;
-}
-
 /** Réponse structurée retournée par Wari après parsing des actions facture */
 export interface FactureResponsePayload {
   textFallback: string;

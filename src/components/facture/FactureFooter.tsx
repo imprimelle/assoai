@@ -28,13 +28,15 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { routeMessage } from "@/services/hermesRouter";
-import type { FactureData, CommandeData, DetailItem, CommandeItem, FactureAction, FactureFooterMessage } from "@/types";
+import type { FactureData, CommandeData, DetailItem, CommandeItem, FactureAction } from "@/types";
 import type { User } from "@/types/user";
 import { formatCFA } from "@/utils/format";
 import { useProducts } from "@/hooks/useProducts";
 import { smartSearch } from "@/utils/productSearch";
 import type { BuilderMode } from "@/pages/FactureBuilder";
 import { splitItemsByQuantity } from "@/pages/FactureBuilder";
+import { useChatPersistence } from "@/hooks/useChatPersistence";
+import type { ChatMessage } from "@/hooks/useChatPersistence";
 
 export interface FactureFooterProps {
   data: FactureData | CommandeData;
@@ -59,6 +61,10 @@ export interface FactureFooterProps {
   onSuggestionAction?: (fieldKey: string) => void;
   /** Callback pour créer le projet (mode commande, tous champs remplis) */
   onCreateProject?: () => Promise<{ projectId: string; projectName: string }>;
+  /** 🆕 Identité stable pour persistance du fil de discussion Wari */
+  chatIdentity: string;
+  /** 🆕 ID du message Supabase quand le document est sauvegardé (null = brouillon) */
+  documentMessageId: string | null;
 }
 
 // ── Produit préchargé (données complètes pour le prompt Wari) ──
@@ -179,11 +185,26 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
   builderMode = "facture",
   onSuggestionAction,
   onCreateProject,
+  chatIdentity,
+  documentMessageId,
 }) => {
   const isCommande = builderMode === "commande";
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<"modifier" | "demander">("modifier");
-  const [messages, setMessages] = useState<FactureFooterMessage[]>([]);
+
+  // 🆕 Persistance du fil de discussion via useChatPersistence
+  // Architecture hybride : localStorage (cache instantané) + Supabase (source de vérité)
+  const {
+    messages,
+    setMessages,
+    loading: chatPersistenceLoading,
+  } = useChatPersistence({
+    chatIdentity,
+    documentMessageId,
+    documentType: isCommande ? "commande" : "facture",
+    agent: "wari",
+  });
+
   const [loading, setLoading] = useState(false);
 
   // Micro
@@ -657,7 +678,7 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
     }
 
     const displayText = text || chips.map(c => c.name).join(", ");
-    const userMsg: FactureFooterMessage = { role: "user", text: displayText };
+    const userMsg: ChatMessage = { role: "user", text: displayText };
     setMessages((prev) => [...prev, userMsg]);
 
     // Vider le contenteditable
@@ -695,7 +716,7 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
           : ` [⚠️ 0 actions] JSON: ${rawPreview}`;
         setMessages((prev) => [
           ...prev,
-          { role: "wari", text: (parsed.message || responseText) + debugInfo },
+          { role: "ai", agent: "wari", text: (parsed.message || responseText) + debugInfo },
         ]);
         if (actionsFound > 0) {
           applyActions(parsed.actions!);
@@ -703,14 +724,15 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
       } else {
         setMessages((prev) => [
           ...prev,
-          { role: "wari", text: responseText },
+          { role: "ai", agent: "wari", text: responseText },
         ]);
       }
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
         {
-          role: "wari",
+          role: "ai",
+          agent: "wari",
           text: `❌ Erreur: ${err.message || "Impossible de contacter Wari."}`,
         },
       ]);
@@ -1058,7 +1080,7 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
                     key={idx}
                     className={`flex gap-1.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    {msg.role === "wari" && (
+                    {msg.role === "ai" && msg.agent === "wari" && (
                       <div className="w-6 h-6 rounded-full bg-orange-900/50 flex items-center justify-center shrink-0 mt-0.5">
                         <Bot size={12} className="text-orange-400" />
                       </div>

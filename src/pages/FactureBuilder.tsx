@@ -808,6 +808,21 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
 
   const isLocked = !!projectId || (mode === "facture" && !!commandeMessageId);
 
+  // 🆕 Identité stable pour la persistance du chat Wari — chaque facture a son propre fil
+  const chatIdentity = useMemo(() => {
+    // Facture sauvegardée : Supabase message ID
+    if (messageId) return messageId;
+    // Nouveau brouillon : identité persistante via localStorage (survit aux rechargements)
+    const DRAFT_KEY = "assoai-facture-draft-id";
+    try {
+      const stored = localStorage.getItem(DRAFT_KEY);
+      if (stored) return stored;
+    } catch {}
+    const newId = `draft-${crypto.randomUUID()}`;
+    try { localStorage.setItem(DRAFT_KEY, newId); } catch {}
+    return newId;
+  }, [messageId]);
+
   // ── Rendu ──
   if (loadingFacture) {
     return (
@@ -958,6 +973,8 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
             builderMode={mode}
             onSuggestionAction={handleSuggestionAction}
             onCreateProject={handleCreateProject}
+            chatIdentity={chatIdentity}
+            documentMessageId={activeMessageId || null}
           />
         )}
 
