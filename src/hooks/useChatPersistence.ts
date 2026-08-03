@@ -133,12 +133,20 @@ export function useChatPersistence(options: UseChatPersistenceOptions) {
     loadFromSupabase(chatIdentity, documentMessageId).then((serverMessages) => {
       if (cancelled) return;
       if (serverMessages.length > 0) {
-        // Fusion: Supabase > localStorage (source de vérité)
+        // Supabase a des données → source de vérité
         setMessages(serverMessages);
         lastSyncedRef.current = serverMessages.length;
       } else {
-        // Pas de données Supabase → on garde ce qu'on a en localStorage
-        lastSyncedRef.current = messages.length;
+        // Pas de données Supabase → charger depuis localStorage pour la NOUVELLE identité
+        try {
+          const cached = localStorage.getItem(lsKey);
+          const localMessages: ChatMessage[] = cached ? JSON.parse(cached) : [];
+          setMessages(localMessages);
+          lastSyncedRef.current = localMessages.length;
+        } catch {
+          setMessages([]);
+          lastSyncedRef.current = 0;
+        }
       }
       setLoading(false);
     });
