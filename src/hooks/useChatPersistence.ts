@@ -156,15 +156,21 @@ export function useChatPersistence(options: UseChatPersistenceOptions) {
   }, [chatIdentity, documentMessageId]);
 
   // ── Save to localStorage on every change ──
+  // ⚠️ lsKey est lu via ref pour éviter la pollution :
+  //   quand chatIdentity change, on ne doit PAS sauvegarder les anciens
+  //   messages sous la nouvelle clé. Le load effect recharge d'abord.
+  const lsKeyRef = useRef(lsKey);
+  lsKeyRef.current = lsKey;
+
   useEffect(() => {
     try {
       if (messages.length > 0) {
-        localStorage.setItem(lsKey, JSON.stringify(messages));
+        localStorage.setItem(lsKeyRef.current, JSON.stringify(messages));
       }
     } catch {
       // localStorage plein
     }
-  }, [messages, lsKey]);
+  }, [messages]); // 🔴 Uniquement messages, PAS lsKey
 
   // ── Sync new messages to Supabase (debounced) ──
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
