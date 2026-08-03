@@ -388,8 +388,10 @@ const FactureFooter: React.FC<FactureFooterProps> = ({
     setPreloadedProducts(prev => prev.filter(p => detailProductIds.has(p.id)));
   }, [isCommande ? (data as CommandeData).items : (data as FactureData).details]);
 
-  /** Construit le prompt Modifier — Wari décide s'il doit générer ou modifier */
-  const buildModifierPrompt = (message: string, chips: { productId: string; name: string; price: number; variant?: string; dimensions?: string; sku?: string }[]): string => {
+  /** Construit le prompt avec contexte document — utilisé pour les deux modes.
+   *  En mode modifier : inclut les instructions JSON d'actions.
+   *  En mode demander : contexte seul, Wari répond naturellement. */
+  const buildModifierPrompt = (message: string, chips: { productId: string; name: string; price: number; variant?: string; dimensions?: string; sku?: string }[], includeActions = true): string => {
     // Items selon le mode
     const items: any[] = isCommande
       ? ((data as CommandeData).items || [])
@@ -468,7 +470,7 @@ Délai livraison: ${(data as any).delaiLivraison || "—"}
 Total: ${formatCFA(data.total)}
 ${isCommande ? `Facture liée: ${(data as CommandeData).linked_facture_id || "—"}\n` : ""}${preloadBlock}
 Instruction de l'utilisateur: ${message}
-
+${includeActions ? `
 ⚠️ FORMAT DE RÉPONSE OBLIGATOIRE :
 1. Une courte analyse (1-3 phrases) expliquant ce que tu fais et pourquoi.
 2. Le JSON d'actions — SANS triple-backticks autour, SANS markdown. Juste le JSON brut.
@@ -492,7 +494,9 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
   {"type":"setStatut","value":"Vérifié"}
 ]}
 
-⚠️ Le JSON doit être valide — pas de virgule après le dernier élément, pas de commentaires.`;
+⚠️ Le JSON doit être valide — pas de virgule après le dernier élément, pas de commentaires.`
+: `
+Réponds naturellement à la question en te basant sur le contexte ci-dessus. Tu peux utiliser du **markdown** pour structurer ta réponse (gras, italique, listes, tableaux).`}`;
   };
 
   /** Appliquer les actions Wari — avec highlights + scroll séquentiel */
@@ -692,8 +696,8 @@ Analyse : j'ajoute un article "Forfait installation" et je passe le statut à "V
 
     try {
       const prompt = mode === "modifier"
-        ? buildModifierPrompt(text, chips)
-        : text;
+        ? buildModifierPrompt(text, chips, true)
+        : buildModifierPrompt(text, chips, false);
 
       const payload = {
         userId: user.id,
