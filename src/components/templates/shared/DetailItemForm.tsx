@@ -31,6 +31,24 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Édition locale Qté/PU : évite le bug du fallback numérique pendant la saisie ──
+  const [localQté, setLocalQté] = useState<string | null>(null);
+  const [localPU, setLocalPU] = useState<string | null>(null);
+  const qtéInputRef = useRef<HTMLInputElement>(null);
+  const puInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync props → local quand l'input n'est pas focus
+  useEffect(() => {
+    if (document.activeElement !== qtéInputRef.current) {
+      setLocalQté(null);
+    }
+  }, [quantite]);
+  useEffect(() => {
+    if (document.activeElement !== puInputRef.current) {
+      setLocalPU(null);
+    }
+  }, [prix]);
+
   // ── ContentEditable + @produit ──
   const contentEditableRef = useRef<HTMLDivElement>(null);
   const productDropdownRef = useRef<HTMLDivElement>(null);
@@ -351,14 +369,20 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
           <span className="text-[11px] text-gray-500 font-medium shrink-0">Qté</span>
           {isEditable && !disableAmountEdit ? (
             <input
+              ref={qtéInputRef}
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
-              min={1}
-              value={quantite}
+              value={localQté !== null ? localQté : String(quantite)}
+              onFocus={() => { setLocalQté(String(quantite)); }}
               onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, "");
-                onChange({ quantite: Number(val) || 1 });
+                const raw = e.target.value.replace(/\D/g, "");
+                setLocalQté(raw);
+              }}
+              onBlur={() => {
+                const val = localQté !== null ? (Number(localQté) || 1) : quantite;
+                setLocalQté(null);
+                if (val !== quantite) onChange({ quantite: Math.max(1, val) });
               }}
               className="w-14 h-7 border border-gray-300 bg-white rounded-lg px-1.5 text-xs text-center font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
             />
@@ -370,15 +394,20 @@ const DetailItemForm: React.FC<DetailItemFormProps> = ({
           <span className="text-[11px] text-gray-500 font-medium shrink-0">PU</span>
           {isEditable && !disableAmountEdit ? (
             <input
+              ref={puInputRef}
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
-              min={0}
-              step={500}
-              value={prix}
+              value={localPU !== null ? localPU : String(prix)}
+              onFocus={() => { setLocalPU(String(prix)); }}
               onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, "");
-                onChange({ prixUnitaire: Number(val) || 0 });
+                const raw = e.target.value.replace(/\D/g, "");
+                setLocalPU(raw);
+              }}
+              onBlur={() => {
+                const val = localPU !== null ? (Number(localPU) || 0) : prix;
+                setLocalPU(null);
+                if (val !== prix) onChange({ prixUnitaire: val });
               }}
               className="w-24 h-7 border border-gray-300 bg-white rounded-lg px-1.5 text-xs text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
             />

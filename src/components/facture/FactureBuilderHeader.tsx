@@ -67,6 +67,12 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
   const [addressDialogOpen, setAddressDialogOpen] = useState(false);
   const recuFileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Édition locale remise/avance : évite le fallback 0 pendant la saisie ──
+  const [localRemise, setLocalRemise] = useState<string | null>(null);
+  const [localAvance, setLocalAvance] = useState<string | null>(null);
+  const remiseInputRef = useRef<HTMLInputElement>(null);
+  const avanceInputRef = useRef<HTMLInputElement>(null);
+
   // Synchroniser avec le toggle externe
   React.useEffect(() => {
     if (forceOpen !== undefined) setExpanded(forceOpen);
@@ -520,27 +526,35 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
                 <input
+                  ref={remiseInputRef}
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  min={0}
                   data-highlight-key="remise"
-                  value={(data as any).reduction ?? 0}
+                  value={localRemise !== null ? localRemise : String((data as any).reduction ?? 0)}
+                  onFocus={() => { setLocalRemise(String((data as any).reduction ?? 0)); }}
                   onChange={(e) => {
-                    const val = Number(e.target.value.replace(/\D/g, "")) || 0;
-                    let base = 0;
-                    if (isCommande) {
-                      base = ((data as CommandeData).items || []).reduce(
-                        (s, it) => s + it.sous_total,
-                        0,
-                      );
-                    } else {
-                      base = ((data as FactureData).details || []).reduce(
-                        (s, d) => s + d.sous_total,
-                        0,
-                      );
+                    const raw = e.target.value.replace(/\D/g, "");
+                    setLocalRemise(raw);
+                  }}
+                  onBlur={() => {
+                    const val = localRemise !== null ? (Number(localRemise) || 0) : ((data as any).reduction ?? 0);
+                    setLocalRemise(null);
+                    if (val !== ((data as any).reduction ?? 0)) {
+                      let base = 0;
+                      if (isCommande) {
+                        base = ((data as CommandeData).items || []).reduce(
+                          (s, it) => s + it.sous_total,
+                          0,
+                        );
+                      } else {
+                        base = ((data as FactureData).details || []).reduce(
+                          (s, d) => s + d.sous_total,
+                          0,
+                        );
+                      }
+                      onChange({ ...data, reduction: val, total: base - val });
                     }
-                    onChange({ ...data, reduction: val, total: base - val });
                   }}
                   className={`h-9 w-28 border border-gray-300 rounded-lg px-3 text-sm text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none ${
                     isEditable ? "bg-white" : "bg-gray-100 cursor-not-allowed"
@@ -575,15 +589,22 @@ const FactureBuilderHeader: React.FC<FactureBuilderHeaderProps> = ({
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <input
+                    ref={avanceInputRef}
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    min={0}
-                    max={data.total}
-                    value={(data as any).montantAvance ?? 0}
+                    value={localAvance !== null ? localAvance : String((data as any).montantAvance ?? 0)}
+                    onFocus={() => { setLocalAvance(String((data as any).montantAvance ?? 0)); }}
                     onChange={(e) => {
-                      const val = Number(e.target.value.replace(/\D/g, "")) || 0;
-                      onChange({ ...data, montantAvance: val } as CommandeData);
+                      const raw = e.target.value.replace(/\D/g, "");
+                      setLocalAvance(raw);
+                    }}
+                    onBlur={() => {
+                      const val = localAvance !== null ? (Number(localAvance) || 0) : ((data as any).montantAvance ?? 0);
+                      setLocalAvance(null);
+                      if (val !== ((data as any).montantAvance ?? 0)) {
+                        onChange({ ...data, montantAvance: val } as CommandeData);
+                      }
                     }}
                     className="h-9 w-28 border border-gray-300 rounded-lg px-3 bg-white text-sm text-right font-medium focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 outline-none"
                     disabled={!isEditable}
