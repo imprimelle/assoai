@@ -46,9 +46,11 @@ interface FactureListeProps {
   onSelectFacture?: (messageId: string) => void;
   /** Callback pour fermer le panneau (mode embed) */
   onClose?: () => void;
+  /** ID de la facture actuellement ouverte dans le builder */
+  activeFactureId?: string;
 }
 
-const FactureListe: React.FC<FactureListeProps> = ({ user, embedded = false, onSelectFacture, onClose }) => {
+const FactureListe: React.FC<FactureListeProps> = ({ user, embedded = false, onSelectFacture, onClose, activeFactureId }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -269,6 +271,7 @@ const FactureListe: React.FC<FactureListeProps> = ({ user, embedded = false, onS
               <FactureCard
                 key={f.id}
                 facture={f}
+                isActive={f.id === activeFactureId}
                 onOpen={() => {
                   if (embedded && onSelectFacture) {
                     onSelectFacture(f.id);
@@ -311,7 +314,8 @@ const FactureCard: React.FC<{
   onDownload: () => void;
   onDelete: () => void;
   downloading: boolean;
-}> = ({ facture, onOpen, onDownload, onDelete, downloading }) => {
+  isActive?: boolean;
+}> = ({ facture, onOpen, onDownload, onDelete, downloading, isActive = false }) => {
   const st = (facture.statut || "").toLowerCase();
   const statusBadge =
     st === "validé" ? "bg-green-100 text-green-700"
@@ -407,8 +411,12 @@ const FactureCard: React.FC<{
           else setTranslateX(0);
         }}
         style={{ transform: `translateX(${translateX}px)` }}
-        className="relative bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-orange-300
-                   transition-transform duration-200 cursor-pointer group"
+        className={`relative rounded-lg border shadow-sm
+                   transition-transform duration-200 cursor-pointer group
+                   ${isActive
+                     ? "bg-orange-50 border-orange-400 ring-1 ring-orange-300"
+                     : "bg-white border-gray-200 hover:shadow-md hover:border-orange-300"
+                   }`}
       >
         <div className="px-4 py-3">
           {/* Ligne 1 : Client + Statut + Version + Badge Commande */}

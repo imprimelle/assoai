@@ -1022,6 +1022,7 @@ const FactureBuilder: React.FC<FactureBuilderProps> = ({
         <FactureListe
           user={user}
           embedded
+          activeFactureId={messageId}
           onSelectFacture={(messageId) => {
             if (isDirty) {
               setPendingFactureId(messageId);
