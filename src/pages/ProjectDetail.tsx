@@ -34,6 +34,7 @@ import { ProjectDocumentAccordion } from '@/components/projects/ProjectDocumentA
 import { ProjectMediaGallery } from '@/components/projects/ProjectMediaGallery';
 import { TaskLinkedBox } from '@/components/projects/TaskLinkedBox';
 import type { DocumentSearchResult } from '@/hooks/useDocumentSearch';
+import { createInitialCdcFromCommande } from '@/services/initialCdc';
 
 // Fix icônes Leaflet par défaut (bug Vite)
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -151,9 +152,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ user, persistentSessionId
   const [initializing, setInitializing] = useState(false);
 
   // ── Valeurs calculées ──
-  const hasCDC = (projectDocuments || []).some(d => d.templateType === 'cahier_des_charges');
+  const hasFacture = (projectDocuments || []).some(d => d.templateType === 'facture');
+  const hasCommande = (projectDocuments || []).some(d => d.templateType === 'commande');
   const hasTasks = (tasks || []).length > 0;
-  const showInitialize = hasCDC && !hasTasks;
+  // 🆕 Nouvelle méthode : le bouton apparaît SEULEMENT si facture + commande sont renseignées.
+  // Le CDC n'est plus requis à ce stade — il sera créé automatiquement (déterministe) à l'initialisation.
+  const showInitialize = hasFacture && hasCommande && !hasTasks;
   const doneTasks = (tasks || []).filter(t => t.kanban_column === 'termine');
   const totalTasks = (tasks || []).length;
   const phasePct = totalTasks > 0 ? Math.round((doneTasks.length / totalTasks) * 100) : 0;
@@ -469,8 +473,39 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ user, persistentSessionId
           <Button className="w-full" size="lg" onClick={async () => {
             setInitializing(true);
             try {
-              const cdc = (projectDocuments || []).find(d => d.templateType === 'cahier_des_charges');
-              const initMessage = `🚀 Initialise le projet. CDC: ${cdc?.numero || 'CDC-?'}. Phase: Facturation.`;
+              // 🆕 Nouvelle méthode : à l'initialisation, créer un CDC déterministe (sans LLM)
+              // depuis la commande (enseignes, images, dimensions) s'il n'existe pas déjà.
+              // Le CDC est lié au projet, listé dans CdcListe, éditable ensuite dans le CDC builder.
+              let cdc = (projectDocuments || []).find(d => d.templateType === 'cahier_des_charges');
+              if (!cdc && commandeDoc?.raw) {
+                try {
+                  const created = await createInitialCdcFromCommande({
+                    project: { id: project!.id, name: project!.name },
+                    commande: commandeDoc.raw,
+                    userId: user!.id,
+                    sessionId: `project-${projectId}`,
+                  });
+                  // Le CDC créé n'est pas encore dans projectDocuments → construire une ref locale
+                  cdc = {
+                    id: created.id,
+                    templateType: 'cahier_des_charges',
+                    numero: created.cdcNumero,
+                    titre: `Cahier des Charges — ${project!.name}`,
+                    client: cmdRaw.client?.nom || '',
+                    montant: 0,
+                    date: new Date().toISOString(),
+                    version: 1,
+                    is_latest: true,
+                    raw: {},
+                  };
+                } catch (err) {
+                  console.error('Création CDC déterministe échouée:', err);
+                }
+              }
+              // Message d'init : CDC renseigné si disponible (existant ou créé), sinon sans mention
+              const initMessage = cdc
+                ? `🚀 Initialise le projet. CDC: ${cdc.numero}. Phase: Facturation.`
+                : `🚀 Initialise le projet. Phase: Facturation.`;
               await supabase.from('messages').insert({ user_id: user!.id, session_id: `project-${projectId}`, content: initMessage, sender: 'user', project_id: projectId, timestamp: new Date().toISOString() });
               await fetch('/hermes/router', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: initMessage, userId: user!.id, sessionId: `project-${projectId}`, profile: 'hermes-pm', skills: ['project-initializer', 'procedure-manual', 'kanban-manager', 'checklist-validator', 'communicator-bridge'], projectId: projectId }) });
               window.location.reload();
@@ -479,6 +514,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ user, persistentSessionId
             {initializing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Rocket className="h-4 w-4 mr-2" />}
             🚀 Initialiser le projet
           </Button>
+          {/* 🆕 Indice UX : le CDC est créé automatiquement à l'initialisation */}
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            📄 Le cahier des charges sera créé automatiquement depuis la commande, puis modifiable dans l'onglet Documents.
+          </p>
         </div>
       )}
 
