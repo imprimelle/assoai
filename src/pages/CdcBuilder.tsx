@@ -1190,6 +1190,8 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
         if (error) throw error;
         if (data) {
           setState((prev) => ({ ...prev, savedMessageId: data.id }));
+          // 🆕 Mettre à jour l'URL avec le cdcId pour que la sidebar marque le CDC actif
+          setSearchParams((prev) => { prev.set("cdcId", data.id); return prev; }, { replace: true });
         }
       }
 
@@ -1204,7 +1206,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
       setSaveError(err.message || "Échec de la sauvegarde");
       setTimeout(() => setSaveStatus("idle"), 4000);
     }
-  }, [state, saveStatus, persistentSessionId, searchParams, loaderResult?.project]);
+  }, [state, saveStatus, persistentSessionId, searchParams, setSearchParams, loaderResult?.project]);
 
   // 🆕 Identité stable du CDC pour la persistance du chat — survit aux navigations
   // et aux rechargements. Change uniquement quand on passe à un CDC différent.
@@ -1792,7 +1794,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
       >
         <CdcListe
           embedded
-          activeCdcId={cdcId || undefined}
+          activeCdcId={cdcId || state.savedMessageId || undefined}
           onSelectCdc={(cdcId) => {
             if (isDirty) {
               setPendingCdcId(cdcId);
