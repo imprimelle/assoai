@@ -601,6 +601,49 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen);
   const [pendingCdcId, setPendingCdcId] = useState<string | null>(null);
 
+  // 🆕 Handler Nouveau CDC depuis la sidebar
+  const handleNewCdc = useCallback(() => {
+    setSidebarOpen(false);
+    setSearchParams({}, { replace: true });
+    // Reset state to defaults
+    setState({
+      projectName: "",
+      cdcNumero: "",
+      commandeId: "",
+      statut: "Brouillon",
+      enseignes: [],
+      materiauxByEnseigne: {},
+      equipe: [],
+    });
+    setChangeCount(0);
+    const DEFAULT_HASH = JSON.stringify({
+      projectName: "",
+      cdcNumero: "",
+      commandeId: "",
+      statut: "Brouillon",
+      enseignes: [],
+      materiauxByEnseigne: {},
+      equipe: [],
+    });
+    lastSavedHashRef.current = DEFAULT_HASH;
+    // Clear localStorage
+    try { localStorage.removeItem(LS_KEY); } catch {}
+    try { localStorage.removeItem("assoai-cdc-draft-id"); } catch {}
+    // Reset undo history
+    const defaultState: CdcBuilderState = {
+      projectName: "",
+      cdcNumero: "",
+      commandeId: "",
+      statut: "Brouillon",
+      enseignes: [],
+      materiauxByEnseigne: {},
+      equipe: [],
+    };
+    historyRef.current = [JSON.parse(JSON.stringify(defaultState))];
+    historyIndexRef.current = 0;
+    lastCapturedRef.current = JSON.stringify(defaultState);
+  }, [setSearchParams]);
+
   // 🆕 Régénération enseigne — déclenche un envoi auto dans le footer Brico
   const [regenerateEnseigneId, setRegenerateEnseigneId] = useState<string | null>(null);
   const [regenerateMessage, setRegenerateMessage] = useState<string>("");
@@ -822,6 +865,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
   // 🆕 Compteur : nombre de modifs non sauvegardées
   const [changeCount, setChangeCount] = useState(0);
   const lastSavedHashRef = useRef("");
+  const isFirstChangeRef = useRef(true);
 
   // 🆕 isDirty : true si state ≠ dernier état sauvegardé
   const isDirty = useMemo(() => {
@@ -831,6 +875,13 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
 
   // 🆕 Compteur incrémental : incrémente à chaque modif non sauvegardée
   useEffect(() => {
+    // 🔴 Ne pas compter le premier render — initialise la baseline
+    if (isFirstChangeRef.current) {
+      isFirstChangeRef.current = false;
+      const { savedMessageId, ...trackable } = state as any;
+      lastSavedHashRef.current = JSON.stringify(trackable);
+      return;
+    }
     if (isDirty) {
       setChangeCount((c) => c + 1);
     }
@@ -1795,6 +1846,7 @@ const CdcBuilder: React.FC<CdcBuilderProps> = ({
         <CdcListe
           embedded
           activeCdcId={cdcId || state.savedMessageId || undefined}
+          onNewCdc={handleNewCdc}
           onSelectCdc={(cdcId) => {
             if (isDirty) {
               setPendingCdcId(cdcId);

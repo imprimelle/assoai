@@ -39,11 +39,13 @@ interface CdcListeProps {
   onSelectCdc?: (cdcId: string) => void;
   /** Callback pour fermer le panneau (mode embed) */
   onClose?: () => void;
+  /** Callback pour créer un nouveau CDC (mode embed) */
+  onNewCdc?: () => void;
   /** ID du CDC actuellement ouvert dans le builder */
   activeCdcId?: string;
 }
 
-const CdcListe: React.FC<CdcListeProps> = ({ embedded = false, onSelectCdc, onClose, activeCdcId }) => {
+const CdcListe: React.FC<CdcListeProps> = ({ embedded = false, onSelectCdc, onClose, onNewCdc, activeCdcId }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -199,7 +201,13 @@ const CdcListe: React.FC<CdcListeProps> = ({ embedded = false, onSelectCdc, onCl
         </div>
         <Button
           size="sm"
-          onClick={() => navigate("/cdc-builder")}
+          onClick={() => {
+            if (embedded && onNewCdc) {
+              onNewCdc();
+            } else {
+              navigate("/cdc-builder");
+            }
+          }}
           className="bg-indigo-600 hover:bg-indigo-700 text-white"
         >
           <Plus className="h-4 w-4 mr-1.5" />
