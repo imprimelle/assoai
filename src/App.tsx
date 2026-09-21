@@ -369,7 +369,7 @@ const AppContent = () => {
               path="/stock"
               element={
                 <RequireAuth persistentSessionId={persistentSessionId}>
-                  <Stock />
+                  <Stock user={currentUser} />
                 </RequireAuth>
               }
             />

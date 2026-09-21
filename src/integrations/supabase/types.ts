@@ -348,6 +348,57 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_sheets: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          epaisseur: string | null
+          hauteur: number | null
+          id: string
+          largeur: number | null
+          longueur: number | null
+          nature: string
+          nom: string | null
+          section_history: Json
+          sections: Json
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          epaisseur?: string | null
+          hauteur?: number | null
+          id?: string
+          largeur?: number | null
+          longueur?: number | null
+          nature?: string
+          nom?: string | null
+          section_history?: Json
+          sections?: Json
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          epaisseur?: string | null
+          hauteur?: number | null
+          id?: string
+          largeur?: number | null
+          longueur?: number | null
+          nature?: string
+          nom?: string | null
+          section_history?: Json
+          sections?: Json
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       template_notes: {
         Row: {
           attachments: Json | null

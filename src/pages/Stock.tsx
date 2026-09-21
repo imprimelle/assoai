@@ -1,26 +1,49 @@
 // src/pages/Stock.tsx
 // Page Stock — gestion logistique des matériaux de découpe (vitre, plexiglass, miroir).
 // 4 vues (Feuilles / Tables en verre / Tables en bois / Tableaux), sections découpées
-// avec statuts découpé → raboté → utilisé.
+// avec pose de statut (découpé / raboté / utilisé) + audit des changements.
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Layers, Ruler, X } from "lucide-react";
-import { useStock, type StockSheetInput } from "@/hooks/useStock";
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Layers,
+  Ruler,
+  X,
+  History,
+  Check,
+} from "lucide-react";
+import { useStock } from "@/hooks/useStock";
+import type { User } from "@/types";
 import {
   StockSheet,
   StockSection,
   StockType,
   StockNature,
+  StockHistoryEvent,
+  SectionStatut,
   STOCK_TYPES,
   STOCK_NATURES,
   SECTION_STATUTS,
-  STATUT_ORDER,
-  nextStatut,
   generateSections,
   typeLabel,
   natureLabel,
+  statutLabel,
+  parseCm,
 } from "@/types/stock";
+
+const fmtTime = (iso: string): string => {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
 
 // ── Légende des statuts ──────────────────────────────────────
 
@@ -36,7 +59,7 @@ const StatutLegend: React.FC = () => (
         {s.label}
       </span>
     ))}
-    <span className="ml-1 text-gray-400">· cliquer sur une section pour avancer</span>
+    <span className="ml-1 text-gray-400">· cliquer sur une section pour poser son statut</span>
   </div>
 );
 
@@ -44,12 +67,11 @@ const StatutLegend: React.FC = () => (
 
 const SectionFigure: React.FC<{
   section: StockSection;
-  onAdvance: () => void;
-}> = ({ section, onAdvance }) => {
+  onSelect: () => void;
+}> = ({ section, onSelect }) => {
   const statut = SECTION_STATUTS.find((s) => s.id === section.statut);
   const nature = STOCK_NATURES.find((n) => n.id === section.nature);
 
-  // Échelle pour tenir dans une boîte max, en préservant le ratio
   const maxW = 120;
   const maxH = 78;
   const ratio = section.hauteur > 0 ? section.largeur / section.hauteur : 1;
@@ -63,9 +85,9 @@ const SectionFigure: React.FC<{
   return (
     <button
       type="button"
-      onClick={onAdvance}
-      title={`${section.nom} — ${statut?.label}. Cliquer pour avancer.`}
-      className="flex flex-col items-center gap-1 p-2 rounded-xl bg-white border border-gray-100 hover:border-gray-300 hover:shadow-sm transition-all active:scale-95"
+      onClick={onSelect}
+      title={`${section.nom} — ${statut?.label}. Cliquer pour changer.`}
+      className="flex flex-col items-center gap-1 p-2 rounded-xl bg-white border border-gray-100 hover:border-gray-300 hover:shadow-sm transition-all active:scale-95 cursor-pointer"
     >
       <div
         className={`flex items-center justify-center rounded-md border-2 ${statut?.border}`}
@@ -93,20 +115,22 @@ const SectionFigure: React.FC<{
 
 const dimsLabel = (sheet: StockSheet): string => {
   const parts: string[] = [];
-  if (sheet.largeur != null) parts.push(`L ${sheet.largeur}`);
-  if (sheet.hauteur != null) parts.push(`l ${sheet.hauteur}`);
-  if (sheet.profondeur != null) parts.push(`h ${sheet.profondeur}`);
+  if (sheet.longueur != null) parts.push(`L ${sheet.longueur}`);
+  if (sheet.largeur != null) parts.push(`l ${sheet.largeur}`);
+  if (sheet.hauteur != null) parts.push(`h ${sheet.hauteur}`);
   return parts.length ? `${parts.join(" × ")} cm` : "—";
 };
 
 const SheetCard: React.FC<{
   sheet: StockSheet;
-  onAdvance: (sectionId: string) => void;
+  onSelectStatut: (section: StockSection) => void;
   onDelete: () => void;
   onEdit: () => void;
-}> = ({ sheet, onAdvance, onDelete, onEdit }) => {
+}> = ({ sheet, onSelectStatut, onDelete, onEdit }) => {
   const nature = STOCK_NATURES.find((n) => n.id === sheet.nature);
   const used = sheet.sections.filter((s) => s.statut === "utilise").length;
+  const [showHistory, setShowHistory] = useState(false);
+  const history = sheet.section_history || [];
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -123,6 +147,11 @@ const SheetCard: React.FC<{
             {nature && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
                 {nature.label}
+              </span>
+            )}
+            {sheet.epaisseur && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 font-medium border border-gray-200">
+                {sheet.epaisseur}
               </span>
             )}
           </div>
@@ -144,31 +173,124 @@ const SheetCard: React.FC<{
       {/* Sections */}
       <div className="px-4 py-3">
         {sheet.sections.length === 0 ? (
-          <p className="text-xs text-gray-400 italic py-2">
-            Aucune section définie.
-          </p>
+          <p className="text-xs text-gray-400 italic py-2">Aucune section définie.</p>
         ) : (
           <>
             <div className="flex items-center gap-1.5 mb-2 text-[11px] text-gray-400">
               <Layers className="h-3.5 w-3.5" />
               {sheet.sections.length} section{sheet.sections.length > 1 ? "s" : ""}
-              {sheet.sections.length > 0 && (
-                <span className="ml-auto">
-                  {used}/{sheet.sections.length} utilisé{sheet.sections.length > 1 ? "s" : ""}
-                </span>
-              )}
+              <span className="ml-auto">
+                {used}/{sheet.sections.length} utilisé{sheet.sections.length > 1 ? "s" : ""}
+              </span>
             </div>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
               {sheet.sections.map((s) => (
                 <SectionFigure
                   key={s.id}
                   section={s}
-                  onAdvance={() => onAdvance(s.id)}
+                  onSelect={() => onSelectStatut(s)}
                 />
               ))}
             </div>
           </>
         )}
+      </div>
+
+      {/* Audit + historique */}
+      <div className="px-4 py-2 border-t border-gray-100 bg-gray-50/50 text-[11px] text-gray-400">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span>
+            Créé par {sheet.created_by_name || "—"}
+            {sheet.created_at ? ` · ${fmtTime(sheet.created_at)}` : ""}
+          </span>
+          {history.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowHistory((v) => !v)}
+              className="ml-auto inline-flex items-center gap-1 text-gray-500 hover:text-gray-700"
+            >
+              <History className="h-3 w-3" />
+              {history.length} changement{history.length > 1 ? "s" : ""}
+            </button>
+          )}
+        </div>
+
+        {showHistory && history.length > 0 && (
+          <ul className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+            {[...history].reverse().map((ev, i) => (
+              <li key={i} className="flex items-center gap-1.5 text-gray-500">
+                <span className="font-medium text-gray-600">{ev.sectionNom}</span>
+                <span>{statutLabel(ev.from)}</span>
+                <span>→</span>
+                <span className="font-medium">{statutLabel(ev.to)}</span>
+                <span className="ml-auto text-gray-400">
+                  {ev.byName} · {fmtTime(ev.ts)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Sélecteur de statut (modal) ──────────────────────────────
+
+const StatutPicker: React.FC<{
+  section: StockSection;
+  onPick: (statut: SectionStatut) => void;
+  onClose: () => void;
+}> = ({ section, onPick, onClose }) => {
+  return (
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-base font-semibold text-gray-800">Statut de la section</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="text-sm text-gray-500 mb-4">
+          {section.nom} · {section.largeur}×{section.hauteur} cm ·{" "}
+          {natureLabel(section.nature)}
+        </p>
+        <div className="space-y-2">
+          {SECTION_STATUTS.map((s) => {
+            const active = section.statut === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => onPick(s.id)}
+                className={`flex items-center justify-between w-full px-4 py-3 rounded-xl border-2 text-sm font-medium transition-colors ${
+                  active
+                    ? "border-gray-900 bg-gray-50 text-gray-900"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300"
+                }`}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    className="w-3 h-3 rounded-full"
+                    style={{ background: s.fill }}
+                  />
+                  {s.label}
+                </span>
+                {active && <Check className="h-4 w-4 text-gray-900" />}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -179,20 +301,21 @@ const SheetCard: React.FC<{
 const AddSheetDialog: React.FC<{
   sheet?: StockSheet | null;
   onClose: () => void;
-  onSave: (input: StockSheetInput) => Promise<void>;
+  onSave: (input: import("@/types/stock").StockSheetInput) => Promise<void>;
 }> = ({ sheet, onClose, onSave }) => {
   const isEdit = !!sheet;
   const [type, setType] = useState<StockType>(sheet?.type ?? "feuille");
   const [nature, setNature] = useState<StockNature>(sheet?.nature ?? "vitre");
   const [nom, setNom] = useState(sheet?.nom ?? "");
+  const [epaisseur, setEpaisseur] = useState(sheet?.epaisseur ?? "");
+  const [longueur, setLongueur] = useState(
+    sheet?.longueur != null ? String(sheet.longueur) : "",
+  );
   const [largeur, setLargeur] = useState(
     sheet?.largeur != null ? String(sheet.largeur) : "",
   );
   const [hauteur, setHauteur] = useState(
     sheet?.hauteur != null ? String(sheet.hauteur) : "",
-  );
-  const [profondeur, setProfondeur] = useState(
-    sheet?.profondeur != null ? String(sheet.profondeur) : "",
   );
   const [manualSections, setManualSections] = useState<StockSection[]>(
     sheet?.type === "feuille" ? sheet.sections : [],
@@ -200,19 +323,17 @@ const AddSheetDialog: React.FC<{
   const [saving, setSaving] = useState(false);
 
   const typeDef = STOCK_TYPES.find((t) => t.id === type)!;
-  const needs = (f: "largeur" | "hauteur" | "profondeur") =>
+  const needs = (f: "longueur" | "largeur" | "hauteur") =>
     typeDef.fields.includes(f);
 
-  // Prévisualisation auto pour les types table/tableau
   const preview = useMemo(() => {
     if (type === "feuille") return [];
-    const L = parseFloat(largeur) || 0;
-    const l = parseFloat(hauteur) || 0;
-    const h = parseFloat(profondeur) || 0;
+    const L = parseCm(longueur) ?? 0;
+    const l = parseCm(largeur) ?? 0;
+    const h = parseCm(hauteur) ?? 0;
     return generateSections(type, L, l, h);
-  }, [type, largeur, hauteur, profondeur]);
+  }, [type, longueur, largeur, hauteur]);
 
-  // Changement de type → reset des sections manuelles
   const handleTypeChange = (t: StockType) => {
     setType(t);
     if (t === "feuille") {
@@ -223,21 +344,11 @@ const AddSheetDialog: React.FC<{
   const addManualSection = () => {
     setManualSections((prev) => [
       ...prev,
-      {
-        id: crypto.randomUUID(),
-        nom: "",
-        nature,
-        largeur: 0,
-        hauteur: 0,
-        statut: "decoupe",
-      },
+      { id: crypto.randomUUID(), nom: "", nature, largeur: 0, hauteur: 0, statut: "decoupe" },
     ]);
   };
 
-  const updateManualSection = (
-    id: string,
-    patch: Partial<StockSection>,
-  ) => {
+  const updateManualSection = (id: string, patch: Partial<StockSection>) => {
     setManualSections((prev) =>
       prev.map((s) => (s.id === id ? { ...s, ...patch } : s)),
     );
@@ -250,9 +361,6 @@ const AddSheetDialog: React.FC<{
   const handleSubmit = async () => {
     setSaving(true);
     try {
-      const L = parseFloat(largeur) || null;
-      const l = parseFloat(hauteur) || null;
-      const h = parseFloat(profondeur) || null;
       const sections =
         type === "feuille"
           ? manualSections.filter((s) => s.largeur > 0 && s.hauteur > 0)
@@ -261,9 +369,10 @@ const AddSheetDialog: React.FC<{
         type,
         nature,
         nom: nom.trim() || null,
-        largeur: L,
-        hauteur: l,
-        profondeur: needs("profondeur") ? h : null,
+        longueur: parseCm(longueur),
+        largeur: parseCm(largeur),
+        hauteur: needs("hauteur") ? parseCm(hauteur) : null,
+        epaisseur: epaisseur.trim() || null,
         sections,
       });
       onClose();
@@ -287,6 +396,13 @@ const AddSheetDialog: React.FC<{
     />
   );
 
+  const dimField = (label: string, value: string, setValue: (v: string) => void, ph: string) => (
+    <div>
+      <span className="block text-[11px] text-gray-400 mb-1">{label}</span>
+      {numInput(value, setValue, ph)}
+    </div>
+  );
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
@@ -296,16 +412,11 @@ const AddSheetDialog: React.FC<{
         className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* En-tête */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <h3 className="text-base font-semibold text-gray-800">
             {isEdit ? "Modifier l'élément" : "Ajouter au stock"}
           </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100"
-          >
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -313,9 +424,7 @@ const AddSheetDialog: React.FC<{
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
           {/* Type */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2">
-              Type
-            </label>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Type</label>
             <div className="grid grid-cols-2 gap-2">
               {STOCK_TYPES.map((t) => (
                 <button
@@ -328,12 +437,8 @@ const AddSheetDialog: React.FC<{
                       : "border-gray-200 hover:border-gray-300"
                   }`}
                 >
-                  <span className="block text-sm font-medium text-gray-800">
-                    {t.label}
-                  </span>
-                  <span className="block text-[11px] text-gray-400">
-                    {t.description}
-                  </span>
+                  <span className="block text-sm font-medium text-gray-800">{t.label}</span>
+                  <span className="block text-[11px] text-gray-400">{t.description}</span>
                 </button>
               ))}
             </div>
@@ -341,9 +446,7 @@ const AddSheetDialog: React.FC<{
 
           {/* Nature */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2">
-              Nature de la feuille
-            </label>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Nature de la feuille</label>
             <div className="flex gap-2">
               {STOCK_NATURES.map((n) => (
                 <button
@@ -362,50 +465,37 @@ const AddSheetDialog: React.FC<{
             </div>
           </div>
 
-          {/* Nom (optionnel) */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2">
-              Nom (optionnel)
-            </label>
-            <input
-              type="text"
-              value={nom}
-              onChange={(e) => setNom(e.target.value)}
-              placeholder={`Ex. ${typeDef.short} …`}
-              className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-sky-500/40 focus:border-sky-400 outline-none"
-            />
+          {/* Nom + épaisseur */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-2">Nom (optionnel)</label>
+              <input
+                type="text"
+                value={nom}
+                onChange={(e) => setNom(e.target.value)}
+                placeholder={`Ex. ${typeDef.short} …`}
+                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-sky-500/40 focus:border-sky-400 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-2">Épaisseur (optionnel)</label>
+              <input
+                type="text"
+                value={epaisseur}
+                onChange={(e) => setEpaisseur(e.target.value)}
+                placeholder="ex. 8 mm"
+                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-sky-500/40 focus:border-sky-400 outline-none"
+              />
+            </div>
           </div>
 
           {/* Dimensions */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2">
-              Dimensions (cm)
-            </label>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Dimensions (cm)</label>
             <div className="grid grid-cols-3 gap-2">
-              {needs("largeur") && (
-                <div>
-                  <span className="block text-[11px] text-gray-400 mb-1">
-                    Longueur (L)
-                  </span>
-                  {numInput(largeur, setLargeur, "L")}
-                </div>
-              )}
-              {needs("hauteur") && (
-                <div>
-                  <span className="block text-[11px] text-gray-400 mb-1">
-                    Largeur (l)
-                  </span>
-                  {numInput(hauteur, setHauteur, "l")}
-                </div>
-              )}
-              {needs("profondeur") && (
-                <div>
-                  <span className="block text-[11px] text-gray-400 mb-1">
-                    Hauteur (h)
-                  </span>
-                  {numInput(profondeur, setProfondeur, "h")}
-                </div>
-              )}
+              {needs("longueur") && dimField("Longueur (L)", longueur, setLongueur, "L")}
+              {needs("largeur") && dimField("Largeur (l)", largeur, setLargeur, "l")}
+              {needs("hauteur") && dimField("Hauteur (h)", hauteur, setHauteur, "h")}
             </div>
           </div>
 
@@ -413,9 +503,7 @@ const AddSheetDialog: React.FC<{
           {type === "feuille" ? (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium text-gray-500">
-                  Sections (découpes)
-                </label>
+                <label className="text-xs font-medium text-gray-500">Sections (découpes)</label>
                 <button
                   type="button"
                   onClick={addManualSection}
@@ -440,9 +528,7 @@ const AddSheetDialog: React.FC<{
                     <input
                       type="text"
                       value={s.nom}
-                      onChange={(e) =>
-                        updateManualSection(s.id, { nom: e.target.value })
-                      }
+                      onChange={(e) => updateManualSection(s.id, { nom: e.target.value })}
                       placeholder="Nom"
                       className="flex-1 min-w-0 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white focus:ring-2 focus:ring-sky-500/40 outline-none"
                     />
@@ -452,7 +538,7 @@ const AddSheetDialog: React.FC<{
                       value={s.largeur || ""}
                       onChange={(e) =>
                         updateManualSection(s.id, {
-                          largeur: Number(e.target.value.replace(/[^\d.,]/g, "")) || 0,
+                          largeur: Number(e.target.value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0,
                         })
                       }
                       placeholder="L"
@@ -464,7 +550,7 @@ const AddSheetDialog: React.FC<{
                       value={s.hauteur || ""}
                       onChange={(e) =>
                         updateManualSection(s.id, {
-                          hauteur: Number(e.target.value.replace(/[^\d.,]/g, "")) || 0,
+                          hauteur: Number(e.target.value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0,
                         })
                       }
                       placeholder="l"
@@ -483,9 +569,7 @@ const AddSheetDialog: React.FC<{
             </div>
           ) : (
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2">
-                Sections générées
-              </label>
+              <label className="block text-xs font-medium text-gray-500 mb-2">Sections générées</label>
               {preview.length === 0 ? (
                 <p className="text-xs text-gray-400 italic">
                   Renseignez les dimensions pour prévisualiser les sections.
@@ -493,10 +577,7 @@ const AddSheetDialog: React.FC<{
               ) : (
                 <div className="space-y-1 rounded-lg border border-gray-200 divide-y divide-gray-100">
                   {preview.map((s, i) => (
-                    <div
-                      key={`${s.id}-${i}`}
-                      className="flex items-center justify-between px-3 py-1.5 text-sm"
-                    >
+                    <div key={`${s.id}-${i}`} className="flex items-center justify-between px-3 py-1.5 text-sm">
                       <span className="text-gray-700 font-medium">{s.nom}</span>
                       <span className="text-xs text-gray-400">
                         {natureLabel(s.nature)} · {s.largeur}×{s.hauteur} cm
@@ -509,7 +590,6 @@ const AddSheetDialog: React.FC<{
           )}
         </div>
 
-        {/* Actions */}
         <div className="flex gap-2 px-5 py-4 border-t border-gray-100 shrink-0">
           <button
             type="button"
@@ -534,13 +614,15 @@ const AddSheetDialog: React.FC<{
 
 // ── Page principale ──────────────────────────────────────────
 
-const Stock: React.FC = () => {
+const Stock: React.FC<{ user: User | null }> = ({ user }) => {
   const navigate = useNavigate();
   const { sheets, isLoading, createSheet, updateSheet, deleteSheet } = useStock();
   const [activeType, setActiveType] = useState<StockType>("feuille");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<StockSheet | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [statutTarget, setStatutTarget] = useState<StockSheet | null>(null);
+  const [statutSection, setStatutSection] = useState<StockSection | null>(null);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { feuille: 0, table_verre: 0, table_bois: 0, tableau: 0 };
@@ -562,23 +644,51 @@ const Stock: React.FC = () => {
     setDialogOpen(true);
   };
 
-  const handleSave = async (input: StockSheetInput) => {
+  const handleSave = async (input: import("@/types/stock").StockSheetInput) => {
     if (editing) {
-      await updateSheet(editing.id, input);
+      await updateSheet(editing.id, input, editing.updated_at);
     } else {
-      await createSheet(input);
+      await createSheet({
+        ...input,
+        created_by: user?.id ?? null,
+        created_by_name: user?.name ?? null,
+        section_history: [],
+      });
     }
   };
 
-  const handleAdvance = async (sheet: StockSheet, sectionId: string) => {
-    const sections = sheet.sections.map((s) =>
-      s.id === sectionId ? { ...s, statut: nextStatut(s.statut) } : s,
-    );
-    try {
-      await updateSheet(sheet.id, { sections });
-    } catch {
-      /* erreur déjà toastée dans le hook */
+  const openStatutPicker = (sheet: StockSheet, section: StockSection) => {
+    setStatutTarget(sheet);
+    setStatutSection(section);
+  };
+
+  const handlePickStatut = async (newStatut: SectionStatut) => {
+    if (!statutTarget || !statutSection) return;
+    const sheet = statutTarget;
+    const section = statutSection;
+
+    if (section.statut !== newStatut) {
+      const sections = sheet.sections.map((s) =>
+        s.id === section.id ? { ...s, statut: newStatut } : s,
+      );
+      const event: StockHistoryEvent = {
+        ts: new Date().toISOString(),
+        sectionId: section.id,
+        sectionNom: section.nom || "Sans nom",
+        from: section.statut,
+        to: newStatut,
+        byName: user?.name || "—",
+      };
+      const section_history = [...(sheet.section_history || []), event];
+      try {
+        await updateSheet(sheet.id, { sections, section_history }, sheet.updated_at);
+      } catch {
+        /* conflit déjà géré par le hook (toast + refetch) */
+      }
     }
+
+    setStatutTarget(null);
+    setStatutSection(null);
   };
 
   const confirmDelete = async () => {
@@ -622,7 +732,6 @@ const Stock: React.FC = () => {
           </button>
         </div>
 
-        {/* Légende statuts */}
         <StatutLegend />
 
         {/* Onglets */}
@@ -639,11 +748,7 @@ const Stock: React.FC = () => {
               }`}
             >
               {t.label}
-              <span
-                className={`text-[11px] rounded-full px-1.5 ${
-                  activeType === t.id ? "bg-white/20" : "bg-gray-100 text-gray-500"
-                }`}
-              >
+              <span className={`text-[11px] rounded-full px-1.5 ${activeType === t.id ? "bg-white/20" : "bg-gray-100 text-gray-500"}`}>
                 {counts[t.id] || 0}
               </span>
             </button>
@@ -673,7 +778,7 @@ const Stock: React.FC = () => {
               <SheetCard
                 key={sheet.id}
                 sheet={sheet}
-                onAdvance={(sid) => handleAdvance(sheet, sid)}
+                onSelectStatut={(section) => openStatutPicker(sheet, section)}
                 onDelete={() => setDeleteId(sheet.id)}
                 onEdit={() => openEdit(sheet)}
               />
@@ -681,6 +786,18 @@ const Stock: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Sélecteur de statut */}
+      {statutTarget && statutSection && (
+        <StatutPicker
+          section={statutSection}
+          onPick={handlePickStatut}
+          onClose={() => {
+            setStatutTarget(null);
+            setStatutSection(null);
+          }}
+        />
+      )}
 
       {/* Dialogue ajout / édition */}
       {dialogOpen && (
@@ -697,13 +814,8 @@ const Stock: React.FC = () => {
           className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4"
           onClick={() => setDeleteId(null)}
         >
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-base font-semibold text-gray-800 mb-2">
-              Confirmer la suppression
-            </h3>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-gray-800 mb-2">Confirmer la suppression</h3>
             <p className="text-sm text-gray-500 mb-4">
               Cet élément et ses sections seront définitivement supprimés du stock.
             </p>
