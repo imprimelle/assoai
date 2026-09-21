@@ -2,7 +2,7 @@
 // Page Stock — gestion logistique des matériaux de découpe (vitre, plexiglass, miroir).
 // 2 vues : « Feuilles » (stock) et « Fabrication » (évaluation unifiée des produits fabriquables).
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -481,6 +481,101 @@ const SubDivisionModal: React.FC<{
   );
 };
 
+// ── Ligne de section swipable (glissé → dupliquer) ───────────
+
+const SwipeableSectionRow: React.FC<{
+  section: StockSection;
+  onUpdate: (patch: Partial<StockSection>) => void;
+  onRemove: () => void;
+  onDuplicate: () => void;
+}> = ({ section, onUpdate, onRemove, onDuplicate }) => {
+  const [swipeX, setSwipeX] = useState(0);
+  const swipeXRef = useRef(0);
+  const startX = useRef<number | null>(null);
+  const startY = useRef<number | null>(null);
+  const horizontal = useRef(false);
+  const REVEAL = 88;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    horizontal.current = false;
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (startX.current == null || startY.current == null) return;
+    const dx = e.touches[0].clientX - startX.current;
+    const dy = e.touches[0].clientY - startY.current;
+    if (!horizontal.current) {
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) horizontal.current = true;
+      else return;
+    }
+    const next = Math.max(-REVEAL, Math.min(0, dx));
+    swipeXRef.current = next;
+    setSwipeX(next);
+  };
+  const onTouchEnd = () => {
+    startX.current = null;
+    startY.current = null;
+    horizontal.current = false;
+    const final = swipeXRef.current < -REVEAL / 2 ? -REVEAL : 0;
+    swipeXRef.current = final;
+    setSwipeX(final);
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-lg border border-gray-200">
+      <button
+        type="button"
+        onClick={onDuplicate}
+        className="absolute right-0 inset-y-0 w-[88px] bg-sky-500 text-white text-xs font-medium flex items-center justify-center"
+      >
+        Dupliquer
+      </button>
+      <div
+        className="flex items-center gap-2 p-2 bg-gray-50/60 transition-transform"
+        style={{ transform: `translateX(${swipeX}px)` }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <input
+          type="text"
+          inputMode="decimal"
+          value={section.largeur || ""}
+          onChange={(e) =>
+            onUpdate({ largeur: Number(e.target.value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0 })
+          }
+          placeholder="L"
+          className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
+        />
+        <span className="text-gray-400 text-xs">×</span>
+        <input
+          type="text"
+          inputMode="decimal"
+          value={section.hauteur || ""}
+          onChange={(e) =>
+            onUpdate({ hauteur: Number(e.target.value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0 })
+          }
+          placeholder="l"
+          className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
+        />
+        <span className="flex-1 min-w-0 text-xs text-gray-400 truncate">
+          {section.largeur > 0 && section.hauteur > 0
+            ? autoSectionName(section.nature, section.largeur, section.hauteur)
+            : "cm"}
+        </span>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="p-1.5 rounded-md text-gray-400 hover:text-red-600"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ── Dialogue ajout / édition d'une feuille ───────────────────
 
 const AddSheetDialog: React.FC<{
@@ -538,6 +633,15 @@ const AddSheetDialog: React.FC<{
 
   const removeManualSection = (id: string) =>
     setManualSections((prev) => prev.filter((s) => s.id !== id));
+
+  const duplicateManualSection = (id: string) => {
+    setManualSections((prev) => {
+      const idx = prev.findIndex((s) => s.id === id);
+      if (idx === -1) return prev;
+      const copy = { ...prev[idx], id: crypto.randomUUID() };
+      return [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
+    });
+  };
 
   const handleSubmit = async () => {
     setSaving(true);
@@ -696,43 +800,13 @@ const AddSheetDialog: React.FC<{
 
               <div className="space-y-2">
                 {manualSections.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 bg-gray-50/60">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={s.largeur || ""}
-                      onChange={(e) =>
-                        updateManualSection(s.id, {
-                          largeur: Number(e.target.value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0,
-                        })
-                      }
-                      placeholder="L"
-                      className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
-                    />
-                    <span className="text-gray-400 text-xs">×</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={s.hauteur || ""}
-                      onChange={(e) =>
-                        updateManualSection(s.id, {
-                          hauteur: Number(e.target.value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0,
-                        })
-                      }
-                      placeholder="l"
-                      className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
-                    />
-                    <span className="flex-1 min-w-0 text-xs text-gray-400 truncate">
-                      {s.largeur > 0 && s.hauteur > 0 ? autoSectionName(s.nature, s.largeur, s.hauteur) : "cm"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeManualSection(s.id)}
-                      className="p-1.5 rounded-md text-gray-400 hover:text-red-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
+                  <SwipeableSectionRow
+                    key={s.id}
+                    section={s}
+                    onUpdate={(patch) => updateManualSection(s.id, patch)}
+                    onRemove={() => removeManualSection(s.id)}
+                    onDuplicate={() => duplicateManualSection(s.id)}
+                  />
                 ))}
               </div>
             </div>
@@ -855,6 +929,52 @@ const FabricationView: React.FC<{ sheets: StockSheet[] }> = ({ sheets }) => {
           </div>
         );
       })}
+
+      {/* Diagnostic : quasi-complet (à recouper / manquant) */}
+      {result.diagnostics.length > 0 && (
+        <div className="border-t border-gray-200 pt-4">
+          <h3 className="text-sm font-semibold text-amber-600 mb-2">
+            ⚠️ Presque complet ({result.diagnostics.length}) — à recouper ou manquant
+          </h3>
+          <div className="space-y-2">
+            {result.diagnostics.map((d, i) => (
+              <div key={i} className="bg-white rounded-xl border border-amber-200 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold text-gray-700">{d.label}</span>
+                  <span className="text-[10px] text-gray-400">{d.present.length} pièces présentes</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {d.present.map((s) => (
+                    <span
+                      key={s.id}
+                      className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-gray-200 bg-gray-50 text-gray-700"
+                    >
+                      {s.nom} <span className="text-gray-400">{s.largeur}×{s.hauteur}</span>
+                    </span>
+                  ))}
+                  {d.problematic.map((p) => (
+                    <span
+                      key={p.section.id}
+                      className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border-2 border-dashed border-amber-400 bg-amber-50 text-amber-700"
+                    >
+                      {p.section.nom} {p.section.largeur}×{p.section.hauteur}
+                      <span className="font-semibold">→ recouper à {p.requiredLargeur}×{p.requiredHauteur}</span>
+                    </span>
+                  ))}
+                  {d.missing.map((m, mi) => (
+                    <span
+                      key={`${m.nom}-${mi}`}
+                      className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border-2 border-dashed border-gray-300 bg-gray-50 text-gray-500"
+                    >
+                      manque : {m.nom} {m.largeur}×{m.hauteur}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Pièces restantes */}
       {result.leftover.length > 0 && (
