@@ -15,7 +15,7 @@ import {
   Hammer,
   Scissors,
   Package,
-  Check,
+  History,
 } from "lucide-react";
 import { useStock } from "@/hooks/useStock";
 import type { User } from "@/types";
@@ -603,17 +603,55 @@ const DivideModal: React.FC<{
   );
 };
 
-// ── Carte feuille (onglet Feuilles) ──────────────────────────
+// ── Rectangle d'une pièce (proportionnel) ────────────────────
+
+const PieceRect: React.FC<{ piece: StockPiece }> = ({ piece }) => {
+  const dispo = piece.etat === "disponible";
+  const maxW = 92;
+  const maxH = 60;
+  const ratio = piece.hauteur > 0 ? piece.largeur / piece.hauteur : 1;
+  let w = maxW;
+  let h = maxW / ratio;
+  if (h > maxH) {
+    h = maxH;
+    w = maxH * ratio;
+  }
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <div
+        className={`flex items-center justify-center rounded-md border-2 ${
+          dispo ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-gray-50"
+        }`}
+        style={{ width: w, height: h }}
+        title={`${pieceLabel(piece)} — ${dispo ? "disponible" : "utilisée"}`}
+      >
+        <span className={`text-[10px] font-semibold ${dispo ? "text-gray-700" : "text-gray-400 line-through"}`}>
+          {piece.largeur}×{piece.hauteur}
+        </span>
+      </div>
+      <span className="text-[10px] text-gray-400 leading-tight text-center">
+        {natureLabel(piece.nature)}
+        {piece.quantite > 1 ? ` ×${piece.quantite}` : ""}
+      </span>
+    </div>
+  );
+};
+
+// ── Carte feuille (graphique : rectangle englobant + pièces) ──
 
 const SheetCard: React.FC<{
   sheet: StockSheet;
   onEdit: () => void;
   onDelete: () => void;
 }> = ({ sheet, onEdit, onDelete }) => {
+  const [showHistory, setShowHistory] = useState(false);
+  const history = sheet.section_history || [];
   const dispo = sheet.pieces.filter((p) => p.etat === "disponible").length;
   const total = sheet.pieces.length;
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-3">
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+      {/* En-tête : nom + nature + épaisseur + date de création */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -628,25 +666,65 @@ const SheetCard: React.FC<{
             )}
           </div>
           <span className="block text-[11px] text-gray-400 mt-0.5">
-            <Ruler className="h-3 w-3 inline mr-0.5" />
-            {[sheet.longueur, sheet.largeur].filter((v) => v != null).join("×") || "—"} cm ·{" "}
-            {fmtTime(sheet.created_at)}
+            Créée le {fmtTime(sheet.created_at)}
+            {sheet.created_by_name ? ` · par ${sheet.created_by_name}` : ""}
           </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={onEdit} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100">
+          <button onClick={onEdit} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100" title="Modifier">
             <Ruler className="h-4 w-4" />
           </button>
-          <button onClick={onDelete} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50">
+          <button onClick={onDelete} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50" title="Supprimer">
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </div>
+
+      {/* Rectangle englobant = feuille, pièces dessinées dedans */}
+      <div className="relative mt-3 rounded-xl border-2 border-slate-300 bg-slate-50/60 p-3">
+        <span className="absolute -top-2.5 left-3 px-1.5 bg-white text-[10px] font-medium text-slate-500">
+          Feuille {[sheet.longueur, sheet.largeur].filter((v) => v != null).join("×") || "?"} cm
+        </span>
+        {sheet.pieces.length === 0 ? (
+          <p className="text-xs text-gray-400 italic py-3 text-center">Aucune pièce découpée.</p>
+        ) : (
+          <div className="flex flex-wrap gap-3">
+            {sheet.pieces.map((p) => (
+              <PieceRect key={p.id} piece={p} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Compteur + historique */}
       <div className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-400">
         <Layers className="h-3.5 w-3.5" />
         {total} pièce{total > 1 ? "s" : ""}
-        <span className="ml-auto text-emerald-600 font-medium">{dispo} disponible</span>
+        <span className="text-emerald-600 font-medium">{dispo} disponible</span>
+        {history.length > 0 && (
+          <button
+            onClick={() => setShowHistory((v) => !v)}
+            className="ml-auto inline-flex items-center gap-1 text-gray-500 hover:text-gray-700"
+          >
+            <History className="h-3 w-3" />
+            {history.length} modif{history.length > 1 ? "s" : ""}
+          </button>
+        )}
       </div>
+
+      {showHistory && history.length > 0 && (
+        <ul className="mt-2 space-y-1 max-h-32 overflow-y-auto border-t border-gray-100 pt-2">
+          {[...history].reverse().map((ev, i) => (
+            <li key={i} className="flex items-center gap-1.5 text-[11px] text-gray-500">
+              {ev.pieceLabel && <span className="font-medium text-gray-600">{ev.pieceLabel}</span>}
+              <span>{ev.action}</span>
+              <span className="ml-auto text-gray-400">
+                {ev.byName} · {fmtTime(ev.ts)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };
@@ -685,8 +763,17 @@ const Stock: React.FC<{ user: User | null }> = ({ user }) => {
     const pieces = flat.sheet.pieces.map((p) =>
       p.id === flat.piece.id ? { ...p, etat: newEtat } : p,
     );
+    const section_history = [
+      ...(flat.sheet.section_history || []),
+      {
+        ts: new Date().toISOString(),
+        pieceLabel: pieceLabel(flat.piece),
+        action: newEtat === "utilise" ? "marquée utilisée" : "remise disponible",
+        byName: user?.name || "—",
+      },
+    ];
     try {
-      await updateSheet(flat.sheet.id, { pieces }, flat.sheet.updated_at);
+      await updateSheet(flat.sheet.id, { pieces, section_history }, flat.sheet.updated_at);
     } catch {
       /* conflit géré par le hook */
     }
@@ -694,8 +781,17 @@ const Stock: React.FC<{ user: User | null }> = ({ user }) => {
 
   const dividePiece = async (flat: FlatPiece, subPieces: StockPiece[]) => {
     const pieces = flat.sheet.pieces.flatMap((p) => (p.id === flat.piece.id ? subPieces : [p]));
+    const section_history = [
+      ...(flat.sheet.section_history || []),
+      {
+        ts: new Date().toISOString(),
+        pieceLabel: pieceLabel(flat.piece),
+        action: `divisée en ${subPieces.length} pièce${subPieces.length > 1 ? "s" : ""}`,
+        byName: user?.name || "—",
+      },
+    ];
     try {
-      await updateSheet(flat.sheet.id, { pieces }, flat.sheet.updated_at);
+      await updateSheet(flat.sheet.id, { pieces, section_history }, flat.sheet.updated_at);
     } catch {
       /* conflit géré par le hook */
     }
@@ -705,8 +801,21 @@ const Stock: React.FC<{ user: User | null }> = ({ user }) => {
   const confirmDeletePiece = async () => {
     if (!deletePieceTarget) return;
     const pieces = deletePieceTarget.sheet.pieces.filter((p) => p.id !== deletePieceTarget.piece.id);
+    const section_history = [
+      ...(deletePieceTarget.sheet.section_history || []),
+      {
+        ts: new Date().toISOString(),
+        pieceLabel: pieceLabel(deletePieceTarget.piece),
+        action: "supprimée",
+        byName: user?.name || "—",
+      },
+    ];
     try {
-      await updateSheet(deletePieceTarget.sheet.id, { pieces }, deletePieceTarget.sheet.updated_at);
+      await updateSheet(
+        deletePieceTarget.sheet.id,
+        { pieces, section_history },
+        deletePieceTarget.sheet.updated_at,
+      );
     } catch {
       /* conflit géré par le hook */
     }
@@ -728,6 +837,14 @@ const Stock: React.FC<{ user: User | null }> = ({ user }) => {
         ...input,
         created_by: user?.id ?? null,
         created_by_name: user?.name ?? null,
+        section_history: [
+          {
+            ts: new Date().toISOString(),
+            pieceLabel: "",
+            action: "feuille créée",
+            byName: user?.name || "—",
+          },
+        ],
       });
     }
   };

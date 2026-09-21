@@ -8,6 +8,7 @@ import {
   StockSheet,
   StockSheetInput,
   StockPiece,
+  StockHistoryEvent,
   StockNature,
   PieceEtat,
 } from "@/types/stock";
@@ -34,7 +35,10 @@ const toSheet = (item: any): StockSheet => ({
         }),
       )
     : [],
-  created_by: item.created_by ?? null,
+    section_history: Array.isArray(item.section_history)
+    ? (item.section_history as StockHistoryEvent[])
+    : [],
+    created_by: item.created_by ?? null,
   created_by_name: item.created_by_name ?? null,
   created_at: item.created_at,
   updated_at: item.updated_at,

@@ -14,6 +14,13 @@ export interface StockPiece {
   etat: PieceEtat;
 }
 
+export interface StockHistoryEvent {
+  ts: string; // ISO
+  pieceLabel: string; // ex. "Vitre 70×50"
+  action: string; // ex. "Marquée utilisée", "Divisée en 2 pièces", "Supprimée"
+  byName: string;
+}
+
 export interface StockSheet {
   id: string;
   nature: StockNature;
@@ -22,6 +29,7 @@ export interface StockSheet {
   largeur: number | null;
   epaisseur: string | null;
   pieces: StockPiece[];
+  section_history: StockHistoryEvent[];
   created_by: string | null;
   created_by_name: string | null;
   created_at: string; // date de fabrication / provenance
@@ -35,6 +43,7 @@ export interface StockSheetInput {
   largeur: number | null;
   epaisseur: string | null;
   pieces: StockPiece[];
+  section_history?: StockHistoryEvent[];
   created_by?: string | null;
   created_by_name?: string | null;
 }
