@@ -2,7 +2,7 @@
 // Page Stock — gestion logistique des matériaux de découpe (vitre, plexiglass, miroir).
 // 2 vues : « Feuilles » (stock) et « Fabrication » (évaluation unifiée des produits fabriquables).
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -21,15 +21,12 @@ import type { User } from "@/types";
 import {
   StockSheet,
   StockSection,
-  StockType,
   StockNature,
   StockHistoryEvent,
   SectionStatut,
-  STOCK_TYPES,
   STOCK_NATURES,
   EPAISSEUR_OPTIONS,
   SECTION_STATUTS,
-  generateSections,
   generateSheetName,
   autoSectionName,
   typeLabel,
@@ -109,6 +106,13 @@ const SectionFigure: React.FC<{
       title={`${section.nom} — ${statut?.label}. Cliquer pour changer.`}
       className="relative flex flex-col items-center gap-1 p-2 rounded-xl bg-white border border-gray-100 hover:border-gray-300 hover:shadow-sm transition-all active:scale-95 cursor-pointer"
     >
+      {/* Badge quantité */}
+      {section.quantite && section.quantite > 1 && (
+        <span className="absolute -top-1.5 -left-1.5 z-10 text-[9px] px-1.5 py-0.5 rounded-full bg-gray-900 text-white font-bold shadow-sm">
+          ×{section.quantite}
+        </span>
+      )}
+
       {/* Badge statut */}
       <span
         className={`absolute -top-1.5 -right-1.5 z-10 text-[9px] px-1.5 py-0.5 rounded-full border font-semibold ${statut?.badge}`}
@@ -481,101 +485,6 @@ const SubDivisionModal: React.FC<{
   );
 };
 
-// ── Ligne de section swipable (glissé → dupliquer) ───────────
-
-const SwipeableSectionRow: React.FC<{
-  section: StockSection;
-  onUpdate: (patch: Partial<StockSection>) => void;
-  onRemove: () => void;
-  onDuplicate: () => void;
-}> = ({ section, onUpdate, onRemove, onDuplicate }) => {
-  const [swipeX, setSwipeX] = useState(0);
-  const swipeXRef = useRef(0);
-  const startX = useRef<number | null>(null);
-  const startY = useRef<number | null>(null);
-  const horizontal = useRef(false);
-  const REVEAL = 88;
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX;
-    startY.current = e.touches[0].clientY;
-    horizontal.current = false;
-  };
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (startX.current == null || startY.current == null) return;
-    const dx = e.touches[0].clientX - startX.current;
-    const dy = e.touches[0].clientY - startY.current;
-    if (!horizontal.current) {
-      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) horizontal.current = true;
-      else return;
-    }
-    const next = Math.max(-REVEAL, Math.min(0, dx));
-    swipeXRef.current = next;
-    setSwipeX(next);
-  };
-  const onTouchEnd = () => {
-    startX.current = null;
-    startY.current = null;
-    horizontal.current = false;
-    const final = swipeXRef.current < -REVEAL / 2 ? -REVEAL : 0;
-    swipeXRef.current = final;
-    setSwipeX(final);
-  };
-
-  return (
-    <div className="relative overflow-hidden rounded-lg border border-gray-200">
-      <button
-        type="button"
-        onClick={onDuplicate}
-        className="absolute right-0 inset-y-0 w-[88px] bg-sky-500 text-white text-xs font-medium flex items-center justify-center"
-      >
-        Dupliquer
-      </button>
-      <div
-        className="flex items-center gap-2 p-2 bg-gray-50/60 transition-transform"
-        style={{ transform: `translateX(${swipeX}px)` }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
-        <input
-          type="text"
-          inputMode="decimal"
-          value={section.largeur || ""}
-          onChange={(e) =>
-            onUpdate({ largeur: Number(e.target.value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0 })
-          }
-          placeholder="L"
-          className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
-        />
-        <span className="text-gray-400 text-xs">×</span>
-        <input
-          type="text"
-          inputMode="decimal"
-          value={section.hauteur || ""}
-          onChange={(e) =>
-            onUpdate({ hauteur: Number(e.target.value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0 })
-          }
-          placeholder="l"
-          className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
-        />
-        <span className="flex-1 min-w-0 text-xs text-gray-400 truncate">
-          {section.largeur > 0 && section.hauteur > 0
-            ? autoSectionName(section.nature, section.largeur, section.hauteur)
-            : "cm"}
-        </span>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="p-1.5 rounded-md text-gray-400 hover:text-red-600"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-};
-
 // ── Dialogue ajout / édition d'une feuille ───────────────────
 
 const AddSheetDialog: React.FC<{
@@ -584,86 +493,56 @@ const AddSheetDialog: React.FC<{
   onSave: (input: import("@/types/stock").StockSheetInput) => Promise<void>;
 }> = ({ sheet, onClose, onSave }) => {
   const isEdit = !!sheet;
-  const [type, setType] = useState<StockType>(sheet?.type ?? "feuille");
   const [nature, setNature] = useState<StockNature>(sheet?.nature ?? "vitre");
   const [epaisseur, setEpaisseur] = useState(sheet?.epaisseur ?? "");
   const [longueur, setLongueur] = useState(sheet?.longueur != null ? String(sheet.longueur) : "");
   const [largeur, setLargeur] = useState(sheet?.largeur != null ? String(sheet.largeur) : "");
-  const [hauteur, setHauteur] = useState(sheet?.hauteur != null ? String(sheet.hauteur) : "");
-  const [manualSections, setManualSections] = useState<StockSection[]>(
-    sheet?.type === "feuille" ? sheet.sections : [],
-  );
+  const [sections, setSections] = useState<StockSection[]>(sheet?.sections ?? []);
   const [saving, setSaving] = useState(false);
 
-  const typeDef = STOCK_TYPES.find((t) => t.id === type)!;
-  const needs = (f: "longueur" | "largeur" | "hauteur") => typeDef.fields.includes(f);
-
-  const preview = useMemo(() => {
-    if (type === "feuille") return [];
-    const L = parseCm(longueur) ?? 0;
-    const l = parseCm(largeur) ?? 0;
-    const h = parseCm(hauteur) ?? 0;
-    return generateSections(type, L, l, h);
-  }, [type, longueur, largeur, hauteur]);
-
-  const handleTypeChange = (t: StockType) => {
-    setType(t);
-    if (t === "feuille") {
-      setManualSections((prev) => (isEdit && sheet?.type === "feuille" ? prev : []));
-    }
-  };
-
-  const addManualSection = () => {
-    setManualSections((prev) => [
+  const addSection = () => {
+    setSections((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), nom: "", nature, largeur: 0, hauteur: 0, statut: "decoupe" },
+      { id: crypto.randomUUID(), nom: "", nature, largeur: 0, hauteur: 0, quantite: 1, statut: "decoupe" },
     ]);
   };
 
-  const updateManualSection = (id: string, patch: Partial<StockSection>) => {
-    setManualSections((prev) =>
+  const updateSection = (id: string, patch: Partial<StockSection>) => {
+    setSections((prev) =>
       prev.map((s) => {
         if (s.id !== id) return s;
         const next = { ...s, ...patch };
-        next.nom = autoSectionName(next.nature, next.largeur, next.hauteur);
+        next.nom = autoSectionName(nature, next.largeur, next.hauteur);
         return next;
       }),
     );
   };
 
-  const removeManualSection = (id: string) =>
-    setManualSections((prev) => prev.filter((s) => s.id !== id));
-
-  const duplicateManualSection = (id: string) => {
-    setManualSections((prev) => {
-      const idx = prev.findIndex((s) => s.id === id);
-      if (idx === -1) return prev;
-      const copy = { ...prev[idx], id: crypto.randomUUID() };
-      return [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
-    });
-  };
+  const removeSection = (id: string) =>
+    setSections((prev) => prev.filter((s) => s.id !== id));
 
   const handleSubmit = async () => {
     setSaving(true);
     try {
       const L = parseCm(longueur);
       const l = parseCm(largeur);
-      const h = needs("hauteur") ? parseCm(hauteur) : null;
-      const sections =
-        type === "feuille"
-          ? manualSections
-              .filter((s) => s.largeur > 0 && s.hauteur > 0)
-              .map((s) => ({ ...s, nom: autoSectionName(s.nature, s.largeur, s.hauteur) }))
-          : preview;
+      const validSections = sections
+        .filter((s) => s.largeur > 0 && s.hauteur > 0)
+        .map((s) => ({
+          ...s,
+          nature,
+          quantite: Math.max(1, s.quantite || 1),
+          nom: autoSectionName(nature, s.largeur, s.hauteur),
+        }));
       await onSave({
-        type,
+        type: "feuille",
         nature,
-        nom: generateSheetName(type, L, l, h),
+        nom: generateSheetName("feuille", L, l, null),
         longueur: L,
         largeur: l,
-        hauteur: h,
+        hauteur: null,
         epaisseur: epaisseur || null,
-        sections,
+        sections: validSections,
       });
       onClose();
     } finally {
@@ -680,13 +559,6 @@ const AddSheetDialog: React.FC<{
       placeholder={placeholder}
       className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-sky-500/40 focus:border-sky-400 outline-none"
     />
-  );
-
-  const dimField = (label: string, value: string, setValue: (v: string) => void, ph: string) => (
-    <div>
-      <span className="block text-[11px] text-gray-400 mb-1">{label}</span>
-      {numInput(value, setValue, ph)}
-    </div>
   );
 
   return (
@@ -708,129 +580,126 @@ const AddSheetDialog: React.FC<{
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-          {/* Type */}
+          {/* Nature */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2">Gabarit de découpe</label>
-            <div className="grid grid-cols-2 gap-2">
-              {STOCK_TYPES.map((t) => (
+            <label className="block text-xs font-medium text-gray-500 mb-2">Nature</label>
+            <div className="flex gap-1.5">
+              {STOCK_NATURES.map((n) => (
                 <button
-                  key={t.id}
+                  key={n.id}
                   type="button"
-                  onClick={() => handleTypeChange(t.id)}
-                  className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                    type === t.id
-                      ? "border-sky-500 bg-sky-50 ring-1 ring-sky-300"
-                      : "border-gray-200 hover:border-gray-300"
+                  onClick={() => setNature(n.id)}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    nature === n.id
+                      ? "border-sky-500 bg-sky-50 text-sky-700 ring-1 ring-sky-300"
+                      : "border-gray-200 text-gray-600 hover:border-gray-300"
                   }`}
                 >
-                  <span className="block text-sm font-medium text-gray-800">{t.label}</span>
-                  <span className="block text-[11px] text-gray-400">{t.description}</span>
+                  {n.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Nature + épaisseur */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2">Nature</label>
-              <div className="flex gap-1.5">
-                {STOCK_NATURES.map((n) => (
-                  <button
-                    key={n.id}
-                    type="button"
-                    onClick={() => setNature(n.id)}
-                    className={`flex-1 rounded-lg border px-2 py-2 text-sm font-medium transition-colors ${
-                      nature === n.id
-                        ? "border-sky-500 bg-sky-50 text-sky-700 ring-1 ring-sky-300"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    {n.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2">Épaisseur</label>
-              <select
-                value={epaisseur}
-                onChange={(e) => setEpaisseur(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-sky-500/40 focus:border-sky-400 outline-none"
-              >
-                <option value="">—</option>
-                {EPAISSEUR_OPTIONS.map((e) => (
-                  <option key={e} value={e}>
-                    {e}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Dimensions */}
+          {/* Dimensions + épaisseur (même ligne) */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-2">Dimensions (cm)</label>
             <div className="grid grid-cols-3 gap-2">
-              {needs("longueur") && dimField("Longueur (L)", longueur, setLongueur, "L")}
-              {needs("largeur") && dimField("Largeur (l)", largeur, setLargeur, "l")}
-              {needs("hauteur") && dimField("Hauteur (h)", hauteur, setHauteur, "h")}
+              <div>
+                <span className="block text-[11px] text-gray-400 mb-1">Longueur (L)</span>
+                {numInput(longueur, setLongueur, "L")}
+              </div>
+              <div>
+                <span className="block text-[11px] text-gray-400 mb-1">Largeur (l)</span>
+                {numInput(largeur, setLargeur, "l")}
+              </div>
+              <div>
+                <span className="block text-[11px] text-gray-400 mb-1">Épaisseur</span>
+                <select
+                  value={epaisseur}
+                  onChange={(e) => setEpaisseur(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-sky-500/40 focus:border-sky-400 outline-none"
+                >
+                  <option value="">—</option>
+                  {EPAISSEUR_OPTIONS.map((e) => (
+                    <option key={e} value={e}>
+                      {e}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
           {/* Sections */}
-          {type === "feuille" ? (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium text-gray-500">Sections (découpes)</label>
-                <button
-                  type="button"
-                  onClick={addManualSection}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-700"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Ajouter une section
-                </button>
-              </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-medium text-gray-500">Sections (découpes)</label>
+              <button
+                type="button"
+                onClick={addSection}
+                className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-700"
+              >
+                <Plus className="h-3.5 w-3.5" /> Ajouter une section
+              </button>
+            </div>
 
-              {manualSections.length === 0 && (
-                <p className="text-xs text-gray-400 italic py-1">
-                  Aucune section. Ajoutez les découpes de cette feuille.
-                </p>
-              )}
+            {sections.length === 0 && (
+              <p className="text-xs text-gray-400 italic py-1">
+                Aucune section. Ajoutez les découpes de cette feuille.
+              </p>
+            )}
 
-              <div className="space-y-2">
-                {manualSections.map((s) => (
-                  <SwipeableSectionRow
-                    key={s.id}
-                    section={s}
-                    onUpdate={(patch) => updateManualSection(s.id, patch)}
-                    onRemove={() => removeManualSection(s.id)}
-                    onDuplicate={() => duplicateManualSection(s.id)}
+            <div className="space-y-2">
+              {sections.map((s) => (
+                <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 bg-gray-50/60">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={s.largeur || ""}
+                    onChange={(e) =>
+                      updateSection(s.id, { largeur: Number(e.target.value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0 })
+                    }
+                    placeholder="L"
+                    className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
                   />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2">Sections générées</label>
-              {preview.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">
-                  Renseignez les dimensions pour prévisualiser les sections.
-                </p>
-              ) : (
-                <div className="space-y-1 rounded-lg border border-gray-200 divide-y divide-gray-100">
-                  {preview.map((s, i) => (
-                    <div key={`${s.id}-${i}`} className="flex items-center justify-between px-3 py-1.5 text-sm">
-                      <span className="text-gray-700 font-medium">{s.nom}</span>
-                      <span className="text-xs text-gray-400">
-                        {natureLabel(s.nature)} · {s.largeur}×{s.hauteur} cm
-                      </span>
-                    </div>
-                  ))}
+                  <span className="text-gray-400 text-xs">×</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={s.hauteur || ""}
+                    onChange={(e) =>
+                      updateSection(s.id, { hauteur: Number(e.target.value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0 })
+                    }
+                    placeholder="l"
+                    className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
+                  />
+                  <span className="text-gray-400 text-xs">×</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={s.quantite || 1}
+                    onChange={(e) =>
+                      updateSection(s.id, { quantite: Math.max(1, Number(e.target.value.replace(/\D/g, "")) || 1) })
+                    }
+                    placeholder="Qté"
+                    title="Quantité"
+                    className="w-14 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
+                  />
+                  <span className="flex-1 min-w-0 text-xs text-gray-400 truncate">
+                    {s.largeur > 0 && s.hauteur > 0 ? autoSectionName(nature, s.largeur, s.hauteur) : "cm"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeSection(s.id)}
+                    className="p-1.5 rounded-md text-gray-400 hover:text-red-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
-              )}
+              ))}
             </div>
-          )}
+          </div>
         </div>
 
         <div className="flex gap-2 px-5 py-4 border-t border-gray-100 shrink-0">

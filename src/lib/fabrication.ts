@@ -90,7 +90,10 @@ export function collectAvailableSections(sheets: StockSheet[]): StockSection[] {
       if (s.statut === "divise" && s.sub_sections && s.sub_sections.length > 0) {
         walk(s.sub_sections);
       } else if (s.statut === "decoupe" || s.statut === "rabote") {
-        out.push(s);
+        const q = Math.max(1, s.quantite || 1);
+        for (let i = 0; i < q; i++) {
+          out.push({ ...s, id: `${s.id}#q${i}` });
+        }
       }
     }
   };

@@ -11,6 +11,7 @@ export interface StockSection {
   nature: StockNature;
   largeur: number; // cm
   hauteur: number; // cm
+  quantite?: number; // nombre de pièces identiques (défaut 1)
   statut: SectionStatut;
   // Sous-sections quand statut === "divise"
   sub_sections?: StockSection[];
