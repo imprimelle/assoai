@@ -1,46 +1,46 @@
 // src/lib/fabrication.ts
 // Évaluation du stock : quels produits (tables verre/bois, tableaux) sont fabriquables
-// à partir des sections disponibles + diagnostic des produits quasi-complets.
+// à partir des PIÈCES disponibles + diagnostic des produits quasi-complets.
 //
 // Matching par nature + dimensions (tolérance 0,5 cm, insensible à l'orientation).
 // Priorité : tables en verre → tables en bois → tableaux.
 //
-// Le miroir/panneau « 2 cm plus petit » admet une tolérance : entre 2 et 4 cm plus petit
-// (SHRINK_MIN..SHRINK_MAX). Entre 0 et 2 cm plus petit → pièce « à recouper » (diagnostic).
+// Le miroir/panneau « 2 cm plus petit » admet une tolérance : entre 2 et 4 cm plus petit.
+// Entre 0 et 2 cm plus petit → pièce « à recouper » (diagnostic).
 
-import type { StockSheet, StockSection, StockNature } from "@/types/stock";
+import type { StockSheet, StockPiece, StockNature } from "@/types/stock";
 
 export type ProductType = "table_verre" | "table_bois" | "tableau";
 
 export interface FabricationProduct {
   type: ProductType;
-  sections: StockSection[];
+  pieces: StockPiece[];
 }
 
 export interface DiagnosticMissing {
   nom: string;
   nature: StockNature;
-  largeur: number; // dimension requise (cm)
+  largeur: number;
   hauteur: number;
 }
 
 export interface DiagnosticProblematic {
-  section: StockSection; // pièce présente mais mal dimensionnée (à recouper)
-  requiredLargeur: number; // dimension cible
+  piece: StockPiece;
+  requiredLargeur: number;
   requiredHauteur: number;
 }
 
 export interface DiagnosticItem {
   type: ProductType;
   label: string;
-  present: StockSection[];
+  present: StockPiece[];
   missing: DiagnosticMissing[];
   problematic: DiagnosticProblematic[];
 }
 
 export interface FabricationResult {
   products: FabricationProduct[];
-  leftover: StockSection[];
+  leftover: StockPiece[];
   counts: Record<ProductType, number>;
   diagnostics: DiagnosticItem[];
 }
@@ -51,70 +51,61 @@ const SHRINK_MAX = 4; // tolérance : jusqu'à 4 cm plus petit
 
 const eq = (a: number, b: number) => Math.abs(a - b) <= TOL;
 
-/** Vrai si la section a les dimensions (w,h), dans un sens ou l'autre. */
-function rectMatches(s: StockSection, w: number, h: number): boolean {
+function rectMatches(p: StockPiece, w: number, h: number): boolean {
   return (
-    (eq(s.largeur, w) && eq(s.hauteur, h)) ||
-    (eq(s.largeur, h) && eq(s.hauteur, w))
+    (eq(p.largeur, w) && eq(p.hauteur, h)) ||
+    (eq(p.largeur, h) && eq(p.hauteur, w))
   );
 }
 
-/**
- * Vrai si la section est `minLess..maxLess` cm plus petite que (w,h) dans chaque
- * dimension, insensible à l'orientation (comparaison sur dims triées).
- */
+/** Vrai si la pièce est `minLess..maxLess` cm plus petite que (w,h) dans chaque dim. */
 function rectShrinkMatch(
-  s: StockSection,
+  p: StockPiece,
   w: number,
   h: number,
   minLess: number,
   maxLess: number,
 ): boolean {
-  const sLo = Math.min(s.largeur, s.hauteur);
-  const sHi = Math.max(s.largeur, s.hauteur);
+  const sLo = Math.min(p.largeur, p.hauteur);
+  const sHi = Math.max(p.largeur, p.hauteur);
   const tLo = Math.min(w, h);
   const tHi = Math.max(w, h);
-  const dLo = tLo - sLo; // positif si la section est plus petite
+  const dLo = tLo - sLo;
   const dHi = tHi - sHi;
   return (
     dLo >= minLess - TOL && dLo <= maxLess + TOL && dHi >= minLess - TOL && dHi <= maxLess + TOL
   );
 }
 
-/** Sections "disponibles" : découpé ou raboté, en récursant les "divisé". */
-export function collectAvailableSections(sheets: StockSheet[]): StockSection[] {
-  const out: StockSection[] = [];
-  const walk = (sections: StockSection[]) => {
-    for (const s of sections) {
-      if (s.statut === "utilise") continue;
-      if (s.statut === "divise" && s.sub_sections && s.sub_sections.length > 0) {
-        walk(s.sub_sections);
-      } else if (s.statut === "decoupe" || s.statut === "rabote") {
-        const q = Math.max(1, s.quantite || 1);
-        for (let i = 0; i < q; i++) {
-          out.push({ ...s, id: `${s.id}#q${i}` });
-        }
+/** Pièces disponibles : état "disponible", dépliées par quantité. */
+export function collectAvailablePieces(sheets: StockSheet[]): StockPiece[] {
+  const out: StockPiece[] = [];
+  for (const sh of sheets) {
+    for (const p of sh.pieces || []) {
+      if (p.etat !== "disponible") continue;
+      const q = Math.max(1, p.quantite || 1);
+      for (let i = 0; i < q; i++) {
+        out.push({ ...p, id: `${p.id}#q${i}` });
       }
     }
-  };
-  for (const sh of sheets) walk(sh.sections);
+  }
   return out;
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export function evaluateFabrication(sheets: StockSheet[]): FabricationResult {
-  const pool = collectAvailableSections(sheets);
+  const pool = collectAvailablePieces(sheets);
   const used = new Set<string>();
   const products: FabricationProduct[] = [];
 
-  const unused = () => pool.filter((s) => !used.has(s.id));
+  const unused = () => pool.filter((p) => !used.has(p.id));
 
   // ── Pass 1 : tables en verre (5 vitres + 1 miroir 2-4 cm plus petit) ──
   let progressed = true;
   while (progressed) {
     progressed = false;
-    const vitres = unused().filter((s) => s.nature === "vitre");
+    const vitres = unused().filter((p) => p.nature === "vitre");
 
     outer: for (const plateau of vitres) {
       for (const [l, L] of [
@@ -122,11 +113,11 @@ export function evaluateFabrication(sheets: StockSheet[]): FabricationResult {
         [plateau.hauteur, plateau.largeur],
       ] as [number, number][]) {
         const miroir = unused().find(
-          (s) => s.nature === "miroir" && rectShrinkMatch(s, l, L, SHRINK_MIN, SHRINK_MAX),
+          (p) => p.nature === "miroir" && rectShrinkMatch(p, l, L, SHRINK_MIN, SHRINK_MAX),
         );
         if (!miroir) continue;
 
-        const others = unused().filter((s) => s.nature === "vitre" && s.id !== plateau.id);
+        const others = unused().filter((p) => p.nature === "vitre" && p.id !== plateau.id);
         const hCands = new Set<number>();
         for (const v of others) {
           if (eq(v.largeur, l)) hCands.add(v.hauteur);
@@ -152,7 +143,7 @@ export function evaluateFabrication(sheets: StockSheet[]): FabricationResult {
           used.add(miroir.id);
           products.push({
             type: "table_verre",
-            sections: [plateau, ...chosenCotes, ...chosenFaces, miroir],
+            pieces: [plateau, ...chosenCotes, ...chosenFaces, miroir],
           });
           progressed = true;
           break outer;
@@ -162,26 +153,26 @@ export function evaluateFabrication(sheets: StockSheet[]): FabricationResult {
   }
 
   // ── Pass 2 : tables en bois (1 vitre + 1 miroir, même dims) ──
-  for (const vitre of unused().filter((s) => s.nature === "vitre")) {
+  for (const vitre of unused().filter((p) => p.nature === "vitre")) {
     const miroir = unused().find(
-      (s) => s.nature === "miroir" && rectMatches(s, vitre.largeur, vitre.hauteur),
+      (p) => p.nature === "miroir" && rectMatches(p, vitre.largeur, vitre.hauteur),
     );
     if (miroir) {
       used.add(vitre.id);
       used.add(miroir.id);
-      products.push({ type: "table_bois", sections: [vitre, miroir] });
+      products.push({ type: "table_bois", pieces: [vitre, miroir] });
     }
   }
 
   // ── Pass 3 : tableaux (1 plexi + 1 miroir 2-4 cm plus petit) ──
-  for (const plexi of unused().filter((s) => s.nature === "plexiglass")) {
+  for (const plexi of unused().filter((p) => p.nature === "plexiglass")) {
     const miroir = unused().find(
-      (s) => s.nature === "miroir" && rectShrinkMatch(s, plexi.largeur, plexi.hauteur, SHRINK_MIN, SHRINK_MAX),
+      (p) => p.nature === "miroir" && rectShrinkMatch(p, plexi.largeur, plexi.hauteur, SHRINK_MIN, SHRINK_MAX),
     );
     if (miroir) {
       used.add(plexi.id);
       used.add(miroir.id);
-      products.push({ type: "tableau", sections: [plexi, miroir] });
+      products.push({ type: "tableau", pieces: [plexi, miroir] });
     }
   }
 
@@ -200,29 +191,25 @@ export function evaluateFabrication(sheets: StockSheet[]): FabricationResult {
   };
 }
 
-/**
- * Diagnostic : produits quasi-complets. Pour chaque table en verre / tableau dont les
- * vitres/plexi sont présents mais dont le miroir est manquant ou « à recouper » (0-2 cm
- * plus petit au lieu de 2-4), on remonte l'élément problématique ou manquant.
- */
+/** Diagnostic : produits quasi-complets (miroir manquant ou « à recouper »). */
 export function diagnoseFabrication(sheets: StockSheet[]): DiagnosticItem[] {
-  const pool = collectAvailableSections(sheets);
+  const pool = collectAvailablePieces(sheets);
   const used = new Set<string>();
   const diagnostics: DiagnosticItem[] = [];
-  const unused = () => pool.filter((s) => !used.has(s.id));
+  const unused = () => pool.filter((p) => !used.has(p.id));
 
-  // ── Tables en verre quasi-complètes ──
+  // Tables en verre quasi-complètes
   let progressed = true;
   while (progressed) {
     progressed = false;
-    const vitres = unused().filter((s) => s.nature === "vitre");
+    const vitres = unused().filter((p) => p.nature === "vitre");
 
     outer: for (const plateau of vitres) {
       for (const [l, L] of [
         [plateau.largeur, plateau.hauteur],
         [plateau.hauteur, plateau.largeur],
       ] as [number, number][]) {
-        const others = unused().filter((s) => s.nature === "vitre" && s.id !== plateau.id);
+        const others = unused().filter((p) => p.nature === "vitre" && p.id !== plateau.id);
         const hCands = new Set<number>();
         for (const v of others) {
           if (eq(v.largeur, l)) hCands.add(v.hauteur);
@@ -240,10 +227,9 @@ export function diagnoseFabrication(sheets: StockSheet[]): DiagnosticItem[] {
           const ff = faces.filter((v) => !cc.some((c) => c.id === v.id)).slice(0, 2);
           if (ff.length < 2) continue;
 
-          const miroirs = unused().filter((s) => s.nature === "miroir");
-          const valid = miroirs.find((s) => rectShrinkMatch(s, l, L, SHRINK_MIN, SHRINK_MAX));
+          const miroirs = unused().filter((p) => p.nature === "miroir");
+          const valid = miroirs.find((p) => rectShrinkMatch(p, l, L, SHRINK_MIN, SHRINK_MAX));
           if (valid) {
-            // complet → on le consomme (déjà couvert par evaluateFabrication)
             used.add(plateau.id);
             cc.forEach((v) => used.add(v.id));
             ff.forEach((v) => used.add(v.id));
@@ -252,7 +238,7 @@ export function diagnoseFabrication(sheets: StockSheet[]): DiagnosticItem[] {
             break outer;
           }
 
-          const trim = miroirs.find((s) => rectShrinkMatch(s, l, L, 0, SHRINK_MIN));
+          const trim = miroirs.find((p) => rectShrinkMatch(p, l, L, 0, SHRINK_MIN));
           used.add(plateau.id);
           cc.forEach((v) => used.add(v.id));
           ff.forEach((v) => used.add(v.id));
@@ -265,7 +251,7 @@ export function diagnoseFabrication(sheets: StockSheet[]): DiagnosticItem[] {
               missing: [],
               problematic: [
                 {
-                  section: trim,
+                  piece: trim,
                   requiredLargeur: r2(l - SHRINK_MIN),
                   requiredHauteur: r2(L - SHRINK_MIN),
                 },
@@ -289,19 +275,19 @@ export function diagnoseFabrication(sheets: StockSheet[]): DiagnosticItem[] {
     }
   }
 
-  // ── Tableaux quasi-complets ──
-  for (const plexi of unused().filter((s) => s.nature === "plexiglass")) {
-    const miroirs = unused().filter((s) => s.nature === "miroir");
-    const valid = miroirs.find((s) =>
-      rectShrinkMatch(s, plexi.largeur, plexi.hauteur, SHRINK_MIN, SHRINK_MAX),
+  // Tableaux quasi-complets
+  for (const plexi of unused().filter((p) => p.nature === "plexiglass")) {
+    const miroirs = unused().filter((p) => p.nature === "miroir");
+    const valid = miroirs.find((p) =>
+      rectShrinkMatch(p, plexi.largeur, plexi.hauteur, SHRINK_MIN, SHRINK_MAX),
     );
     if (valid) {
       used.add(plexi.id);
       used.add(valid.id);
       continue;
     }
-    const trim = miroirs.find((s) =>
-      rectShrinkMatch(s, plexi.largeur, plexi.hauteur, 0, SHRINK_MIN),
+    const trim = miroirs.find((p) =>
+      rectShrinkMatch(p, plexi.largeur, plexi.hauteur, 0, SHRINK_MIN),
     );
     used.add(plexi.id);
     if (trim) {
@@ -313,7 +299,7 @@ export function diagnoseFabrication(sheets: StockSheet[]): DiagnosticItem[] {
         missing: [],
         problematic: [
           {
-            section: trim,
+            piece: trim,
             requiredLargeur: r2(plexi.largeur - SHRINK_MIN),
             requiredHauteur: r2(plexi.hauteur - SHRINK_MIN),
           },
