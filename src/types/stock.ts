@@ -3,15 +3,17 @@
 
 export type StockType = "feuille" | "table_verre" | "table_bois" | "tableau";
 export type StockNature = "vitre" | "plexiglass" | "miroir";
-export type SectionStatut = "decoupe" | "rabote" | "utilise";
+export type SectionStatut = "decoupe" | "rabote" | "utilise" | "divise";
 
 export interface StockSection {
   id: string;
-  nom: string; // ex. "Plateau", "Côté", "Miroir"
+  nom: string; // auto-généré (nomenclature)
   nature: StockNature;
   largeur: number; // cm
   hauteur: number; // cm
   statut: SectionStatut;
+  // Sous-sections quand statut === "divise"
+  sub_sections?: StockSection[];
 }
 
 export interface StockHistoryEvent {
@@ -27,11 +29,11 @@ export interface StockSheet {
   id: string;
   type: StockType;
   nature: StockNature;
-  nom: string | null;
+  nom: string | null; // auto-généré (nomenclature)
   longueur: number | null; // L (cm)
   largeur: number | null; // l (cm)
   hauteur: number | null; // h (cm) — tables
-  epaisseur: string | null; // ex. "8 mm"
+  epaisseur: string | null; // dropdown
   sections: StockSection[];
   section_history: StockHistoryEvent[];
   created_by: string | null;
@@ -61,35 +63,34 @@ export interface StockTypeDef {
   label: string;
   short: string;
   description: string;
-  // Champs de dimensions demandés à l'utilisateur
   fields: ("longueur" | "largeur" | "hauteur")[];
 }
 
 export const STOCK_TYPES: StockTypeDef[] = [
   {
     id: "feuille",
-    label: "Feuilles",
+    label: "Feuille libre",
     short: "Feuille",
-    description: "Feuille de matière libre, sections saisies manuellement",
+    description: "Feuille de matière, sections saisies manuellement",
     fields: ["longueur", "largeur"],
   },
   {
     id: "table_verre",
-    label: "Tables en verre",
+    label: "Table en verre",
     short: "Table verre",
     description: "5 sections de vitre + 1 miroir",
     fields: ["longueur", "largeur", "hauteur"],
   },
   {
     id: "table_bois",
-    label: "Tables en bois",
+    label: "Table en bois",
     short: "Table bois",
     description: "1 section de vitre + 1 miroir",
     fields: ["longueur", "largeur", "hauteur"],
   },
   {
     id: "tableau",
-    label: "Tableaux",
+    label: "Tableau",
     short: "Tableau",
     description: "1 section de plexiglass + 1 miroir",
     fields: ["longueur", "largeur"],
@@ -99,7 +100,7 @@ export const STOCK_TYPES: StockTypeDef[] = [
 export interface StockNatureDef {
   id: StockNature;
   label: string;
-  tint: string; // teinte du rectangle (fond), la couleur de statut reste dominante en bordure
+  tint: string;
 }
 
 export const STOCK_NATURES: StockNatureDef[] = [
@@ -108,13 +109,24 @@ export const STOCK_NATURES: StockNatureDef[] = [
   { id: "miroir", label: "Miroir", tint: "rgba(100,116,139,0.18)" },
 ];
 
+export const EPAISSEUR_OPTIONS = [
+  "2 mm",
+  "3 mm",
+  "4 mm",
+  "5 mm",
+  "6 mm",
+  "8 mm",
+  "10 mm",
+  "12 mm",
+];
+
 export interface StatutDef {
   id: SectionStatut;
   label: string;
-  fill: string; // couleur de remplissage du rectangle
-  border: string; // classe Tailwind bordure
-  badge: string; // classes Tailwind du badge
-  solid: string; // classe Tailwind bouton plein (sélecteur)
+  fill: string;
+  border: string;
+  badge: string;
+  solid: string;
 }
 
 export const SECTION_STATUTS: StatutDef[] = [
@@ -142,16 +154,17 @@ export const SECTION_STATUTS: StatutDef[] = [
     badge: "bg-emerald-100 text-emerald-700 border-emerald-200",
     solid: "bg-emerald-600 hover:bg-emerald-700",
   },
+  {
+    id: "divise",
+    label: "Divisé",
+    fill: "rgba(139,92,246,0.22)",
+    border: "border-violet-400",
+    badge: "bg-violet-100 text-violet-700 border-violet-200",
+    solid: "bg-violet-600 hover:bg-violet-700",
+  },
 ];
 
-export const STATUT_ORDER: SectionStatut[] = ["decoupe", "rabote", "utilise"];
-
 // ── Helpers ──────────────────────────────────────────────────
-
-export function nextStatut(current: SectionStatut): SectionStatut {
-  const idx = STATUT_ORDER.indexOf(current);
-  return STATUT_ORDER[(idx + 1) % STATUT_ORDER.length];
-}
 
 export function statutLabel(statut: SectionStatut): string {
   return SECTION_STATUTS.find((s) => s.id === statut)?.label ?? statut;
@@ -170,6 +183,25 @@ export function parseCm(value: string): number | null {
   if (!value) return null;
   const n = Number(String(value).trim().replace(",", "."));
   return Number.isFinite(n) ? n : null;
+}
+
+/** Nom auto-généré d'une feuille (nomenclature : type + dimensions). */
+export function generateSheetName(
+  type: StockType,
+  L: number | null,
+  l: number | null,
+  h: number | null,
+): string {
+  const dims = [L, l, h]
+    .filter((v): v is number => v != null && Number.isFinite(v))
+    .map((v) => String(v))
+    .join("×");
+  return dims ? `${typeLabel(type)} ${dims}` : typeLabel(type);
+}
+
+/** Nom auto-généré d'une section (nomenclature : nature + dimensions). */
+export function autoSectionName(nature: StockNature, w: number, h: number): string {
+  return `${natureLabel(nature)} ${w}×${h}`;
 }
 
 // ── Composition auto des sections ────────────────────────────

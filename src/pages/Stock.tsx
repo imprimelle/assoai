@@ -1,7 +1,6 @@
 // src/pages/Stock.tsx
 // Page Stock — gestion logistique des matériaux de découpe (vitre, plexiglass, miroir).
-// 4 vues (Feuilles / Tables en verre / Tables en bois / Tableaux), sections découpées
-// avec pose de statut (découpé / raboté / utilisé) + audit des changements.
+// 2 vues : « Feuilles » (stock) et « Fabrication » (évaluation unifiée des produits fabriquables).
 
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -14,6 +13,8 @@ import {
   X,
   History,
   Check,
+  Hammer,
+  Pencil,
 } from "lucide-react";
 import { useStock } from "@/hooks/useStock";
 import type { User } from "@/types";
@@ -26,13 +27,17 @@ import {
   SectionStatut,
   STOCK_TYPES,
   STOCK_NATURES,
+  EPAISSEUR_OPTIONS,
   SECTION_STATUTS,
   generateSections,
+  generateSheetName,
+  autoSectionName,
   typeLabel,
   natureLabel,
   statutLabel,
   parseCm,
 } from "@/types/stock";
+import { evaluateFabrication } from "@/lib/fabrication";
 
 const fmtTime = (iso: string): string => {
   const d = new Date(iso);
@@ -44,6 +49,21 @@ const fmtTime = (iso: string): string => {
     minute: "2-digit",
   });
 };
+
+/** Met à jour une section (par id, récursivement dans les sous-sections). */
+function updateSectionRecursive(
+  sections: StockSection[],
+  sectionId: string,
+  patch: Partial<StockSection>,
+): StockSection[] {
+  return sections.map((s) => {
+    if (s.id === sectionId) return { ...s, ...patch };
+    if (s.sub_sections) {
+      return { ...s, sub_sections: updateSectionRecursive(s.sub_sections, sectionId, patch) };
+    }
+    return s;
+  });
+}
 
 // ── Légende des statuts ──────────────────────────────────────
 
@@ -63,7 +83,7 @@ const StatutLegend: React.FC = () => (
   </div>
 );
 
-// ── Figure d'une section (rectangle proportionnel) ───────────
+// ── Figure d'une section ─────────────────────────────────────
 
 const SectionFigure: React.FC<{
   section: StockSection;
@@ -87,25 +107,31 @@ const SectionFigure: React.FC<{
       type="button"
       onClick={onSelect}
       title={`${section.nom} — ${statut?.label}. Cliquer pour changer.`}
-      className="flex flex-col items-center gap-1 p-2 rounded-xl bg-white border border-gray-100 hover:border-gray-300 hover:shadow-sm transition-all active:scale-95 cursor-pointer"
+      className="relative flex flex-col items-center gap-1 p-2 rounded-xl bg-white border border-gray-100 hover:border-gray-300 hover:shadow-sm transition-all active:scale-95 cursor-pointer"
     >
+      {/* Badge statut */}
+      <span
+        className={`absolute -top-1.5 -right-1.5 z-10 text-[9px] px-1.5 py-0.5 rounded-full border font-semibold ${statut?.badge}`}
+      >
+        {statut?.label}
+      </span>
+
       <div
-        className={`flex items-center justify-center rounded-md border-2 ${statut?.border}`}
+        className="flex items-center justify-center rounded-md border"
         style={{
           width: `${w}px`,
           height: `${h}px`,
           background: nature?.tint || "transparent",
+          borderColor: statut?.fill,
         }}
       >
-        <span className="px-1 text-[9px] font-semibold text-gray-600 leading-tight text-center">
-          {statut?.label}
+        {/* Dimensions à l'intérieur */}
+        <span className="px-1 text-[10px] font-semibold text-gray-700 leading-tight text-center">
+          {section.largeur}×{section.hauteur}
         </span>
       </div>
-      <span className="text-[11px] font-semibold text-gray-700 leading-tight text-center">
-        {section.nom}
-      </span>
-      <span className="text-[10px] text-gray-400">
-        {natureLabel(section.nature)} · {section.largeur}×{section.hauteur} cm
+      <span className="text-[10px] text-gray-400 text-center leading-tight">
+        {natureLabel(section.nature)}
       </span>
     </button>
   );
@@ -124,9 +150,11 @@ const dimsLabel = (sheet: StockSheet): string => {
 const SheetCard: React.FC<{
   sheet: StockSheet;
   onSelectStatut: (section: StockSection) => void;
+  onDivide: (section: StockSection) => void;
+  onUnDivide: (section: StockSection) => void;
   onDelete: () => void;
   onEdit: () => void;
-}> = ({ sheet, onSelectStatut, onDelete, onEdit }) => {
+}> = ({ sheet, onSelectStatut, onDivide, onUnDivide, onDelete, onEdit }) => {
   const nature = STOCK_NATURES.find((n) => n.id === sheet.nature);
   const used = sheet.sections.filter((s) => s.statut === "utilise").length;
   const [showHistory, setShowHistory] = useState(false);
@@ -139,7 +167,7 @@ const SheetCard: React.FC<{
         <button type="button" onClick={onEdit} className="text-left min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-sm text-gray-800 truncate">
-              {sheet.nom || `${typeLabel(sheet.type)}`}
+              {sheet.nom || typeLabel(sheet.type)}
             </span>
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
               {typeLabel(sheet.type)}
@@ -184,13 +212,47 @@ const SheetCard: React.FC<{
               </span>
             </div>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-              {sheet.sections.map((s) => (
-                <SectionFigure
-                  key={s.id}
-                  section={s}
-                  onSelect={() => onSelectStatut(s)}
-                />
-              ))}
+              {sheet.sections.map((s) =>
+                s.statut === "divise" && s.sub_sections?.length ? (
+                  <div
+                    key={s.id}
+                    className="col-span-full rounded-xl border border-violet-200 bg-violet-50/40 p-2"
+                  >
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => onDivide(s)}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-600 hover:text-violet-700"
+                      >
+                        <Pencil className="h-3 w-3" /> Divisé · {s.sub_sections.length}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onUnDivide(s)}
+                        title="Dé-diviser"
+                        className="ml-auto p-1 rounded-md text-violet-400 hover:text-violet-600 hover:bg-violet-100"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                      {s.sub_sections.map((sub) => (
+                        <SectionFigure
+                          key={sub.id}
+                          section={sub}
+                          onSelect={() => onSelectStatut(sub)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <SectionFigure
+                    key={s.id}
+                    section={s}
+                    onSelect={() => onSelectStatut(s)}
+                  />
+                ),
+              )}
             </div>
           </>
         )}
@@ -253,17 +315,12 @@ const StatutPicker: React.FC<{
       >
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-base font-semibold text-gray-800">Statut de la section</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100"
-          >
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
             <X className="h-4 w-4" />
           </button>
         </div>
         <p className="text-sm text-gray-500 mb-4">
-          {section.nom} · {section.largeur}×{section.hauteur} cm ·{" "}
-          {natureLabel(section.nature)}
+          {section.nom} · {section.largeur}×{section.hauteur} cm · {natureLabel(section.nature)}
         </p>
         <div className="space-y-2">
           {SECTION_STATUTS.map((s) => {
@@ -280,10 +337,7 @@ const StatutPicker: React.FC<{
                 }`}
               >
                 <span className="inline-flex items-center gap-2">
-                  <span
-                    className="w-3 h-3 rounded-full"
-                    style={{ background: s.fill }}
-                  />
+                  <span className="w-3 h-3 rounded-full" style={{ background: s.fill }} />
                   {s.label}
                 </span>
                 {active && <Check className="h-4 w-4 text-gray-900" />}
@@ -296,7 +350,138 @@ const StatutPicker: React.FC<{
   );
 };
 
-// ── Dialogue ajout / édition ─────────────────────────────────
+// ── Modale de subdivision (Divisé) ───────────────────────────
+
+const SubDivisionModal: React.FC<{
+  section: StockSection;
+  onConfirm: (subSections: StockSection[]) => void;
+  onClose: () => void;
+}> = ({ section, onConfirm, onClose }) => {
+  const [subs, setSubs] = useState<StockSection[]>(
+    section.sub_sections && section.sub_sections.length
+      ? section.sub_sections.map((s) => ({ ...s }))
+      : [
+          { id: crypto.randomUUID(), nom: "", nature: section.nature, largeur: 0, hauteur: 0, statut: "decoupe" },
+          { id: crypto.randomUUID(), nom: "", nature: section.nature, largeur: 0, hauteur: 0, statut: "decoupe" },
+        ],
+  );
+
+  const updateSub = (id: string, patch: Partial<StockSection>) => {
+    setSubs((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        const next = { ...s, ...patch };
+        next.nom = autoSectionName(next.nature, next.largeur, next.hauteur);
+        return next;
+      }),
+    );
+  };
+
+  const addSub = () => {
+    setSubs((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), nom: "", nature: section.nature, largeur: 0, hauteur: 0, statut: "decoupe" },
+    ]);
+  };
+
+  const removeSub = (id: string) => setSubs((prev) => prev.filter((s) => s.id !== id));
+
+  const confirm = () => {
+    const valid = subs.filter((s) => s.largeur > 0 && s.hauteur > 0);
+    if (valid.length === 0) return;
+    onConfirm(valid.map((s) => ({ ...s, nom: autoSectionName(s.nature, s.largeur, s.hauteur) })));
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+          <h3 className="text-base font-semibold text-gray-800">
+            Subdiviser « {section.nom || natureLabel(section.nature)} »
+          </h3>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <p className="text-xs text-gray-400 mb-3">
+            Découpez cette section en sous-sections ({natureLabel(section.nature)}). Les noms sont générés automatiquement.
+          </p>
+          <div className="space-y-2">
+            {subs.map((s) => (
+              <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 bg-gray-50/60">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={s.largeur || ""}
+                  onChange={(e) =>
+                    updateSub(s.id, { largeur: Number(e.target.value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0 })
+                  }
+                  placeholder="L"
+                  className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-violet-500/40 outline-none"
+                />
+                <span className="text-gray-400 text-xs">×</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={s.hauteur || ""}
+                  onChange={(e) =>
+                    updateSub(s.id, { hauteur: Number(e.target.value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0 })
+                  }
+                  placeholder="l"
+                  className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-violet-500/40 outline-none"
+                />
+                <span className="flex-1 min-w-0 text-xs text-gray-400 truncate">
+                  {s.largeur > 0 && s.hauteur > 0 ? autoSectionName(s.nature, s.largeur, s.hauteur) : "cm"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeSub(s.id)}
+                  className="p-1.5 rounded-md text-gray-400 hover:text-red-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={addSub}
+            className="mt-3 w-full py-2 border-2 border-dashed border-violet-200 rounded-lg text-sm text-violet-500 hover:bg-violet-50 font-medium"
+          >
+            + Ajouter une sous-section
+          </button>
+        </div>
+
+        <div className="flex gap-2 px-5 py-4 border-t border-gray-100 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 h-10 rounded-xl border border-gray-200 text-sm text-gray-600 font-medium hover:bg-gray-50"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={confirm}
+            className="flex-1 h-10 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700"
+          >
+            Diviser
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Dialogue ajout / édition d'une feuille ───────────────────
 
 const AddSheetDialog: React.FC<{
   sheet?: StockSheet | null;
@@ -306,25 +491,17 @@ const AddSheetDialog: React.FC<{
   const isEdit = !!sheet;
   const [type, setType] = useState<StockType>(sheet?.type ?? "feuille");
   const [nature, setNature] = useState<StockNature>(sheet?.nature ?? "vitre");
-  const [nom, setNom] = useState(sheet?.nom ?? "");
   const [epaisseur, setEpaisseur] = useState(sheet?.epaisseur ?? "");
-  const [longueur, setLongueur] = useState(
-    sheet?.longueur != null ? String(sheet.longueur) : "",
-  );
-  const [largeur, setLargeur] = useState(
-    sheet?.largeur != null ? String(sheet.largeur) : "",
-  );
-  const [hauteur, setHauteur] = useState(
-    sheet?.hauteur != null ? String(sheet.hauteur) : "",
-  );
+  const [longueur, setLongueur] = useState(sheet?.longueur != null ? String(sheet.longueur) : "");
+  const [largeur, setLargeur] = useState(sheet?.largeur != null ? String(sheet.largeur) : "");
+  const [hauteur, setHauteur] = useState(sheet?.hauteur != null ? String(sheet.hauteur) : "");
   const [manualSections, setManualSections] = useState<StockSection[]>(
     sheet?.type === "feuille" ? sheet.sections : [],
   );
   const [saving, setSaving] = useState(false);
 
   const typeDef = STOCK_TYPES.find((t) => t.id === type)!;
-  const needs = (f: "longueur" | "largeur" | "hauteur") =>
-    typeDef.fields.includes(f);
+  const needs = (f: "longueur" | "largeur" | "hauteur") => typeDef.fields.includes(f);
 
   const preview = useMemo(() => {
     if (type === "feuille") return [];
@@ -350,29 +527,38 @@ const AddSheetDialog: React.FC<{
 
   const updateManualSection = (id: string, patch: Partial<StockSection>) => {
     setManualSections((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        const next = { ...s, ...patch };
+        next.nom = autoSectionName(next.nature, next.largeur, next.hauteur);
+        return next;
+      }),
     );
   };
 
-  const removeManualSection = (id: string) => {
+  const removeManualSection = (id: string) =>
     setManualSections((prev) => prev.filter((s) => s.id !== id));
-  };
 
   const handleSubmit = async () => {
     setSaving(true);
     try {
+      const L = parseCm(longueur);
+      const l = parseCm(largeur);
+      const h = needs("hauteur") ? parseCm(hauteur) : null;
       const sections =
         type === "feuille"
-          ? manualSections.filter((s) => s.largeur > 0 && s.hauteur > 0)
+          ? manualSections
+              .filter((s) => s.largeur > 0 && s.hauteur > 0)
+              .map((s) => ({ ...s, nom: autoSectionName(s.nature, s.largeur, s.hauteur) }))
           : preview;
       await onSave({
         type,
         nature,
-        nom: nom.trim() || null,
-        longueur: parseCm(longueur),
-        largeur: parseCm(largeur),
-        hauteur: needs("hauteur") ? parseCm(hauteur) : null,
-        epaisseur: epaisseur.trim() || null,
+        nom: generateSheetName(type, L, l, h),
+        longueur: L,
+        largeur: l,
+        hauteur: h,
+        epaisseur: epaisseur || null,
         sections,
       });
       onClose();
@@ -381,11 +567,7 @@ const AddSheetDialog: React.FC<{
     }
   };
 
-  const numInput = (
-    value: string,
-    setValue: (v: string) => void,
-    placeholder: string,
-  ) => (
+  const numInput = (value: string, setValue: (v: string) => void, placeholder: string) => (
     <input
       type="text"
       inputMode="decimal"
@@ -414,7 +596,7 @@ const AddSheetDialog: React.FC<{
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <h3 className="text-base font-semibold text-gray-800">
-            {isEdit ? "Modifier l'élément" : "Ajouter au stock"}
+            {isEdit ? "Modifier la feuille" : "Ajouter une feuille"}
           </h3>
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
             <X className="h-4 w-4" />
@@ -424,7 +606,7 @@ const AddSheetDialog: React.FC<{
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
           {/* Type */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2">Type</label>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Gabarit de découpe</label>
             <div className="grid grid-cols-2 gap-2">
               {STOCK_TYPES.map((t) => (
                 <button
@@ -444,48 +626,41 @@ const AddSheetDialog: React.FC<{
             </div>
           </div>
 
-          {/* Nature */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2">Nature de la feuille</label>
-            <div className="flex gap-2">
-              {STOCK_NATURES.map((n) => (
-                <button
-                  key={n.id}
-                  type="button"
-                  onClick={() => setNature(n.id)}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                    nature === n.id
-                      ? "border-sky-500 bg-sky-50 text-sky-700 ring-1 ring-sky-300"
-                      : "border-gray-200 text-gray-600 hover:border-gray-300"
-                  }`}
-                >
-                  {n.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Nom + épaisseur */}
+          {/* Nature + épaisseur */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2">Nom (optionnel)</label>
-              <input
-                type="text"
-                value={nom}
-                onChange={(e) => setNom(e.target.value)}
-                placeholder={`Ex. ${typeDef.short} …`}
-                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-sky-500/40 focus:border-sky-400 outline-none"
-              />
+              <label className="block text-xs font-medium text-gray-500 mb-2">Nature</label>
+              <div className="flex gap-1.5">
+                {STOCK_NATURES.map((n) => (
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={() => setNature(n.id)}
+                    className={`flex-1 rounded-lg border px-2 py-2 text-sm font-medium transition-colors ${
+                      nature === n.id
+                        ? "border-sky-500 bg-sky-50 text-sky-700 ring-1 ring-sky-300"
+                        : "border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    {n.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2">Épaisseur (optionnel)</label>
-              <input
-                type="text"
+              <label className="block text-xs font-medium text-gray-500 mb-2">Épaisseur</label>
+              <select
                 value={epaisseur}
                 onChange={(e) => setEpaisseur(e.target.value)}
-                placeholder="ex. 8 mm"
                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-sky-500/40 focus:border-sky-400 outline-none"
-              />
+              >
+                <option value="">—</option>
+                {EPAISSEUR_OPTIONS.map((e) => (
+                  <option key={e} value={e}>
+                    {e}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -521,17 +696,7 @@ const AddSheetDialog: React.FC<{
 
               <div className="space-y-2">
                 {manualSections.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 bg-gray-50/60"
-                  >
-                    <input
-                      type="text"
-                      value={s.nom}
-                      onChange={(e) => updateManualSection(s.id, { nom: e.target.value })}
-                      placeholder="Nom"
-                      className="flex-1 min-w-0 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white focus:ring-2 focus:ring-sky-500/40 outline-none"
-                    />
+                  <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 bg-gray-50/60">
                     <input
                       type="text"
                       inputMode="decimal"
@@ -542,8 +707,9 @@ const AddSheetDialog: React.FC<{
                         })
                       }
                       placeholder="L"
-                      className="w-16 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
+                      className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
                     />
+                    <span className="text-gray-400 text-xs">×</span>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -554,8 +720,11 @@ const AddSheetDialog: React.FC<{
                         })
                       }
                       placeholder="l"
-                      className="w-16 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
+                      className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm bg-white text-center focus:ring-2 focus:ring-sky-500/40 outline-none"
                     />
+                    <span className="flex-1 min-w-0 text-xs text-gray-400 truncate">
+                      {s.largeur > 0 && s.hauteur > 0 ? autoSectionName(s.nature, s.largeur, s.hauteur) : "cm"}
+                    </span>
                     <button
                       type="button"
                       onClick={() => removeManualSection(s.id)}
@@ -612,28 +781,116 @@ const AddSheetDialog: React.FC<{
   );
 };
 
+// ── Vue Fabrication ──────────────────────────────────────────
+
+const PRODUCT_META: Record<string, { label: string; color: string }> = {
+  table_verre: { label: "Tables en verre", color: "bg-sky-100 text-sky-700 border-sky-200" },
+  table_bois: { label: "Tables en bois", color: "bg-amber-100 text-amber-700 border-amber-200" },
+  tableau: { label: "Tableaux", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+};
+
+const FabricationView: React.FC<{ sheets: StockSheet[] }> = ({ sheets }) => {
+  const result = useMemo(() => evaluateFabrication(sheets), [sheets]);
+  const order = ["table_verre", "table_bois", "tableau"] as const;
+
+  if (result.products.length === 0) {
+    return (
+      <div className="text-center py-12 border border-dashed border-gray-300 rounded-2xl bg-white/50">
+        <Hammer className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+        <p className="text-sm text-gray-500">
+          Aucun produit fabulable avec le stock actuel.
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          Assurez-vous d'avoir des sections « découpé » ou « raboté » dans les bonnes natures et dimensions.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Synthèse */}
+      <div className="flex flex-wrap gap-2">
+        {order.map((t) => (
+          <span
+            key={t}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium ${PRODUCT_META[t].color}`}
+          >
+            {PRODUCT_META[t].label}
+            <span className="bg-white/70 rounded-full px-1.5 text-xs font-bold">{result.counts[t]}</span>
+          </span>
+        ))}
+      </div>
+
+      {/* Produits fabulables, groupés par type */}
+      {order.map((t) => {
+        const items = result.products.filter((p) => p.type === t);
+        if (items.length === 0) return null;
+        return (
+          <div key={t}>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">{PRODUCT_META[t].label}</h3>
+            <div className="space-y-2">
+              {items.map((p, idx) => (
+                <div key={idx} className="bg-white rounded-xl border border-gray-200 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-gray-500">
+                      {PRODUCT_META[t].label.replace(/s$/, "")} #{idx + 1}
+                    </span>
+                    <span className="text-[10px] text-gray-400">{p.sections.length} sections</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {p.sections.map((s) => (
+                      <span
+                        key={s.id}
+                        className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-gray-200 bg-gray-50 text-gray-700"
+                      >
+                        {s.nom}
+                        <span className="text-gray-400">{s.largeur}×{s.hauteur}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Pièces restantes */}
+      {result.leftover.length > 0 && (
+        <div className="border-t border-gray-200 pt-4">
+          <h3 className="text-sm font-semibold text-gray-500 mb-2">
+            Pièces restantes ({result.leftover.length}) — insuffisantes pour un produit complet
+          </h3>
+          <div className="flex flex-wrap gap-1.5">
+            {result.leftover.map((s) => (
+              <span
+                key={s.id}
+                className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-gray-200 bg-white text-gray-500"
+              >
+                {natureLabel(s.nature)} {s.largeur}×{s.hauteur}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Page principale ──────────────────────────────────────────
 
 const Stock: React.FC<{ user: User | null }> = ({ user }) => {
   const navigate = useNavigate();
   const { sheets, isLoading, createSheet, updateSheet, deleteSheet } = useStock();
-  const [activeType, setActiveType] = useState<StockType>("feuille");
+  const [view, setView] = useState<"feuilles" | "fabrication">("feuilles");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<StockSheet | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [statutTarget, setStatutTarget] = useState<StockSheet | null>(null);
   const [statutSection, setStatutSection] = useState<StockSection | null>(null);
-
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { feuille: 0, table_verre: 0, table_bois: 0, tableau: 0 };
-    sheets.forEach((s) => (c[s.type] = (c[s.type] || 0) + 1));
-    return c;
-  }, [sheets]);
-
-  const filtered = useMemo(
-    () => sheets.filter((s) => s.type === activeType),
-    [sheets, activeType],
-  );
+  const [subDivTarget, setSubDivTarget] = useState<StockSheet | null>(null);
+  const [subDivSection, setSubDivSection] = useState<StockSection | null>(null);
 
   const openCreate = () => {
     setEditing(null);
@@ -667,10 +924,16 @@ const Stock: React.FC<{ user: User | null }> = ({ user }) => {
     const sheet = statutTarget;
     const section = statutSection;
 
+    if (newStatut === "divise") {
+      setSubDivTarget(sheet);
+      setSubDivSection(section);
+      setStatutTarget(null);
+      setStatutSection(null);
+      return;
+    }
+
     if (section.statut !== newStatut) {
-      const sections = sheet.sections.map((s) =>
-        s.id === section.id ? { ...s, statut: newStatut } : s,
-      );
+      const sections = updateSectionRecursive(sheet.sections, section.id, { statut: newStatut });
       const event: StockHistoryEvent = {
         ts: new Date().toISOString(),
         sectionId: section.id,
@@ -683,12 +946,49 @@ const Stock: React.FC<{ user: User | null }> = ({ user }) => {
       try {
         await updateSheet(sheet.id, { sections, section_history }, sheet.updated_at);
       } catch {
-        /* conflit déjà géré par le hook (toast + refetch) */
+        /* conflit géré par le hook */
       }
     }
-
     setStatutTarget(null);
     setStatutSection(null);
+  };
+
+  const handleConfirmSubDivision = async (subSections: StockSection[]) => {
+    if (!subDivTarget || !subDivSection) return;
+    const sheet = subDivTarget;
+    const section = subDivSection;
+    const sections = updateSectionRecursive(sheet.sections, section.id, {
+      statut: "divise",
+      sub_sections: subSections,
+    });
+    const event: StockHistoryEvent = {
+      ts: new Date().toISOString(),
+      sectionId: section.id,
+      sectionNom: section.nom || "Sans nom",
+      from: section.statut,
+      to: "divise",
+      byName: user?.name || "—",
+    };
+    const section_history = [...(sheet.section_history || []), event];
+    try {
+      await updateSheet(sheet.id, { sections, section_history }, sheet.updated_at);
+    } catch {
+      /* conflit géré par le hook */
+    }
+    setSubDivTarget(null);
+    setSubDivSection(null);
+  };
+
+  const handleUnDivide = async (sheet: StockSheet, section: StockSection) => {
+    const sections = updateSectionRecursive(sheet.sections, section.id, {
+      statut: "decoupe",
+      sub_sections: undefined,
+    });
+    try {
+      await updateSheet(sheet.id, { sections }, sheet.updated_at);
+    } catch {
+      /* conflit géré par le hook */
+    }
   };
 
   const confirmDelete = async () => {
@@ -723,67 +1023,82 @@ const Stock: React.FC<{ user: User | null }> = ({ user }) => {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="ml-auto inline-flex items-center gap-2 rounded-xl bg-gray-900 text-white px-4 py-2.5 text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Ajouter
-          </button>
-        </div>
-
-        <StatutLegend />
-
-        {/* Onglets */}
-        <div className="flex flex-nowrap gap-2 mb-5 overflow-x-auto pb-2 -mb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          {STOCK_TYPES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveType(t.id)}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-all border whitespace-nowrap ${
-                activeType === t.id
-                  ? "bg-gray-900 text-white border-gray-900 shadow-sm"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
-              }`}
-            >
-              {t.label}
-              <span className={`text-[11px] rounded-full px-1.5 ${activeType === t.id ? "bg-white/20" : "bg-gray-100 text-gray-500"}`}>
-                {counts[t.id] || 0}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* Contenu */}
-        {isLoading ? (
-          <p className="text-sm text-gray-400 text-center py-12">Chargement…</p>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-12 border border-dashed border-gray-300 rounded-2xl bg-white/50">
-            <Layers className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500">
-              Aucun élément dans « {STOCK_TYPES.find((t) => t.id === activeType)?.label} »
-            </p>
+          {view === "feuilles" && (
             <button
               type="button"
               onClick={openCreate}
-              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-sky-300 text-sky-600 px-4 py-2 text-sm font-medium hover:bg-sky-50"
+              className="ml-auto inline-flex items-center gap-2 rounded-xl bg-gray-900 text-white px-4 py-2.5 text-sm font-medium shadow-sm hover:bg-gray-800 transition-colors"
             >
               <Plus className="h-4 w-4" /> Ajouter
             </button>
-          </div>
+          )}
+        </div>
+
+        {/* Onglets */}
+        <div className="flex gap-2 mb-5">
+          <button
+            type="button"
+            onClick={() => setView("feuilles")}
+            className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium border transition-all ${
+              view === "feuilles"
+                ? "bg-gray-900 text-white border-gray-900 shadow-sm"
+                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            <Layers className="h-4 w-4" /> Feuilles
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("fabrication")}
+            className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium border transition-all ${
+              view === "fabrication"
+                ? "bg-gray-900 text-white border-gray-900 shadow-sm"
+                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            <Hammer className="h-4 w-4" /> Fabrication
+          </button>
+        </div>
+
+        {view === "feuilles" ? (
+          <>
+            <StatutLegend />
+
+            {isLoading ? (
+              <p className="text-sm text-gray-400 text-center py-12">Chargement…</p>
+            ) : sheets.length === 0 ? (
+              <div className="text-center py-12 border border-dashed border-gray-300 rounded-2xl bg-white/50">
+                <Layers className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">Aucune feuille en stock.</p>
+                <button
+                  type="button"
+                  onClick={openCreate}
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl border border-sky-300 text-sky-600 px-4 py-2 text-sm font-medium hover:bg-sky-50"
+                >
+                  <Plus className="h-4 w-4" /> Ajouter
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {sheets.map((sheet) => (
+                  <SheetCard
+                    key={sheet.id}
+                    sheet={sheet}
+                    onSelectStatut={(section) => openStatutPicker(sheet, section)}
+                    onDivide={(section) => {
+                      setSubDivTarget(sheet);
+                      setSubDivSection(section);
+                    }}
+                    onUnDivide={(section) => handleUnDivide(sheet, section)}
+                    onDelete={() => setDeleteId(sheet.id)}
+                    onEdit={() => openEdit(sheet)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filtered.map((sheet) => (
-              <SheetCard
-                key={sheet.id}
-                sheet={sheet}
-                onSelectStatut={(section) => openStatutPicker(sheet, section)}
-                onDelete={() => setDeleteId(sheet.id)}
-                onEdit={() => openEdit(sheet)}
-              />
-            ))}
-          </div>
+          <FabricationView sheets={sheets} />
         )}
       </div>
 
@@ -795,6 +1110,18 @@ const Stock: React.FC<{ user: User | null }> = ({ user }) => {
           onClose={() => {
             setStatutTarget(null);
             setStatutSection(null);
+          }}
+        />
+      )}
+
+      {/* Modale subdivision */}
+      {subDivTarget && subDivSection && (
+        <SubDivisionModal
+          section={subDivSection}
+          onConfirm={handleConfirmSubDivision}
+          onClose={() => {
+            setSubDivTarget(null);
+            setSubDivSection(null);
           }}
         />
       )}
