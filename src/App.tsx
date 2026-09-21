@@ -27,6 +27,7 @@ import InfinityMirror from "./pages/InfinityMirror";
 import ConfigurateurPage from "./pages/ConfigurateurPage";
 import CdcBuilder from "./pages/CdcBuilder";
 import FactureBuilder from "./pages/FactureBuilder";
+import Stock from "./pages/Stock";
 import NotFound from "./pages/NotFound";
 import InstallBanner from "./components/pwa/InstallBanner";
 import UpdateNotification from "./components/pwa/UpdateNotification";
@@ -359,6 +360,16 @@ const AppContent = () => {
               element={
                 <RequireAuth persistentSessionId={persistentSessionId}>
                   <MaterialCatalog />
+                </RequireAuth>
+              }
+            />
+
+            {/* Stock — gestion logistique des matériaux de découpe */}
+            <Route
+              path="/stock"
+              element={
+                <RequireAuth persistentSessionId={persistentSessionId}>
+                  <Stock />
                 </RequireAuth>
               }
             />

@@ -20,6 +20,7 @@ import {
   Settings,
   Hammer,
   Receipt,
+  Layers,
 } from "lucide-react";
 import { useHomeCounters, type HomeCounters } from "@/hooks/useHomeCounters";
 import { usePageVisit } from "@/hooks/usePageVisit";
@@ -143,15 +144,22 @@ const cardDefs: Record<string, HomeCard> = {
     path: "/factures",
     color: "bg-orange-100 text-orange-700",
   },
+  stock: {
+    id: "stock",
+    title: "Stock",
+    icon: <Layers className="h-7 w-7" />,
+    path: "/stock",
+    color: "bg-sky-100 text-sky-700",
+  },
 };
 
 const roleCards: Record<string, string[]> = {
-  directeur: ["finances", "projet", "monBara", "produit", "materiaux", "procedure", "agents", "cdcBuilder", "factures"],
-  directrice_adjointe: ["finances", "projet", "monBara", "produit", "materiaux", "cdcBuilder", "factures"],
+  directeur: ["finances", "projet", "monBara", "produit", "materiaux", "stock", "procedure", "agents", "cdcBuilder", "factures"],
+  directrice_adjointe: ["finances", "projet", "monBara", "produit", "materiaux", "stock", "cdcBuilder", "factures"],
   commerciale: ["projet", "demande", "monBara", "produit", "factures"],
-  chef_technique: ["demande", "monBara", "produit", "cdcBuilder"],
+  chef_technique: ["demande", "monBara", "produit", "stock", "cdcBuilder"],
   technicien_adjoint: ["demande", "monBara", "cdcBuilder"],
-  superviseur_logistique: ["demande", "monBara", "materiaux"],
+  superviseur_logistique: ["demande", "monBara", "materiaux", "stock"],
 };
 
 /**
@@ -186,7 +194,7 @@ const homeSections: {
     title: "Catalogue",
     icon: <Package className="h-5 w-5" />,
     color: "from-rose-500 to-rose-600",
-    cardIds: ["produit", "materiaux"],
+    cardIds: ["produit", "materiaux", "stock"],
   },
   {
     id: "atelier",
